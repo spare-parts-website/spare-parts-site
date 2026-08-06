@@ -32,6 +32,8 @@ model User {
   receivedMessages ChatMessage[] @relation("ChatMessageReceiver")
   sentProductMessages ProductMessage[] @relation("ProductMessageSender")
   receivedProductMessages ProductMessage[] @relation("ProductMessageReceiver")
+  reportsGiven Report[] @relation("ReportReporter")
+  reportsReviewed Report[] @relation("ReportReviewer")
 }
 
 model Store {
@@ -229,4 +231,23 @@ model ProductMessage {
   @@index([partId])
   @@index([senderId, receiverId])
   @@index([receiverId, read])
+}
+
+model Report {
+  id           String   @id @default(cuid())
+  reporterId   String
+  reporter     User     @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  targetType   String   // part, store, user
+  targetId     String
+  reason       String
+  details      String?
+  status       String   @default("OPEN") // OPEN, REVIEWED, DISMISSED, BLOCKED
+  reviewedById String?
+  reviewedBy   User?    @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([reporterId, targetType, targetId, status])
+  @@index([status, createdAt])
+  @@index([targetType, targetId])
 }

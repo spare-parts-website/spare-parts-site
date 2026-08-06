@@ -27,6 +27,7 @@ import {
   Mail,
   Phone,
   Calendar,
+  Flag,
 } from 'lucide-react'
 import { StatusBadge, formatPrice, Stars } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
@@ -44,27 +45,29 @@ const ROLE_LABELS: Record<string, string> = {
   SHOP_OWNER: 'صاحب محل',
 }
 
-export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' }) {
+export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' }) {
   const { user } = useAppStore()
   const { toast } = useToast()
-  const [tab, setTab] = useState<'users' | 'parts' | 'orders' | 'reviews' | 'stores'>(initialTab || 'users')
+  const [tab, setTab] = useState<'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports'>(initialTab || 'users')
   const [users, setUsers] = useState<any[]>([])
   const [parts, setParts] = useState<any[]>([])
   const [stores, setStores] = useState<any[]>([])
   const [orders, setOrders] = useState<any[]>([])
   const [productReviews, setProductReviews] = useState<any[]>([])
   const [storeReviews, setStoreReviews] = useState<any[]>([])
+  const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
 
   const loadAll = async () => {
     setLoading(true)
-    const [u, p, s, o, r] = await Promise.all([
+    const [u, p, s, o, r, b] = await Promise.all([
       fetch('/api/admin/users', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/admin/parts', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/admin/stores', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/orders?scope=admin', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/admin/reviews', { cache: 'no-store' }).then((r) => r.json()),
+      fetch('/api/reports', { cache: 'no-store' }).then((r) => r.json()),
     ])
     setUsers(u.users || [])
     setParts(p.parts || [])
@@ -72,6 +75,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
     setOrders(o.orders || [])
     setProductReviews(r.productReviews || [])
     setStoreReviews(r.storeReviews || [])
+    setReports(b.reports || [])
     setLoading(false)
   }
 
@@ -186,6 +190,26 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
     }
   }
 
+  const handleReportDecision = async (id: string, status: 'REVIEWED' | 'DISMISSED' | 'BLOCKED') => {
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'تعذر تحديث البلاغ', description: data.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'تم تحديث البلاغ' })
+      loadAll()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   if (!user || user.role !== 'ADMIN') {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
@@ -236,7 +260,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-5">
+        <TabsList className="grid w-full max-w-3xl grid-cols-3 sm:grid-cols-6">
           <TabsTrigger value="users" className="gap-1 text-xs sm:text-sm">
             <Users className="size-4" />
             <span className="hidden sm:inline">المستخدمون</span>
@@ -256,6 +280,10 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           <TabsTrigger value="reviews" className="gap-1 text-xs sm:text-sm">
             <Star className="size-4" />
             <span className="hidden sm:inline">التقييمات</span>
+          </TabsTrigger>
+          <TabsTrigger value="reports" className="gap-1 text-xs sm:text-sm">
+            <Flag className="size-4" />
+            <span className="hidden sm:inline">البلاغات</span>
           </TabsTrigger>
         </TabsList>
 
@@ -328,6 +356,45 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                 </div>
               </CardContent>
             </Card>
+          )}
+        </TabsContent>
+
+        {/* Reports */}
+        <TabsContent value="reports" className="space-y-4">
+          <h2 className="text-lg font-semibold">بلاغات المستخدمين ({reports.filter((r) => r.status === 'OPEN').length} مفتوحة)</h2>
+          {loading ? (
+            <Skeleton className="h-64 rounded-xl" />
+          ) : reports.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد بلاغات</CardContent></Card>
+          ) : (
+            <div className="space-y-3">
+              {reports.map((report) => (
+                <Card key={report.id} className={report.status !== 'OPEN' ? 'opacity-70' : ''}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant={report.status === 'OPEN' ? 'destructive' : 'outline'}>{report.status === 'OPEN' ? 'مفتوح' : report.status}</Badge>
+                          <Badge variant="secondary">{report.targetType === 'part' ? 'قطعة' : report.targetType === 'store' ? 'متجر' : 'مستخدم'}</Badge>
+                          <span className="font-semibold">{report.target?.name || report.targetId}</span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">من: {report.reporter?.name} ({report.reporter?.email}) • {new Date(report.createdAt).toLocaleString('ar-SA')}</p>
+                      </div>
+                      <Flag className="size-5 text-amber-500 shrink-0" />
+                    </div>
+                    <p className="font-medium">{report.reason}</p>
+                    {report.details && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{report.details}</p>}
+                    {report.status === 'OPEN' && (
+                      <div className="flex flex-wrap gap-2 pt-2 border-t">
+                        <Button size="sm" variant="outline" onClick={() => handleReportDecision(report.id, 'DISMISSED')} disabled={submitting}>رفض البلاغ</Button>
+                        <Button size="sm" onClick={() => handleReportDecision(report.id, 'REVIEWED')} disabled={submitting}>تمت المراجعة</Button>
+                        {report.targetType === 'part' && <Button size="sm" variant="destructive" onClick={() => handleReportDecision(report.id, 'BLOCKED')} disabled={submitting}>حظر القطعة</Button>}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           )}
         </TabsContent>
 

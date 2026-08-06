@@ -19,6 +19,7 @@ import {
   Car,
   Heart,
   MessageSquare,
+  Flag,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
 import {
@@ -71,6 +72,7 @@ export function PartView({ partId }: { partId: string }) {
   const [orderOpen, setOrderOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
   const [orderForm, setOrderForm] = useState({
     quantity: 1,
     deliveryAddress: '',
@@ -78,6 +80,7 @@ export function PartView({ partId }: { partId: string }) {
     paymentMethod: 'cod',
   })
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' })
+  const [reportForm, setReportForm] = useState({ reason: '', details: '' })
   const [submitting, setSubmitting] = useState(false)
 
   const load = () => {
@@ -163,6 +166,32 @@ export function PartView({ partId }: { partId: string }) {
       return
     }
     setView({ name: 'chat', partId })
+  }
+
+  const handleReport = async () => {
+    if (!user) {
+      setPendingView({ name: 'part', partId })
+      setView({ name: 'login' })
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/reports', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ targetType: 'part', targetId: partId, reason: reportForm.reason, details: reportForm.details }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'تعذر إرسال البلاغ', description: data.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: 'تم إرسال البلاغ', description: 'سيراجع المدير البلاغ قريباً' })
+      setReportOpen(false)
+      setReportForm({ reason: '', details: '' })
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (loading) {
@@ -366,6 +395,35 @@ export function PartView({ partId }: { partId: string }) {
               <MessageSquare className="size-4 ml-2" />
               اسأل البائع
             </Button>
+
+            <Dialog open={reportOpen} onOpenChange={setReportOpen}>
+              <DialogTrigger asChild>
+                <Button size="lg" variant="ghost">
+                  <Flag className="size-4 ml-2" />
+                  إبلاغ
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>الإبلاغ عن هذه القطعة</DialogTitle>
+                  <DialogDescription>أخبرنا إذا كان الإعلان مخالفاً أو مضللاً.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-2">
+                  <div className="space-y-2">
+                    <Label>سبب البلاغ</Label>
+                    <Input value={reportForm.reason} onChange={(e) => setReportForm({ ...reportForm, reason: e.target.value })} placeholder="مثلاً: سعر مضلل أو قطعة غير مطابقة" maxLength={100} />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>تفاصيل إضافية (اختياري)</Label>
+                    <Textarea value={reportForm.details} onChange={(e) => setReportForm({ ...reportForm, details: e.target.value })} placeholder="اشرح المشكلة باختصار" maxLength={1000} rows={4} />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setReportOpen(false)}>إلغاء</Button>
+                  <Button onClick={handleReport} disabled={submitting || reportForm.reason.trim().length < 2}>{submitting ? 'جاري الإرسال...' : 'إرسال البلاغ'}</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {/* Wishlist button */}
             <Button
