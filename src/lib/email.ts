@@ -8,6 +8,10 @@ interface EmailParams {
   text: string
 }
 
+function escapeHtml(value: string) {
+  return value.replace(/[&<>'\"]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', "'": '&#39;', '"': '&quot;' })[character] || character)
+}
+
 export async function sendEmail({ to, subject, html, text }: EmailParams): Promise<boolean> {
   try {
     const apiKey = process.env.RESEND_API_KEY
@@ -34,6 +38,17 @@ export async function sendEmail({ to, subject, html, text }: EmailParams): Promi
 
 // Email templates
 export const emailTemplates = {
+  chatMessage: (recipientName: string, senderName: string, context: string, message: string, hasImage: boolean) => {
+    const safeRecipient = escapeHtml(recipientName)
+    const safeSender = escapeHtml(senderName)
+    const safeContext = escapeHtml(context)
+    const safeMessage = escapeHtml(message)
+    return {
+      subject: `رسالة جديدة من ${senderName} - قطع غيار`,
+      text: `مرحباً ${recipientName}،\n\nأرسل ${senderName} رسالة بخصوص ${context}.\n\n${message || 'أرسل صورة مرفقة.'}${hasImage ? '\n\nتوجد صورة مرفقة داخل المحادثة.' : ''}\n\nافتح المنصة للرد.`,
+      html: `<div dir="rtl" style="font-family:Arial,sans-serif;max-width:600px;margin:auto;padding:20px"><h2 style="color:#0d9488">رسالة جديدة</h2><p>مرحباً ${safeRecipient}،</p><p>أرسل <strong>${safeSender}</strong> رسالة بخصوص <strong>${safeContext}</strong>.</p>${safeMessage ? `<p style="white-space:pre-wrap">${safeMessage}</p>` : ''}${hasImage ? '<p>توجد صورة مرفقة داخل المحادثة.</p>' : ''}<p>افتح المنصة للرد على الرسالة.</p></div>`,
+    }
+  },
   orderApproved: (buyerName: string, partName: string, storeName: string, orderId: string) => ({
     subject: 'تمت الموافقة على طلبك ✅',
     text: `مرحباً ${buyerName}،

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
+import { sendEmail, emailTemplates } from '@/lib/email'
 import { rateLimit } from '@/lib/rate-limit'
 
 function unauthorized() {
@@ -231,11 +232,17 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error('Notify error:', e)
       }
+      try {
+        const recipient = await db.user.findUnique({ where: { id: target.otherUserId }, select: { name: true, email: true } })
+        if (recipient) await sendEmail({ to: recipient.email, ...emailTemplates.chatMessage(recipient.name, session.name, target.part.name, message, Boolean(imageUrl)) })
+      } catch (e) {
+        console.error('Chat email error:', e)
+      }
       return NextResponse.json({ message: msg })
     }
 
     if (!orderId) return NextResponse.json({ error: 'orderId أو partId مطلوب' }, { status: 400 })
-    const order = await db.order.findUnique({ where: { id: orderId }, include: { store: true } })
+    const order = await db.order.findUnique({ where: { id: orderId }, include: { store: true, part: true } })
     if (!order) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
 
     const isBuyer = order.buyerId === session.id
@@ -258,6 +265,12 @@ export async function POST(req: NextRequest) {
       })
     } catch (e) {
       console.error('Notify error:', e)
+    }
+    try {
+      const recipient = await db.user.findUnique({ where: { id: receiverId }, select: { name: true, email: true } })
+      if (recipient) await sendEmail({ to: recipient.email, ...emailTemplates.chatMessage(recipient.name, session.name, order.part.name, message, Boolean(imageUrl)) })
+    } catch (e) {
+      console.error('Chat email error:', e)
     }
 
     return NextResponse.json({ message: msg })
