@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3000 2>&1 | tee dev.log",
-    "build": "next build && node scripts/copy-standalone.cjs",
+    "build": "next build",
     "start": "node scripts/start-production.cjs",
     "lint": "eslint .",
     "db:push": "prisma db push --accept-data-loss",
