@@ -8,7 +8,6 @@ export interface AuthUser {
   email: string
   role: UserRole
   phone?: string | null
-  emailNotifications: boolean
 }
 
 export type View =

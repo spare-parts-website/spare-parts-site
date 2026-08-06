@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, requireAuth } from '@/lib/auth'
-import { sendEmail, emailTemplates } from '@/lib/email'
 import { createNotification } from '@/lib/notifications'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
@@ -149,14 +148,6 @@ export async function POST(req: NextRequest) {
         link: 'shop-dashboard',
       })
 
-      // Send email to shop owner
-      const owner = await db.user.findUnique({ where: { id: part.store.ownerId }, select: { email: true, name: true } })
-      if (owner) {
-        await sendEmail({
-          to: owner.email,
-          ...emailTemplates.newOrder(owner.name, session.name, part.name, qty, part.price * qty, order.id),
-        })
-      }
     } catch (e) {
       console.error('Notify error:', e)
     }
@@ -293,25 +284,15 @@ export async function PUT(req: NextRequest) {
 
     if (action === 'approve') {
       await notify(order.buyerId, 'تمت الموافقة على طلبك', `وافق ${order.store.name} على طلب "${order.part.name}". يمكنك الدفع الآن.`, 'ORDER_STATUS', 'orders')
-      // Email buyer
-      const buyer = await db.user.findUnique({ where: { id: order.buyerId }, select: { email: true, name: true } })
-      if (buyer) await sendEmail({ to: buyer.email, ...emailTemplates.orderApproved(buyer.name, order.part.name, order.store.name, order.id) })
     } else if (action === 'reject') {
       await notify(order.buyerId, 'تم رفض طلبك', `اعتذر ${order.store.name} عن تنفيذ طلب "${order.part.name}".`, 'ORDER_STATUS', 'orders')
     } else if (action === 'pay') {
       const storeOwner = await db.store.findUnique({ where: { id: order.storeId }, select: { ownerId: true } })
       if (storeOwner) {
         await notify(storeOwner.ownerId, 'تم استلام دفعة', `دفع العميل ${order.totalPrice} ج.م لطلب "${order.part.name}".`, 'PAYMENT', 'shop-dashboard')
-        // Email store owner
-        const owner = await db.user.findUnique({ where: { id: storeOwner.ownerId }, select: { email: true, name: true } })
-        const buyer = await db.user.findUnique({ where: { id: order.buyerId }, select: { name: true } })
-        if (owner && buyer) await sendEmail({ to: owner.email, ...emailTemplates.paymentReceived(owner.name, buyer.name, order.part.name, order.totalPrice, order.id) })
       }
     } else if (action === 'deliver') {
       await notify(order.buyerId, 'تم توصيل طلبك', `تم توصيل "${order.part.name}". يمكنك تقييم المنتج أو طلب الاسترجاع.`, 'ORDER_STATUS', 'orders')
-      // Email buyer
-      const buyer = await db.user.findUnique({ where: { id: order.buyerId }, select: { email: true, name: true } })
-      if (buyer) await sendEmail({ to: buyer.email, ...emailTemplates.orderDelivered(buyer.name, order.part.name, order.id) })
     } else if (action === 'return') {
       const storeOwner = await db.store.findUnique({ where: { id: order.storeId }, select: { ownerId: true } })
       if (storeOwner) {

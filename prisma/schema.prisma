@@ -18,7 +18,6 @@ model User {
   password  String
   role      String   @default("BUYER") // BUYER, ADMIN, SHOP_OWNER
   phone     String?
-  emailNotifications Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

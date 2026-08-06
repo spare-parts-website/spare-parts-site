@@ -38,7 +38,6 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
       phone: user.phone,
-      emailNotifications: user.emailNotifications,
     })
 
     return NextResponse.json({
@@ -47,7 +46,6 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role,
       phone: user.phone,
-      emailNotifications: user.emailNotifications,
     })
   } catch (e) {
     console.error(e)

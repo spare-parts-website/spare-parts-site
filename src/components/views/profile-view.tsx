@@ -20,7 +20,7 @@ const ROLE_LABELS: Record<string, string> = {
 export function ProfileView() {
   const { user, setUser, setView } = useAppStore()
   const { toast } = useToast()
-  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', currentPassword: '', newPassword: '', emailNotifications: user?.emailNotifications || false })
+  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', currentPassword: '', newPassword: '' })
   const [saving, setSaving] = useState(false)
 
   if (!user) {
@@ -42,7 +42,7 @@ export function ProfileView() {
         return
       }
       setUser(data.user)
-      setForm((current) => ({ ...current, currentPassword: '', newPassword: '', emailNotifications: data.user.emailNotifications }))
+      setForm((current) => ({ ...current, currentPassword: '', newPassword: '' }))
       toast({ title: 'تم تحديث الحساب', description: 'تم حفظ معلوماتك بنجاح' })
     } finally {
       setSaving(false)
@@ -98,10 +98,6 @@ export function ProfileView() {
             <div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div>
           </div>
           <Button onClick={save} disabled={saving}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button>
-          <label className="flex items-start gap-2 rounded-lg border p-3 text-sm cursor-pointer">
-            <input type="checkbox" checked={form.emailNotifications} onChange={(e) => setForm({ ...form, emailNotifications: e.target.checked })} className="mt-1 size-4 accent-primary" />
-            <span><span className="font-medium block">إرسال الإشعارات إلى البريد الإلكتروني</span><span className="text-xs text-muted-foreground">فعّل هذا الخيار لاستلام تحديثات الطلبات والرسائل عبر البريد.</span></span>
-          </label>
           <p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> لا نطلب كلمة المرور الحالية إلا عند تغيير كلمة المرور.</p>
         </CardContent>
       </Card>

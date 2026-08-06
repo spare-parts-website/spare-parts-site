@@ -15,7 +15,6 @@ export async function POST(req: NextRequest) {
     const password = typeof body.password === 'string' ? body.password : ''
     const role = body.role
     const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
-    const emailNotifications = body.emailNotifications === true
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'جميع الحقول مطلوبة' }, { status: 400 })
@@ -51,7 +50,6 @@ export async function POST(req: NextRequest) {
           password: hashedPassword,
           role,
           phone: phone || null,
-          emailNotifications,
         },
       })
 
@@ -75,7 +73,6 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
       phone: user.phone,
-      emailNotifications: user.emailNotifications,
     })
 
     return NextResponse.json({
@@ -84,7 +81,6 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role,
       phone: user.phone,
-      emailNotifications: user.emailNotifications,
     })
   } catch (e) {
     console.error(e)
