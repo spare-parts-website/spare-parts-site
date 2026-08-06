@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { deleteUploadedFiles } from '@/lib/storage'
 
 export async function GET() {
   try {
@@ -38,6 +39,8 @@ export async function PUT(req: NextRequest) {
         image: image !== undefined ? (image || null) : undefined,
       },
     })
+
+    if (image !== undefined && image !== store.image) await deleteUploadedFiles([store.image])
 
     return NextResponse.json({ store: updated })
   } catch (e: any) {

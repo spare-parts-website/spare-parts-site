@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { deleteStoreWithDependencies } from '@/lib/admin-deletion'
+import { deleteUploadedFiles } from '@/lib/storage'
 
 export async function GET() {
   try {
@@ -38,7 +39,7 @@ export async function DELETE(req: NextRequest) {
     const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'معرف المتجر مطلوب' }, { status: 400 })
 
-    const store = await db.store.findUnique({ where: { id }, select: { id: true, ownerId: true } })
+    const store = await db.store.findUnique({ where: { id }, select: { id: true, ownerId: true, image: true, parts: { select: { image: true, images: { select: { url: true } } } } } })
     if (!store) return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
     if (store.ownerId === session.id) {
       return NextResponse.json({ error: 'لا يمكنك حذف متجرك من حساب المدير الحالي' }, { status: 400 })
@@ -48,6 +49,10 @@ export async function DELETE(req: NextRequest) {
       await deleteStoreWithDependencies(tx, id)
       await tx.user.updateMany({ where: { id: store.ownerId, role: 'SHOP_OWNER' }, data: { role: 'BUYER' } })
     })
+    await deleteUploadedFiles([
+      store.image,
+      ...store.parts.flatMap((part) => [part.image, ...part.images.map((image) => image.url)]),
+    ])
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {

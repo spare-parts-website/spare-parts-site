@@ -4,6 +4,7 @@ import { getSession, requireRole } from '@/lib/auth'
 import { isBlockedStoreName } from '@/lib/store-moderation'
 import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import { deleteUploadedFiles } from '@/lib/storage'
 
 export async function GET(req: NextRequest) {
   try {
@@ -183,6 +184,8 @@ export async function PUT(req: NextRequest) {
       },
     })
 
+    if (image !== undefined && image !== part.image) await deleteUploadedFiles([part.image])
+
     return NextResponse.json({ part: updated })
   } catch (e) {
     console.error(e)
@@ -214,7 +217,9 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
 
+    const media = await db.part.findUnique({ where: { id }, select: { image: true, images: { select: { url: true } } } })
     await db.$transaction((tx) => deletePartWithDependencies(tx, id))
+    await deleteUploadedFiles([media?.image, ...(media?.images || []).map((image) => image.url)])
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {

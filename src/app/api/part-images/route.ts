@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import { deleteUploadedFiles } from '@/lib/storage'
 
 // POST - add image to part
 export async function POST(req: NextRequest) {
@@ -51,6 +52,7 @@ export async function DELETE(req: NextRequest) {
     if (!isOwner && !isAdmin) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
 
     await db.partImage.delete({ where: { id: imageId } })
+    await deleteUploadedFiles([image.url])
     return NextResponse.json({ ok: true })
   } catch (e) {
     console.error(e)
