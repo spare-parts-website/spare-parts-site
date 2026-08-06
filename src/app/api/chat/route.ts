@@ -7,6 +7,23 @@ function unauthorized() {
   return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
 }
 
+function databaseError(error: any) {
+  const code = error?.code
+  const message = String(error?.message || '')
+  console.error('Chat database error', { code, message })
+
+  if (code === 'P2021' || message.includes('ProductMessage')) {
+    return NextResponse.json(
+      { error: 'ميزة المحادثة غير جاهزة في قاعدة البيانات. شغّل ملف prisma/product-messages.sql في مشروع Supabase الصحيح ثم أعد النشر.' },
+      { status: 503 },
+    )
+  }
+  if (code === 'P2003') {
+    return NextResponse.json({ error: 'بيانات المستخدم أو القطعة غير متوافقة. أعد تحميل الصفحة وسجّل الدخول من جديد.' }, { status: 409 })
+  }
+  return NextResponse.json({ error: 'حدث خطأ في قاعدة البيانات. راجع سجلات Vercel.' }, { status: 500 })
+}
+
 async function getProductParticipant(partId: string, sessionId: string, participantId: string | null) {
   const part = await db.part.findUnique({ where: { id: partId }, include: { store: true } })
   if (!part || part.blocked) return { error: NextResponse.json({ error: 'القطعة غير موجودة' }, { status: 404 }) }
@@ -114,8 +131,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ messages })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
-    console.error(e)
-    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+    return databaseError(e)
   }
 }
 
@@ -188,7 +204,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: msg })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
-    console.error(e)
-    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+    return databaseError(e)
   }
 }
