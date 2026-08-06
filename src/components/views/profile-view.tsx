@@ -70,7 +70,7 @@ export function ProfileView() {
           <CardTitle>إجراءات سريعة</CardTitle>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
-          {user.role === 'BUYER' && (
+          {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
             <Button variant="outline" onClick={() => setView({ name: 'orders' })} className="justify-start h-auto p-4">
               <ShoppingBag className="size-5 ml-2" />
               <div className="text-right">
