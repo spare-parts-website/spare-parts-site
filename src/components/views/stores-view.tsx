@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Store as StoreIcon, Package, Search, MapPin, Phone } from 'lucide-react'
+import { Store as StoreIcon, Package, Search, MapPin, Phone, ShieldCheck } from 'lucide-react'
 import { Stars } from '@/components/common'
 
 interface Store {
@@ -19,6 +19,8 @@ interface Store {
   _count: { parts: number }
   avgRating: number
   reviewCount: number
+  verified: boolean
+  completedOrderCount: number
 }
 
 export function StoresView() {
@@ -105,9 +107,10 @@ export function StoresView() {
                     <StoreIcon className="size-7" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">
-                      {store.name}
-                    </CardTitle>
+                    <div className="flex items-center gap-1.5">
+                      <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
+                      {store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر موثق" />}
+                    </div>
                     <div className="flex items-center gap-2 mt-1">
                       <Stars value={store.avgRating} />
                       <span className="text-xs text-muted-foreground">
@@ -141,6 +144,7 @@ export function StoresView() {
                   <Package className="size-3 ml-1" />
                   {store._count.parts} قطعة غيار
                 </Badge>
+                <p className="text-xs text-muted-foreground">{store.completedOrderCount} طلباً مكتملًا</p>
               </CardContent>
             </Card>
           ))}

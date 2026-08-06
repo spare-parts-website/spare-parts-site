@@ -27,7 +27,8 @@ export async function GET(req: NextRequest) {
     if (!store || isBlockedStoreName(store.name)) {
       return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
     }
-    return NextResponse.json({ store })
+    const completedOrderCount = await db.order.count({ where: { storeId: store.id, status: 'DELIVERED' } })
+    return NextResponse.json({ store: { ...store, completedOrderCount } })
   }
 
   const where = search
@@ -57,14 +58,17 @@ export async function GET(req: NextRequest) {
 
   const storesWithRating = await Promise.all(
     visibleStores.map(async (s) => {
-      const reviews = await db.storeReview.findMany({
+      const [reviews, completedOrderCount] = await Promise.all([
+        db.storeReview.findMany({
         where: { storeId: s.id, blocked: false },
         select: { rating: true },
-      })
+        }),
+        db.order.count({ where: { storeId: s.id, status: 'DELIVERED' } }),
+      ])
       const avgRating = reviews.length
         ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
         : 0
-      return { ...s, avgRating, reviewCount: reviews.length }
+      return { ...s, avgRating, reviewCount: reviews.length, completedOrderCount }
     })
   )
 

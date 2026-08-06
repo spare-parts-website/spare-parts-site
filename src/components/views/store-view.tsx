@@ -13,6 +13,7 @@ import {
   Phone,
   ArrowRight,
   Star,
+  ShieldCheck,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
 import { Textarea } from '@/components/ui/textarea'
@@ -38,6 +39,8 @@ interface Store {
   owner: { name: string; phone?: string | null }
   parts: any[]
   reviews: any[]
+  verified: boolean
+  completedOrderCount: number
 }
 
 export function StoreView({ storeId }: { storeId: string }) {
@@ -141,7 +144,10 @@ export function StoreView({ storeId }: { storeId: string }) {
             <div className="flex-1 space-y-2">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
-                  <h1 className="text-2xl md:text-3xl font-bold">{store.name}</h1>
+                  <div className="flex items-center gap-2">
+                    <h1 className="text-2xl md:text-3xl font-bold">{store.name}</h1>
+                    {store.verified && <Badge className="bg-emerald-600 hover:bg-emerald-600"><ShieldCheck className="size-3.5 ml-1" />متجر موثق</Badge>}
+                  </div>
                   <div className="flex items-center gap-2 mt-1">
                     <Stars value={avgRating} size={16} />
                     <span className="text-sm text-muted-foreground">
@@ -229,6 +235,10 @@ export function StoreView({ storeId }: { storeId: string }) {
                 <div className="flex items-center gap-1.5">
                   <Package className="size-4 text-primary" />
                   <span>{store.parts.length} قطعة غيار</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <ShieldCheck className="size-4 text-primary" />
+                  <span>{store.completedOrderCount} طلباً مكتملًا</span>
                 </div>
               </div>
             </div>

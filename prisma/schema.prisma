@@ -43,6 +43,7 @@ model Store {
   address     String?
   phone       String?
   image       String?
+  verified    Boolean  @default(false)
   ownerId     String   @unique
   owner       User     @relation(fields: [ownerId], references: [id])
   parts       Part[]

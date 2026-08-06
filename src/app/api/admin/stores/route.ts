@@ -66,3 +66,18 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'تعذر حذف المتجر' }, { status: 500 })
   }
 }
+
+export async function PUT(req: NextRequest) {
+  try {
+    await requireRole('ADMIN')
+    const body = await req.json()
+    const id = typeof body.id === 'string' ? body.id : ''
+    if (!id || typeof body.verified !== 'boolean') return NextResponse.json({ error: 'بيانات التحقق غير صحيحة' }, { status: 400 })
+    const store = await db.store.update({ where: { id }, data: { verified: body.verified } })
+    return NextResponse.json({ store })
+  } catch (e: any) {
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    console.error(e)
+    return NextResponse.json({ error: 'تعذر تحديث حالة المتجر' }, { status: 500 })
+  }
+}

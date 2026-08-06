@@ -132,6 +132,22 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
     }
   }
 
+  const handleVerifyStore = async (id: string, verified: boolean) => {
+    setSubmitting(true)
+    try {
+      const res = await fetch('/api/admin/stores', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, verified: !verified }) })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'تعذر تحديث المتجر', description: data.error, variant: 'destructive' })
+        return
+      }
+      toast({ title: data.store.verified ? 'تم توثيق المتجر' : 'تم إلغاء التوثيق' })
+      loadAll()
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   const handleTogglePartBlock = async (id: string, blocked: boolean) => {
     setSubmitting(true)
     try {
@@ -413,7 +429,10 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                         <StoreIcon className="size-5" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold line-clamp-1">{s.name}</h3>
+                        <div className="flex items-center gap-1.5">
+                          <h3 className="font-semibold line-clamp-1">{s.name}</h3>
+                          {s.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" />}
+                        </div>
                         <p className="text-xs text-muted-foreground line-clamp-1">
                           {s.address || 'بدون عنوان'}
                         </p>
@@ -435,6 +454,10 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                       <div className="text-xs text-muted-foreground truncate" dir="ltr">
                         {s.owner?.email || 'بدون مالك'}
                       </div>
+                      <Button size="sm" variant="outline" onClick={() => handleVerifyStore(s.id, s.verified)} disabled={submitting} className="shrink-0 gap-1">
+                        <ShieldCheck className="size-3.5" />
+                        {s.verified ? 'إلغاء التوثيق' : 'توثيق'}
+                      </Button>
                       <Button
                         size="sm"
                         variant="destructive"
