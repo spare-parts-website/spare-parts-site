@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
 // POST - add image to part
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+    const limit = rateLimit(`part-images:${session.id}:${requestAddress(req)}`, 40, 10 * 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
 
     const { partId, url } = await req.json()
     if (!partId || !url) return NextResponse.json({ error: 'partId و url مطلوبان' }, { status: 400 })
+    if (typeof url !== 'string' || !/^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/.test(url)) {
+      return NextResponse.json({ error: 'رابط الصورة غير صالح' }, { status: 400 })
+    }
 
     // Verify ownership
     const part = await db.part.findUnique({ where: { id: partId }, include: { store: true } })

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, requireAuth } from '@/lib/auth'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
+    const limit = rateLimit(`reviews:${session.id}:${requestAddress(req)}`, 20, 60 * 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'تقييمات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { type, targetId, rating, comment } = body
 
@@ -14,6 +17,10 @@ export async function POST(req: NextRequest) {
     }
     if (!targetId || !rating || rating < 1 || rating > 5) {
       return NextResponse.json({ error: 'بيانات التقييم غير صحيحة' }, { status: 400 })
+    }
+    if (!Number.isInteger(Number(rating))) return NextResponse.json({ error: 'التقييم يجب أن يكون رقماً صحيحاً' }, { status: 400 })
+    if (comment !== undefined && comment !== null && (typeof comment !== 'string' || comment.trim().length > 1000)) {
+      return NextResponse.json({ error: 'التعليق طويل جداً' }, { status: 400 })
     }
 
     // Check the user has a delivered/completed order on this product or store
@@ -50,11 +57,11 @@ export async function POST(req: NextRequest) {
       if (existing) {
         review = await db.productReview.update({
           where: { id: existing.id },
-          data: { rating, comment: comment || null },
+          data: { rating: Number(rating), comment: typeof comment === 'string' ? comment.trim() || null : null },
         })
       } else {
         review = await db.productReview.create({
-          data: { userId: session.id, partId: targetId, rating, comment: comment || null },
+          data: { userId: session.id, partId: targetId, rating: Number(rating), comment: typeof comment === 'string' ? comment.trim() || null : null },
         })
       }
       return NextResponse.json({ review })
@@ -66,11 +73,11 @@ export async function POST(req: NextRequest) {
       if (existing) {
         review = await db.storeReview.update({
           where: { id: existing.id },
-          data: { rating, comment: comment || null },
+          data: { rating: Number(rating), comment: typeof comment === 'string' ? comment.trim() || null : null },
         })
       } else {
         review = await db.storeReview.create({
-          data: { userId: session.id, storeId: targetId, rating, comment: comment || null },
+          data: { userId: session.id, storeId: targetId, rating: Number(rating), comment: typeof comment === 'string' ? comment.trim() || null : null },
         })
       }
       return NextResponse.json({ review })

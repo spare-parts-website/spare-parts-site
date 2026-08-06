@@ -170,8 +170,13 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const session = await requireAuth()
+    const limit = rateLimit(`order-action:${session.id}:${requestAddress(req)}`, 60, 10 * 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { id, action } = body
+    if (typeof id !== 'string' || !['approve', 'reject', 'pay', 'deliver', 'return'].includes(action)) {
+      return NextResponse.json({ error: 'بيانات الإجراء غير صالحة' }, { status: 400 })
+    }
 
     // action: approve | reject | pay | deliver | return
     const order = await db.order.findUnique({
@@ -247,31 +252,20 @@ export async function PUT(req: NextRequest) {
       return: 'تم استرجاع القطعة',
     }
 
-    const updated = await db.order.update({
-      where: { id },
-      data: {
-        status: newStatus,
-        paymentStatus: newPaymentStatus,
-        timeline: {
-          create: { status: newStatus, note: timelineNotes[action] || newStatus },
-        },
-      },
+    const updated = await db.$transaction(async (tx) => {
+      // Claim the current state atomically. This prevents double approval/rejection
+      // and prevents restoring stock twice when two requests arrive together.
+      const claimed = await tx.order.updateMany({
+        where: { id, status: order.status, paymentStatus: order.paymentStatus },
+        data: { status: newStatus, paymentStatus: newPaymentStatus },
+      })
+      if (claimed.count !== 1) throw new Error('ORDER_CHANGED')
+      await tx.orderTimeline.create({ data: { orderId: id, status: newStatus, note: timelineNotes[action] || newStatus } })
+      if (action === 'reject' || action === 'return') {
+        await tx.part.update({ where: { id: order.partId }, data: { stock: { increment: order.quantity } } })
+      }
+      return tx.order.findUnique({ where: { id }, include: { part: true, store: true, timeline: { orderBy: { createdAt: 'asc' } } } })
     })
-
-    // Stock was reserved when the order was created. Release it if the order is rejected.
-    if (action === 'reject') {
-      await db.part.update({
-        where: { id: order.partId },
-        data: { stock: { increment: order.quantity } },
-      })
-    }
-    // If returned, restore stock
-    if (action === 'return') {
-      await db.part.update({
-        where: { id: order.partId },
-        data: { stock: { increment: order.quantity } },
-      })
-    }
 
     // Persist notifications directly so they work on serverless hosting.
     const notify = async (userId: string, title: string, message: string, type: string, link?: string) => {
@@ -305,6 +299,7 @@ export async function PUT(req: NextRequest) {
     if (e.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
+    if (e.message === 'ORDER_CHANGED') return NextResponse.json({ error: 'تم تحديث الطلب من مستخدم آخر. أعد تحميل الصفحة.' }, { status: 409 })
     console.error(e)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }

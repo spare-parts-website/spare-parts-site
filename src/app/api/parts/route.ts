@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getSession, requireRole } from '@/lib/auth'
 import { isBlockedStoreName } from '@/lib/store-moderation'
 import { deletePartWithDependencies } from '@/lib/admin-deletion'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
 export async function GET(req: NextRequest) {
   try {
@@ -97,11 +98,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('SHOP_OWNER')
+    const limit = rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { name, description, price, stock, category, brand, image, carModels } = body
 
-    if (!name || price == null) {
+    if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160 || price == null) {
       return NextResponse.json({ error: 'الاسم والسعر مطلوبان' }, { status: 400 })
+    }
+    const numericPrice = Number(price)
+    const numericStock = Number(stock ?? 0)
+    if (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000 || !Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000) {
+      return NextResponse.json({ error: 'السعر أو المخزون غير صالح' }, { status: 400 })
     }
 
     const store = await db.store.findUnique({ where: { ownerId: session.id } })
@@ -111,10 +119,10 @@ export async function POST(req: NextRequest) {
 
     const part = await db.part.create({
       data: {
-        name,
-        description: description || null,
-        price: parseFloat(price),
-        stock: parseInt(stock) || 0,
+        name: name.trim(),
+        description: typeof description === 'string' ? description.trim().slice(0, 5000) || null : null,
+        price: numericPrice,
+        stock: numericStock,
         category: category || null,
         brand: brand || null,
         image: image || null,
@@ -148,6 +156,12 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
     }
 
+    const numericPrice = price != null ? Number(price) : undefined
+    const numericStock = stock != null ? Number(stock) : undefined
+    if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160)) return NextResponse.json({ error: 'اسم القطعة غير صالح' }, { status: 400 })
+    if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000)) return NextResponse.json({ error: 'السعر غير صالح' }, { status: 400 })
+    if (numericStock !== undefined && (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000)) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
+
     // Only shop owner of this part's store OR admin can edit
     const isOwner = session.role === 'SHOP_OWNER' && part.store.ownerId === session.id
     const isAdmin = session.role === 'ADMIN'
@@ -158,10 +172,10 @@ export async function PUT(req: NextRequest) {
     const updated = await db.part.update({
       where: { id },
       data: {
-        name: name ?? undefined,
+        name: typeof name === 'string' ? name.trim() : undefined,
         description: description !== undefined ? (description || null) : undefined,
-        price: price != null ? parseFloat(price) : undefined,
-        stock: stock != null ? parseInt(stock) : undefined,
+        price: numericPrice,
+        stock: numericStock,
         category: category !== undefined ? (category || null) : undefined,
         brand: brand !== undefined ? (brand || null) : undefined,
         image: image !== undefined ? (image || null) : undefined,
