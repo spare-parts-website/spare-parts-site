@@ -174,11 +174,11 @@ export async function PUT(req: NextRequest) {
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { id, action } = body
-    if (typeof id !== 'string' || !['approve', 'reject', 'pay', 'deliver', 'return'].includes(action)) {
+    if (typeof id !== 'string' || !['approve', 'reject', 'pay', 'deliver', 'return', 'cancel'].includes(action)) {
       return NextResponse.json({ error: 'بيانات الإجراء غير صالحة' }, { status: 400 })
     }
 
-    // action: approve | reject | pay | deliver | return
+    // action: approve | reject | pay | deliver | return | cancel
     const order = await db.order.findUnique({
       where: { id },
       include: { part: true, store: true },
@@ -239,6 +239,14 @@ export async function PUT(req: NextRequest) {
       }
       newStatus = 'RETURNED'
       newPaymentStatus = 'REFUNDED'
+    } else if (action === 'cancel') {
+      if (order.buyerId !== session.id) {
+        return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+      }
+      if (!['PENDING', 'APPROVED'].includes(order.status) || order.paymentStatus !== 'UNPAID') {
+        return NextResponse.json({ error: 'لا يمكن إلغاء هذا الطلب الآن' }, { status: 400 })
+      }
+      newStatus = 'CANCELLED'
     } else {
       return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
     }
@@ -250,6 +258,7 @@ export async function PUT(req: NextRequest) {
       pay: 'تم استلام الدفعة',
       deliver: 'تم تأكيد التوصيل',
       return: 'تم استرجاع القطعة',
+      cancel: 'ألغى العميل الطلب وتمت إعادة الكمية للمخزون',
     }
 
     const updated = await db.$transaction(async (tx) => {
@@ -261,7 +270,7 @@ export async function PUT(req: NextRequest) {
       })
       if (claimed.count !== 1) throw new Error('ORDER_CHANGED')
       await tx.orderTimeline.create({ data: { orderId: id, status: newStatus, note: timelineNotes[action] || newStatus } })
-      if (action === 'reject' || action === 'return') {
+      if (action === 'reject' || action === 'return' || action === 'cancel') {
         await tx.part.update({ where: { id: order.partId }, data: { stock: { increment: order.quantity } } })
       }
       return tx.order.findUnique({ where: { id }, include: { part: true, store: true, timeline: { orderBy: { createdAt: 'asc' } } } })
@@ -292,6 +301,8 @@ export async function PUT(req: NextRequest) {
       if (storeOwner) {
         await notify(storeOwner.ownerId, 'طلب استرجاع', `طلب العميل استرجاع "${order.part.name}".`, 'ORDER_STATUS', 'shop-dashboard')
       }
+    } else if (action === 'cancel') {
+      await notify(order.store.ownerId, 'تم إلغاء طلب', `ألغى العميل طلب "${order.part.name}" قبل التنفيذ.`, 'ORDER_STATUS', 'shop-dashboard')
     }
 
     return NextResponse.json({ order: updated })

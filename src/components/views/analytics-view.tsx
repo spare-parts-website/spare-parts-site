@@ -26,6 +26,7 @@ const STATUS_LABELS: Record<string, string> = {
   PAID: 'مدفوع',
   DELIVERED: 'تم التوصيل',
   RETURNED: 'تم الاسترجاع',
+  CANCELLED: 'ملغى',
 }
 
 export function AnalyticsView() {

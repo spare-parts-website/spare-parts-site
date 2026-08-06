@@ -205,6 +205,19 @@ export function OrdersView() {
                           استرجاع القطعة
                         </Button>
                       )}
+                      {(order.status === 'PENDING' || order.status === 'APPROVED') && order.paymentStatus === 'UNPAID' && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            if (window.confirm('هل أنت متأكد من إلغاء هذا الطلب؟ ستتم إعادة الكمية إلى مخزون المتجر.')) handleAction(order.id, 'cancel')
+                          }}
+                          disabled={submitting}
+                        >
+                          <XCircle className="size-4 ml-1" />
+                          إلغاء الطلب
+                        </Button>
+                      )}
                       {order.status === 'PENDING' && (
                         <Badge variant="outline" className="text-amber-600 border-amber-200 bg-amber-50">
                           <Clock className="size-3 ml-1" />
@@ -220,6 +233,12 @@ export function OrdersView() {
                         <Badge variant="outline" className="text-red-600 border-red-200 bg-red-50">
                           <XCircle className="size-3 ml-1" />
                           رفض المحل الطلب
+                        </Badge>
+                      )}
+                      {order.status === 'CANCELLED' && (
+                        <Badge variant="outline" className="text-slate-600 border-slate-200 bg-slate-50">
+                          <XCircle className="size-3 ml-1" />
+                          تم إلغاء الطلب
                         </Badge>
                       )}
                       {order.status === 'DELIVERED' && (
