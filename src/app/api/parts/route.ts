@@ -17,6 +17,10 @@ export async function GET(req: NextRequest) {
   const minPrice = searchParams.get('minPrice')
   const maxPrice = searchParams.get('maxPrice')
   const carModel = searchParams.get('carModel') || ''
+  const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
+  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1
+  const pageSize = 24
+  const sort = searchParams.get('sort') || 'newest'
 
   if (id) {
     const part = await db.part.findUnique({
@@ -60,13 +64,24 @@ export async function GET(req: NextRequest) {
     where.carModels = { contains: carModel }
   }
 
-  const parts = await db.part.findMany({
-    where,
-    include: {
-      store: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+  const orderBy = sort === 'price-asc'
+    ? { price: 'asc' as const }
+    : sort === 'price-desc'
+      ? { price: 'desc' as const }
+      : sort === 'name'
+        ? { name: 'asc' as const }
+        : { createdAt: 'desc' as const }
+
+  const [parts, total] = await Promise.all([
+    db.part.findMany({
+      where,
+      include: { store: { select: { id: true, name: true } } },
+      orderBy,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    db.part.count({ where }),
+  ])
 
   // Get categories and brands for filters
   const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name))
@@ -85,6 +100,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json(
       {
         parts: visibleParts,
+        pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
         categories: categories.map((c) => c.category).filter(Boolean),
         brands: brands.map((b) => b.brand).filter(Boolean),
       },

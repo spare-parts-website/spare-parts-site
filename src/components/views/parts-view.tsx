@@ -19,7 +19,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { Package, Search, Store as StoreIcon, Filter, X, Car, Check } from 'lucide-react'
+import { Package, Search, Store as StoreIcon, Filter, X, Car, Check, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 
 interface Part {
@@ -48,9 +48,13 @@ export function PartsView() {
   const [carModel, setCarModel] = useState('')
   const [carPopoverOpen, setCarPopoverOpen] = useState(false)
   const [sort, setSort] = useState('newest')
+  const [page, setPage] = useState(1)
+  const [totalPages, setTotalPages] = useState(1)
+  const [total, setTotal] = useState(0)
 
   useEffect(() => {
     setSearch(searchQuery)
+    setPage(1)
   }, [searchQuery])
 
   // Fetch car models once
@@ -67,8 +71,10 @@ export function PartsView() {
     if (category) params.set('category', category)
     if (brand) params.set('brand', brand)
     if (carModel) params.set('carModel', carModel)
+    params.set('sort', sort)
+    params.set('page', String(page))
     return params.toString()
-  }, [search, category, brand, carModel])
+  }, [search, category, brand, carModel, sort, page])
 
   useEffect(() => {
     setLoading(true)
@@ -78,17 +84,11 @@ export function PartsView() {
         setParts(data.parts || [])
         setCategories(data.categories || [])
         setBrands(data.brands || [])
+        setTotal(data.pagination?.total || 0)
+        setTotalPages(data.pagination?.totalPages || 1)
       })
       .finally(() => setLoading(false))
   }, [buildUrl])
-
-  const sortedParts = useMemo(() => {
-    const arr = [...parts]
-    if (sort === 'price-asc') arr.sort((a, b) => a.price - b.price)
-    else if (sort === 'price-desc') arr.sort((a, b) => b.price - a.price)
-    else if (sort === 'name') arr.sort((a, b) => a.name.localeCompare(b.name, 'ar'))
-    return arr
-  }, [parts, sort])
 
   const hasFilters = category || brand || search || carModel
 
@@ -97,7 +97,7 @@ export function PartsView() {
       <div>
         <h1 className="text-2xl md:text-3xl font-bold">قطع الغيار</h1>
         <p className="text-muted-foreground mt-1">
-          {loading ? 'جاري التحميل...' : `${parts.length} قطعة غيار متوفرة`}
+          {loading ? 'جاري التحميل...' : `${total} قطعة غيار متوفرة`}
         </p>
       </div>
 
@@ -113,7 +113,7 @@ export function PartsView() {
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder="ابحث عن قطعة، ماركة، أو وصف..."
             className="pr-9"
           />
@@ -124,7 +124,7 @@ export function PartsView() {
             <Filter className="size-4" />
             <span>تصفية:</span>
           </div>
-          <Select value={category || 'all'} onValueChange={(v) => setCategory(v === 'all' ? '' : v)}>
+          <Select value={category || 'all'} onValueChange={(v) => { setCategory(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-40 h-9">
               <SelectValue placeholder="الفئة" />
             </SelectTrigger>
@@ -138,7 +138,7 @@ export function PartsView() {
             </SelectContent>
           </Select>
 
-          <Select value={brand || 'all'} onValueChange={(v) => setBrand(v === 'all' ? '' : v)}>
+          <Select value={brand || 'all'} onValueChange={(v) => { setBrand(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-40 h-9">
               <SelectValue placeholder="الماركة" />
             </SelectTrigger>
@@ -152,7 +152,7 @@ export function PartsView() {
             </SelectContent>
           </Select>
 
-          <Select value={sort} onValueChange={setSort}>
+          <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1) }}>
             <SelectTrigger className="w-40 h-9">
               <SelectValue placeholder="ترتيب" />
             </SelectTrigger>
@@ -186,8 +186,9 @@ export function PartsView() {
               <div className="max-h-72 overflow-y-auto scrollbar-thin">
                 <button
                   className="w-full text-right px-3 py-2 hover:bg-muted/50 transition flex items-center justify-between text-sm"
-                  onClick={() => {
-                    setCarModel('')
+                          onClick={() => {
+                            setCarModel('')
+                            setPage(1)
                     setCarPopoverOpen(false)
                   }}
                 >
@@ -203,8 +204,9 @@ export function PartsView() {
                       <button
                         key={m}
                         className="w-full text-right px-3 py-2 hover:bg-muted/50 transition flex items-center justify-between text-sm"
-                        onClick={() => {
-                          setCarModel(m)
+                          onClick={() => {
+                            setCarModel(m)
+                            setPage(1)
                           setCarPopoverOpen(false)
                         }}
                       >
@@ -223,6 +225,7 @@ export function PartsView() {
                     className="w-full"
                     onClick={() => {
                       setCarModel('')
+                      setPage(1)
                       setCarPopoverOpen(false)
                     }}
                   >
@@ -243,6 +246,7 @@ export function PartsView() {
                 setCategory('')
                 setBrand('')
                 setCarModel('')
+                setPage(1)
                 useAppStore.setState({ searchQuery: '' })
               }}
               className="h-9"
@@ -261,7 +265,7 @@ export function PartsView() {
             <Skeleton key={i} className="h-64 rounded-xl" />
           ))}
         </div>
-      ) : sortedParts.length === 0 ? (
+      ) : parts.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
             <Package className="size-12 mx-auto mb-3 opacity-50" />
@@ -284,7 +288,7 @@ export function PartsView() {
         </Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {sortedParts.map((part) => (
+          {parts.map((part) => (
             <Card
               key={part.id}
               className="overflow-hidden cursor-pointer hover:shadow-md transition group h-full flex flex-col"
@@ -346,6 +350,18 @@ export function PartsView() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>
+            <ChevronRight className="size-4 ml-1" /> السابق
+          </Button>
+          <span className="text-sm text-muted-foreground">صفحة {page} من {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>
+            التالي <ChevronLeft className="size-4 mr-1" />
+          </Button>
         </div>
       )}
     </div>
