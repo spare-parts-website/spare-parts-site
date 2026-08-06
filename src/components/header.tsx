@@ -1,0 +1,342 @@
+'use client'
+
+import { useAppStore, type AuthUser } from '@/lib/store'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import {
+  Search,
+  Store as StoreIcon,
+  Package,
+  Home,
+  User as UserIcon,
+  LogOut,
+  LayoutDashboard,
+  ShieldCheck,
+  ShoppingBag,
+  Menu,
+  ShoppingCart,
+  Heart,
+  Car,
+} from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { Input } from '@/components/ui/input'
+import {
+  Sheet,
+  SheetContent,
+  SheetTrigger,
+  SheetTitle,
+} from '@/components/ui/sheet'
+import { CartDrawer } from '@/components/cart-drawer'
+import { NotificationsBell } from '@/components/notifications-bell'
+import { ThemeToggle } from '@/components/theme-toggle'
+import { SearchBar } from '@/components/search-bar'
+
+const ROLE_LABELS: Record<string, string> = {
+  BUYER: 'مشتري',
+  ADMIN: 'مدير النظام',
+  SHOP_OWNER: 'صاحب محل',
+}
+
+export function Header({ user }: { user: AuthUser | null }) {
+  const { view, setView, setUser, setSearchQuery, cart, setCartOpen } = useAppStore()
+  const [mobileOpen, setMobileOpen] = useState(false)
+  const [searchValue, setSearchValue] = useState(
+    view.name === 'parts' ? useAppStore.getState().searchQuery : ''
+  )
+
+  useEffect(() => {
+    if (view.name !== 'parts') {
+      setSearchValue('')
+    }
+  }, [view.name])
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault()
+    setSearchQuery(searchValue)
+    setView({ name: 'parts' })
+    setMobileOpen(false)
+  }
+
+  const navItems = (
+    <>
+      <Button
+        variant={view.name === 'home' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => {
+          setView({ name: 'home' })
+          setMobileOpen(false)
+        }}
+        className="justify-start gap-2"
+      >
+        <Home className="size-4" />
+        الرئيسية
+      </Button>
+      <Button
+        variant={view.name === 'stores' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => {
+          setView({ name: 'stores' })
+          setMobileOpen(false)
+        }}
+        className="justify-start gap-2"
+      >
+        <StoreIcon className="size-4" />
+        المتاجر
+      </Button>
+      <Button
+        variant={view.name === 'parts' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => {
+          setView({ name: 'parts' })
+          setMobileOpen(false)
+        }}
+        className="justify-start gap-2"
+      >
+        <Package className="size-4" />
+        قطع الغيار
+      </Button>
+      {user && (
+        <Button
+          variant={view.name === 'orders' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => {
+            setView({ name: 'orders' })
+            setMobileOpen(false)
+          }}
+          className="justify-start gap-2"
+        >
+          <ShoppingBag className="size-4" />
+          طلباتي
+        </Button>
+      )}
+      {user?.role === 'BUYER' && (
+        <>
+          <Button
+            variant={view.name === 'wishlist' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setView({ name: 'wishlist' })
+              setMobileOpen(false)
+            }}
+            className="justify-start gap-2"
+          >
+            <Heart className="size-4" />
+            المفضلة
+          </Button>
+          <Button
+            variant={view.name === 'my-cars' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setView({ name: 'my-cars' })
+              setMobileOpen(false)
+            }}
+            className="justify-start gap-2"
+          >
+            <Car className="size-4" />
+            سياراتي
+          </Button>
+        </>
+      )}
+      {user?.role === 'SHOP_OWNER' && (
+        <Button
+          variant={view.name === 'shop-dashboard' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => {
+            setView({ name: 'shop-dashboard' })
+            setMobileOpen(false)
+          }}
+          className="justify-start gap-2"
+        >
+          <LayoutDashboard className="size-4" />
+          لوحة المحل
+        </Button>
+      )}
+      {user?.role === 'ADMIN' && (
+        <Button
+          variant={view.name === 'admin-dashboard' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => {
+            setView({ name: 'admin-dashboard' })
+            setMobileOpen(false)
+          }}
+          className="justify-start gap-2"
+        >
+          <ShieldCheck className="size-4" />
+          لوحة المدير
+        </Button>
+      )}
+    </>
+  )
+
+  return (
+    <header className="sticky top-0 z-40 w-full border-b bg-card/80 backdrop-blur-md supports-[backdrop-filter]:bg-card/60">
+      <div className="container mx-auto flex h-16 items-center gap-3 px-4">
+        {/* Logo */}
+        <button
+          onClick={() => setView({ name: 'home' })}
+          className="flex items-center gap-2 shrink-0"
+        >
+          <div className="size-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-sm">
+            قطع
+          </div>
+          <span className="hidden sm:inline text-lg font-bold text-foreground">
+            قطع غيار
+          </span>
+        </button>
+
+        {/* Desktop Search with Autocomplete */}
+        <div className="hidden md:flex flex-1 max-w-md">
+          <SearchBar />
+        </div>
+
+        {/* Desktop Nav */}
+        <nav className="hidden lg:flex items-center gap-1 mr-2">
+          {navItems}
+        </nav>
+
+        <div className="flex-1 lg:flex-none" />
+
+        {/* Cart + Theme + Notifications */}
+        <div className="flex items-center gap-1">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="relative"
+            onClick={() => setCartOpen(true)}
+          >
+            <ShoppingCart className="size-5" />
+            {cart.length > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 size-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                {cart.length > 9 ? '9+' : cart.length}
+              </span>
+            )}
+            <span className="sr-only">سلة التسوق</span>
+          </Button>
+          <ThemeToggle />
+          {user && <NotificationsBell />}
+        </div>
+
+        {/* Auth */}
+        <div className="flex items-center gap-2">
+          {user ? (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="gap-2 px-2">
+                  <Avatar className="size-8">
+                    <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
+                      {user.name.charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="hidden sm:inline text-sm font-medium">
+                    {user.name}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-medium">{user.name}</span>
+                    <span className="text-xs text-muted-foreground font-normal">{user.email}</span>
+                    <span className="text-xs text-primary font-medium mt-1">
+                      {ROLE_LABELS[user.role]}
+                    </span>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setView({ name: 'profile' })}>
+                  <UserIcon className="size-4 ml-2" />
+                  ملفي الشخصي
+                </DropdownMenuItem>
+                {user.role === 'BUYER' && (
+                  <DropdownMenuItem onClick={() => setView({ name: 'orders' })}>
+                    <ShoppingBag className="size-4 ml-2" />
+                    طلباتي
+                  </DropdownMenuItem>
+                )}
+                {user.role === 'SHOP_OWNER' && (
+                  <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard' })}>
+                    <LayoutDashboard className="size-4 ml-2" />
+                    لوحة المحل
+                  </DropdownMenuItem>
+                )}
+                {user.role === 'ADMIN' && (
+                  <DropdownMenuItem onClick={() => setView({ name: 'admin-dashboard' })}>
+                    <ShieldCheck className="size-4 ml-2" />
+                    لوحة المدير
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={async () => {
+                    await fetch('/api/auth/logout', { method: 'POST' })
+                    setUser(null)
+                    setView({ name: 'home' })
+                  }}
+                >
+                  <LogOut className="size-4 ml-2" />
+                  تسجيل الخروج
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          ) : (
+            <>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setView({ name: 'login' })}
+                className="hidden sm:inline-flex"
+              >
+                دخول
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => setView({ name: 'register' })}
+              >
+                حساب جديد
+              </Button>
+            </>
+          )}
+
+          {/* Mobile menu */}
+          <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="lg:hidden">
+                <Menu className="size-5" />
+                <span className="sr-only">القائمة</span>
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="w-72 p-4 flex flex-col gap-4">
+              <SheetTitle className="text-right">القائمة</SheetTitle>
+              <div className="md:hidden">
+                <SearchBar />
+              </div>
+              <div className="flex flex-col gap-1">
+                {navItems}
+              </div>
+              <div className="flex items-center justify-between pt-2 border-t">
+                <span className="text-sm text-muted-foreground">الوضع</span>
+                <ThemeToggle />
+              </div>
+              {!user && (
+                <div className="flex flex-col gap-2 mt-auto">
+                  <Button variant="outline" onClick={() => { setView({ name: 'login' }); setMobileOpen(false) }}>
+                    تسجيل الدخول
+                  </Button>
+                </div>
+              )}
+            </SheetContent>
+          </Sheet>
+        </div>
+      </div>
+    </header>
+  )
+}

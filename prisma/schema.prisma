@@ -1,0 +1,202 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String   @default("BUYER") // BUYER, ADMIN, SHOP_OWNER
+  phone     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  store         Store?
+  orders        Order[]
+  productReviews ProductReview[]
+  storeReviews  StoreReview[]
+  notifications Notification[]
+  wishlist      Wishlist[]
+  userCars      UserCar[]
+  sentMessages  ChatMessage[]  @relation("ChatMessageSender")
+  receivedMessages ChatMessage[] @relation("ChatMessageReceiver")
+}
+
+model Store {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  address     String?
+  phone       String?
+  image       String?
+  ownerId     String   @unique
+  owner       User     @relation(fields: [ownerId], references: [id])
+  parts       Part[]
+  orders      Order[]
+  reviews     StoreReview[]
+  coupons     Coupon[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Part {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  stock       Int      @default(0)
+  category    String?
+  brand       String?
+  image       String?
+  // Car compatibility - stored as JSON string: e.g. '["Toyota Camry 2018-2023", "Honda Accord 2019-2022"]'
+  carModels   String?
+  storeId     String
+  store       Store    @relation(fields: [storeId], references: [id])
+  orders      Order[]
+  reviews     ProductReview[]
+  images      PartImage[]
+  wishlist    Wishlist[]
+  blocked     Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Multiple images for a part
+model PartImage {
+  id        String   @id @default(cuid())
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  url       String
+  createdAt DateTime @default(now())
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  partId          String
+  part            Part     @relation(fields: [partId], references: [id])
+  storeId         String
+  store           Store    @relation(fields: [storeId], references: [id])
+  buyerId         String
+  buyer           User     @relation(fields: [buyerId], references: [id])
+  quantity        Int      @default(1)
+  totalPrice      Float
+  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
+  paymentStatus   String   @default("UNPAID") // UNPAID, PAID, REFUNDED
+  paymentMethod   String?
+  deliveryAddress String
+  notes           String?
+  couponCode      String?
+  discount        Float    @default(0)
+  timeline        OrderTimeline[]
+  chatMessages    ChatMessage[]
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+}
+
+// Order status timeline (track each status change)
+model OrderTimeline {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    String   // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model ProductReview {
+  id        String   @id @default(cuid())
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int
+  comment   String?
+  blocked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model StoreReview {
+  id        String   @id @default(cuid())
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  rating    Int
+  comment   String?
+  blocked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  title     String
+  message   String
+  type      String   // ORDER_STATUS, NEW_ORDER, PAYMENT, REVIEW, SYSTEM, CHAT
+  read      Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+}
+
+// Wishlist - users save favorite parts
+model Wishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, partId])
+}
+
+// User's saved cars (car profiles)
+model UserCar {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand     String   // Toyota, Honda, etc.
+  model     String   // Camry, Civic, etc.
+  year      Int?
+  nickname  String?  // "سيارة العمل", "سيارة العائلة"
+  createdAt DateTime @default(now())
+}
+
+// Discount coupons
+model Coupon {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id])
+  discountPercent Float // e.g. 10 = 10% off
+  maxUses   Int      @default(100)
+  usedCount Int      @default(0)
+  active    Boolean  @default(true)
+  expiresAt DateTime?
+  createdAt DateTime @default(now())
+}
+
+// Chat messages between buyer and store owner
+model ChatMessage {
+  id        String   @id @default(cuid())
+  orderId   String
+  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  senderId   String
+  sender    User     @relation("ChatMessageSender", fields: [senderId], references: [id])
+  receiverId String
+  receiver  User     @relation("ChatMessageReceiver", fields: [receiverId], references: [id])
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,73 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { requireRole } from '@/lib/auth'
+
+export async function GET() {
+  try {
+    await requireRole('ADMIN')
+    const users = await db.user.findMany({
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        phone: true,
+        createdAt: true,
+        store: { select: { id: true, name: true } },
+        _count: {
+          select: { orders: true, productReviews: true, storeReviews: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    })
+    return NextResponse.json({ users })
+  } catch (e: any) {
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    }
+    console.error(e)
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    await requireRole('ADMIN')
+    const body = await req.json()
+    const { id, role } = body
+    if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(role)) {
+      return NextResponse.json({ error: 'دور غير صالح' }, { status: 400 })
+    }
+    const updated = await db.user.update({
+      where: { id },
+      data: { role },
+      select: { id: true, name: true, email: true, role: true, phone: true },
+    })
+    return NextResponse.json({ user: updated })
+  } catch (e: any) {
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    }
+    console.error(e)
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    await requireRole('ADMIN')
+    const { searchParams } = new URL(req.url)
+    const id = searchParams.get('id')
+    if (!id) {
+      return NextResponse.json({ error: 'المعرف مطلوب' }, { status: 400 })
+    }
+    await db.user.delete({ where: { id } })
+    return NextResponse.json({ ok: true })
+  } catch (e: any) {
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    }
+    console.error(e)
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+  }
+}
