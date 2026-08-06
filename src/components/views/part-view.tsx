@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Car,
   Heart,
+  MessageSquare,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
 import {
@@ -152,6 +153,16 @@ export function PartView({ partId }: { partId: string }) {
     } finally {
       setSubmitting(false)
     }
+  }
+
+  const handleSellerChat = () => {
+    if (!user) {
+      setPendingView({ name: 'part', partId })
+      setView({ name: 'login' })
+      toast({ title: 'سجّل الدخول أولاً', description: 'يجب تسجيل الدخول لمراسلة البائع' })
+      return
+    }
+    setView({ name: 'chat', partId })
   }
 
   if (loading) {
@@ -351,6 +362,11 @@ export function PartView({ partId }: { partId: string }) {
           )}
 
           <div className="flex flex-wrap gap-2">
+            <Button size="lg" variant="outline" onClick={handleSellerChat}>
+              <MessageSquare className="size-4 ml-2" />
+              اسأل البائع
+            </Button>
+
             {/* Wishlist button */}
             <Button
               size="lg"

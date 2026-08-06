@@ -20,13 +20,14 @@ export type View =
   | { name: 'register' }
   | { name: 'orders' }
   | { name: 'profile' }
-  | { name: 'shop-dashboard'; tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' }
+  | { name: 'shop-dashboard'; tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }
   | { name: 'admin-dashboard'; tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' }
   | { name: 'cart' }
   | { name: 'checkout' }
   | { name: 'wishlist' }
   | { name: 'my-cars' }
   | { name: 'chat'; orderId: string }
+  | { name: 'chat'; partId: string; participantId?: string }
 
 export interface CartItem {
   partId: string

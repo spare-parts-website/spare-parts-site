@@ -69,6 +69,7 @@ export default function Home() {
         {view.name === 'wishlist' && <WishlistView />}
         {view.name === 'my-cars' && <MyCarsView />}
         {view.name === 'chat' && 'orderId' in view && <ChatView orderId={view.orderId} />}
+        {view.name === 'chat' && 'partId' in view && <ChatView partId={view.partId} participantId={view.participantId} />}
       </main>
       <Footer />
       <CartDrawer />

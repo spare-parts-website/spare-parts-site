@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 
+export async function GET() {
+  try {
+    const session = await requireRole('SHOP_OWNER')
+    const store = await db.store.findUnique({ where: { ownerId: session.id } })
+    if (!store) return NextResponse.json({ error: 'لا يوجد متجر' }, { status: 404 })
+    return NextResponse.json({ store })
+  } catch (e: any) {
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
+      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    }
+    console.error(e)
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+  }
+}
+
 export async function PUT(req: NextRequest) {
   try {
     const session = await requireRole('SHOP_OWNER')

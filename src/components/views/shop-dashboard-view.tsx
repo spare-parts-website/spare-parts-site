@@ -30,10 +30,12 @@ import {
   Save,
   TrendingUp,
   Ticket,
+  MessageSquare,
 } from 'lucide-react'
 import { StatusBadge, formatPrice } from '@/components/common'
 import { AnalyticsView } from '@/components/views/analytics-view'
 import { CouponsView } from '@/components/views/coupons-view'
+import { ShopMessagesView } from '@/components/views/shop-messages-view'
 import { useToast } from '@/hooks/use-toast'
 import {
   Dialog,
@@ -79,10 +81,10 @@ interface Order {
   buyer: { id: string; name: string; phone?: string | null }
 }
 
-export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders' | 'store' }) {
+export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }) {
   const { user } = useAppStore()
   const { toast } = useToast()
-  const [tab, setTab] = useState<'parts' | 'orders' | 'store'>(initialTab || 'parts')
+  const [tab, setTab] = useState<'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages'>(initialTab || 'parts')
   const [store, setStore] = useState<Store | null>(null)
   const [parts, setParts] = useState<Part[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -114,8 +116,8 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       .then((r) => r.json())
       .then(async (data) => {
         if (!data.user) return
-        const stores = await fetch('/api/stores').then((r) => r.json())
-        const myStore = (stores.stores || []).find((s: any) => s.ownerId === data.user.id)
+        const storeData = await fetch('/api/shop/store', { cache: 'no-store' }).then((r) => r.json())
+        const myStore = storeData.store
         if (myStore) {
           setStore(myStore)
           setStoreForm({
@@ -283,7 +285,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-        <TabsList className="grid w-full max-w-2xl grid-cols-5">
+        <TabsList className="grid w-full max-w-3xl grid-cols-6">
           <TabsTrigger value="parts" className="gap-1.5 text-xs sm:text-sm">
             <Package className="size-4" />
             <span className="hidden sm:inline">القطع</span>
@@ -299,6 +301,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
           <TabsTrigger value="coupons" className="gap-1.5 text-xs sm:text-sm">
             <Ticket className="size-4" />
             <span className="hidden sm:inline">كوبونات</span>
+          </TabsTrigger>
+          <TabsTrigger value="messages" className="gap-1.5 text-xs sm:text-sm">
+            <MessageSquare className="size-4" />
+            <span className="hidden sm:inline">الرسائل</span>
           </TabsTrigger>
           <TabsTrigger value="store" className="gap-1.5 text-xs sm:text-sm">
             <StoreIcon className="size-4" />
@@ -607,6 +613,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         {/* Coupons tab */}
         <TabsContent value="coupons" className="space-y-4">
           <CouponsView />
+        </TabsContent>
+
+        <TabsContent value="messages">
+          <ShopMessagesView />
         </TabsContent>
 
         {/* Store tab */}

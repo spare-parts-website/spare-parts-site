@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowRight, Send, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useToast } from '@/hooks/use-toast'
 
 interface Message {
   id: string
@@ -18,8 +19,9 @@ interface Message {
   read: boolean
 }
 
-export function ChatView({ orderId }: { orderId: string }) {
+export function ChatView({ orderId, partId, participantId }: { orderId?: string; partId?: string; participantId?: string }) {
   const { user, setView } = useAppStore()
+  const { toast } = useToast()
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
@@ -27,9 +29,15 @@ export function ChatView({ orderId }: { orderId: string }) {
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const load = () => {
-    fetch(`/api/chat?orderId=${orderId}`, { cache: 'no-store' })
+    const query = partId
+      ? `partId=${encodeURIComponent(partId)}${participantId ? `&participantId=${encodeURIComponent(participantId)}` : ''}`
+      : `orderId=${encodeURIComponent(orderId || '')}`
+    fetch(`/api/chat?${query}`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((data) => setMessages(data.messages || []))
+      .then((data) => {
+        if (data.error) toast({ title: 'تعذر تحميل المحادثة', description: data.error, variant: 'destructive' })
+        setMessages(data.messages || [])
+      })
       .finally(() => setLoading(false))
   }
 
@@ -38,7 +46,7 @@ export function ChatView({ orderId }: { orderId: string }) {
     // Poll every 5 seconds for new messages
     const interval = setInterval(load, 5000)
     return () => clearInterval(interval)
-  }, [orderId])
+  }, [orderId, partId, participantId])
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -55,10 +63,13 @@ export function ChatView({ orderId }: { orderId: string }) {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, message: input.trim() }),
+        body: JSON.stringify({ orderId, partId, participantId, message: input.trim() }),
       })
       const data = await res.json()
-      if (!res.ok) return
+      if (!res.ok) {
+        toast({ title: 'تعذر إرسال الرسالة', description: data.error, variant: 'destructive' })
+        return
+      }
       setMessages((prev) => [...prev, data.message])
       setInput('')
     } finally {
@@ -78,7 +89,12 @@ export function ChatView({ orderId }: { orderId: string }) {
 
   return (
     <div className="container mx-auto px-4 py-8 max-w-3xl">
-      <Button variant="ghost" size="sm" onClick={() => setView({ name: 'orders' })} className="mb-4">
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={() => setView(partId ? { name: 'part', partId } : { name: 'orders' })}
+        className="mb-4"
+      >
         <ArrowRight className="size-4 ml-1" />
         العودة للطلبات
       </Button>
@@ -87,7 +103,7 @@ export function ChatView({ orderId }: { orderId: string }) {
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2 text-lg">
             <MessageSquare className="size-5 text-primary" />
-            محادثة حول الطلب
+            {partId ? 'محادثة مع البائع' : 'محادثة حول الطلب'}
           </CardTitle>
         </CardHeader>
 
@@ -103,7 +119,7 @@ export function ChatView({ orderId }: { orderId: string }) {
               <div className="h-full flex flex-col items-center justify-center text-muted-foreground">
                 <MessageSquare className="size-12 mb-2 opacity-40" />
                 <p>لا توجد رسائل بعد</p>
-                <p className="text-sm">ابدأ المحادثة بإرسال رسالة</p>
+                <p className="text-sm">{partId ? 'اسأل البائع عن القطعة قبل الشراء' : 'ابدأ المحادثة بإرسال رسالة'}</p>
               </div>
             ) : (
               messages.map((msg) => {
@@ -143,7 +159,7 @@ export function ChatView({ orderId }: { orderId: string }) {
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="اكتب رسالتك..."
+              placeholder={partId ? 'اسأل عن التوافق أو الحالة أو التوصيل...' : 'اكتب رسالتك...'}
               disabled={sending}
               className="flex-1"
             />

@@ -34,6 +34,7 @@ export async function deleteUserWithDependencies(tx: any, userId: string) {
   if (user.store) await deleteStoreWithDependencies(tx, user.store.id)
 
   await tx.chatMessage.deleteMany({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } })
+  await tx.productMessage.deleteMany({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } })
   await tx.productReview.deleteMany({ where: { userId } })
   await tx.storeReview.deleteMany({ where: { userId } })
   await tx.notification.deleteMany({ where: { userId } })
