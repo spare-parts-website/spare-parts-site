@@ -6,6 +6,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MessageSquare, Package, User } from 'lucide-react'
+import { useToast } from '@/hooks/use-toast'
 
 interface Thread {
   partId: string
@@ -18,6 +19,7 @@ interface Thread {
 
 export function ShopMessagesView() {
   const { setView } = useAppStore()
+  const { toast } = useToast()
   const [threads, setThreads] = useState<Thread[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -25,7 +27,14 @@ export function ShopMessagesView() {
     setLoading(true)
     fetch('/api/chat?scope=shop', { cache: 'no-store' })
       .then((r) => r.json())
-      .then((data) => setThreads(data.threads || []))
+      .then((data) => {
+        if (data.error) {
+          toast({ title: 'تعذر تحميل الرسائل', description: data.error, variant: 'destructive' })
+          return
+        }
+        setThreads(data.threads || [])
+      })
+      .catch(() => toast({ title: 'تعذر تحميل الرسائل', description: 'تحقق من اتصالك ثم حاول مرة أخرى', variant: 'destructive' }))
       .finally(() => setLoading(false))
   }
 

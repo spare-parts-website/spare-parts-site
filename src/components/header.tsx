@@ -23,6 +23,7 @@ import {
   ShoppingBag,
   Menu,
   ShoppingCart,
+  MessageSquare,
   Heart,
   Car,
 } from 'lucide-react'
@@ -146,18 +147,32 @@ export function Header({ user }: { user: AuthUser | null }) {
         </>
       )}
       {user?.role === 'SHOP_OWNER' && (
-        <Button
-          variant={view.name === 'shop-dashboard' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => {
-            setView({ name: 'shop-dashboard' })
-            setMobileOpen(false)
-          }}
-          className="justify-start gap-2"
-        >
-          <LayoutDashboard className="size-4" />
-          لوحة المحل
-        </Button>
+        <>
+          <Button
+            variant={view.name === 'shop-dashboard' && (!('tab' in view) || view.tab !== 'messages') ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setView({ name: 'shop-dashboard' })
+              setMobileOpen(false)
+            }}
+            className="justify-start gap-2"
+          >
+            <LayoutDashboard className="size-4" />
+            لوحة المحل
+          </Button>
+          <Button
+            variant={view.name === 'shop-dashboard' && 'tab' in view && view.tab === 'messages' ? 'default' : 'ghost'}
+            size="sm"
+            onClick={() => {
+              setView({ name: 'shop-dashboard', tab: 'messages' })
+              setMobileOpen(false)
+            }}
+            className="justify-start gap-2"
+          >
+            <MessageSquare className="size-4" />
+            رسائل العملاء
+          </Button>
+        </>
       )}
       {user?.role === 'ADMIN' && (
         <Button
@@ -262,10 +277,16 @@ export function Header({ user }: { user: AuthUser | null }) {
                   </DropdownMenuItem>
                 )}
                 {user.role === 'SHOP_OWNER' && (
-                  <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard' })}>
-                    <LayoutDashboard className="size-4 ml-2" />
-                    لوحة المحل
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard' })}>
+                      <LayoutDashboard className="size-4 ml-2" />
+                      لوحة المحل
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard', tab: 'messages' })}>
+                      <MessageSquare className="size-4 ml-2" />
+                      رسائل العملاء
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {user.role === 'ADMIN' && (
                   <DropdownMenuItem onClick={() => setView({ name: 'admin-dashboard' })}>
