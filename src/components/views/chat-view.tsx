@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ArrowRight, Send, MessageSquare } from 'lucide-react'
+import { ArrowRight, Send, MessageSquare, Paperclip, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
 
@@ -17,6 +17,7 @@ interface Message {
   sender: { id: string; name: string }
   createdAt: string
   read: boolean
+  imageUrl?: string | null
 }
 
 export function ChatView({ orderId, partId, participantId }: { orderId?: string; partId?: string; participantId?: string }) {
@@ -26,6 +27,8 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
   const [loading, setLoading] = useState(true)
   const [input, setInput] = useState('')
   const [sending, setSending] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [attachment, setAttachment] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const load = () => {
@@ -57,13 +60,13 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
 
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!input.trim() || sending) return
+    if ((!input.trim() && !attachment) || sending || uploading) return
     setSending(true)
     try {
       const res = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ orderId, partId, participantId, message: input.trim() }),
+        body: JSON.stringify({ orderId, partId, participantId, message: input.trim(), imageUrl: attachment }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -72,8 +75,33 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
       }
       setMessages((prev) => [...prev, data.message])
       setInput('')
+      setAttachment(null)
     } finally {
       setSending(false)
+    }
+  }
+
+  const handleAttachment = async (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast({ title: 'نوع الملف غير مدعوم', description: 'اختر صورة JPG أو PNG أو WebP', variant: 'destructive' })
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'الصورة كبيرة جداً', description: 'الحد الأقصى 5 ميجا', variant: 'destructive' })
+      return
+    }
+    setUploading(true)
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch('/api/upload', { method: 'POST', body: formData })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'فشل رفع الصورة')
+      setAttachment(data.url)
+    } catch (error: any) {
+      toast({ title: 'فشل رفع الصورة', description: error.message, variant: 'destructive' })
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -142,7 +170,8 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
                           {msg.sender.name}
                         </p>
                       )}
-                      <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>
+                        {msg.imageUrl && <img src={msg.imageUrl} alt="صورة مرفقة" className="max-h-52 max-w-full rounded-lg object-contain mb-1" />}
+                        {msg.message && <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>}
                       <p className={cn('text-xs mt-1', isMine ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
                         {new Date(msg.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
                       </p>
@@ -155,15 +184,26 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
         )}
 
         <div className="border-t p-3">
+          {attachment && (
+            <div className="mb-2 flex items-center gap-2 rounded-lg bg-muted/40 p-2 text-xs">
+              <img src={attachment} alt="المرفق" className="size-12 rounded object-cover" />
+              <span className="flex-1">صورة جاهزة للإرسال</span>
+              <Button type="button" size="icon" variant="ghost" className="size-7" onClick={() => setAttachment(null)}><X className="size-4" /></Button>
+            </div>
+          )}
           <form onSubmit={handleSend} className="flex gap-2">
+            <label className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md border hover:bg-muted disabled:opacity-50">
+              {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" disabled={uploading || sending} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleAttachment(file); e.currentTarget.value = '' }} />
+            </label>
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={partId ? 'اسأل عن التوافق أو الحالة أو التوصيل...' : 'اكتب رسالتك...'}
-              disabled={sending}
+              disabled={sending || uploading}
               className="flex-1"
             />
-            <Button type="submit" size="icon" disabled={!input.trim() || sending}>
+            <Button type="submit" size="icon" disabled={(!input.trim() && !attachment) || sending || uploading}>
               <Send className="size-4" />
             </Button>
           </form>

@@ -9,7 +9,7 @@ const BUCKET = 'uploads'
 
 export async function POST(req: NextRequest) {
   try {
-    await requireRoles(['SHOP_OWNER', 'ADMIN'])
+    await requireRoles(['BUYER', 'SHOP_OWNER', 'ADMIN'])
 
     const supabaseUrl = process.env.SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY

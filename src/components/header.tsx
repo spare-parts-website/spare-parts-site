@@ -106,6 +106,20 @@ export function Header({ user }: { user: AuthUser | null }) {
       </Button>
       {user && (
         <Button
+          variant={view.name === 'inbox' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => {
+            setView({ name: 'inbox' })
+            setMobileOpen(false)
+          }}
+          className="justify-start gap-2"
+        >
+          <MessageSquare className="size-4" />
+          الرسائل
+        </Button>
+      )}
+      {user && (
+        <Button
           variant={view.name === 'orders' ? 'default' : 'ghost'}
           size="sm"
           onClick={() => {
@@ -276,6 +290,10 @@ export function Header({ user }: { user: AuthUser | null }) {
                     طلباتي
                   </DropdownMenuItem>
                 )}
+                <DropdownMenuItem onClick={() => setView({ name: 'inbox' })}>
+                  <MessageSquare className="size-4 ml-2" />
+                  الرسائل
+                </DropdownMenuItem>
                 {user.role === 'SHOP_OWNER' && (
                   <>
                     <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard' })}>

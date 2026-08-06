@@ -20,6 +20,7 @@ export type View =
   | { name: 'register' }
   | { name: 'orders' }
   | { name: 'profile' }
+  | { name: 'inbox' }
   | { name: 'shop-dashboard'; tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }
   | { name: 'admin-dashboard'; tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' }
   | { name: 'cart' }

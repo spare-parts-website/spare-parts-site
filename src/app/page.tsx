@@ -19,6 +19,7 @@ import { CheckoutView } from '@/components/views/checkout-view'
 import { WishlistView } from '@/components/views/wishlist-view'
 import { MyCarsView } from '@/components/views/my-cars-view'
 import { ChatView } from '@/components/views/chat-view'
+import { InboxView } from '@/components/views/inbox-view'
 import type { AuthUser } from '@/lib/store'
 
 export default function Home() {
@@ -63,6 +64,7 @@ export default function Home() {
         {view.name === 'register' && <AuthView mode="register" />}
         {view.name === 'orders' && <OrdersView />}
         {view.name === 'profile' && <ProfileView />}
+        {view.name === 'inbox' && <InboxView />}
         {view.name === 'shop-dashboard' && <ShopDashboardView tab={view.tab} />}
         {view.name === 'admin-dashboard' && <AdminDashboardView tab={view.tab} />}
         {view.name === 'checkout' && <CheckoutView />}

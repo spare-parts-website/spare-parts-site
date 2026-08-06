@@ -64,8 +64,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الملاحظات طويلة جداً' }, { status: 400 })
     }
 
-    if (session.role !== 'BUYER' && session.role !== 'SHOP_OWNER') {
-      return NextResponse.json({ error: 'المشتري أو صاحب المحل يمكنه إنشاء الطلبات' }, { status: 403 })
+    if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(session.role)) {
+      return NextResponse.json({ error: 'يجب تسجيل الدخول لإنشاء الطلبات' }, { status: 403 })
     }
 
     const part = await db.part.findUnique({

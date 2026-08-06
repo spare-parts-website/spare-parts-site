@@ -77,6 +77,56 @@ async function getShopThreads(sessionId: string) {
   return Array.from(threadMap.values()).reverse()
 }
 
+async function getInboxThreads(sessionId: string) {
+  const [orderMessages, productMessages] = await Promise.all([
+    db.chatMessage.findMany({
+      where: { OR: [{ senderId: sessionId }, { receiverId: sessionId }] },
+      include: {
+        order: { select: { id: true, part: { select: { id: true, name: true, image: true } }, store: { select: { name: true } } } },
+        sender: { select: { id: true, name: true } },
+        receiver: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+    db.productMessage.findMany({
+      where: { OR: [{ senderId: sessionId }, { receiverId: sessionId }] },
+      include: {
+        part: { select: { id: true, name: true, image: true } },
+        sender: { select: { id: true, name: true } },
+        receiver: { select: { id: true, name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    }),
+  ])
+
+  const threads = new Map<string, any>()
+  for (const message of orderMessages) {
+    const other = message.senderId === sessionId ? message.receiver : message.sender
+    const key = `order:${message.orderId}:${other.id}`
+    if (!threads.has(key)) {
+      threads.set(key, {
+        kind: 'order', orderId: message.orderId, part: message.order.part,
+        storeName: message.order.store.name, otherUser: other, lastMessage: message,
+        unreadCount: message.receiverId === sessionId && !message.read ? 1 : 0,
+      })
+    }
+  }
+  for (const message of productMessages) {
+    const other = message.senderId === sessionId ? message.receiver : message.sender
+    const key = `product:${message.partId}:${other.id}`
+    if (!threads.has(key)) {
+      threads.set(key, {
+        kind: 'product', partId: message.partId, participantId: other.id, part: message.part,
+        otherUser: other, lastMessage: message,
+        unreadCount: message.receiverId === sessionId && !message.read ? 1 : 0,
+      })
+    }
+  }
+  return Array.from(threads.values()).sort(
+    (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime(),
+  )
+}
+
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth()
@@ -84,6 +134,10 @@ export async function GET(req: NextRequest) {
     const orderId = searchParams.get('orderId')
     const partId = searchParams.get('partId')
     const participantId = searchParams.get('participantId')
+
+    if (searchParams.get('scope') === 'inbox') {
+      return NextResponse.json({ threads: await getInboxThreads(session.id) })
+    }
 
     if (searchParams.get('scope') === 'shop') {
       if (session.role !== 'SHOP_OWNER') return unauthorized()
@@ -143,8 +197,9 @@ export async function POST(req: NextRequest) {
     const partId = typeof body.partId === 'string' ? body.partId : null
     const participantId = typeof body.participantId === 'string' ? body.participantId : null
     const message = typeof body.message === 'string' ? body.message.trim() : ''
+    const imageUrl = typeof body.imageUrl === 'string' && body.imageUrl.startsWith('https://') ? body.imageUrl : null
 
-    if (!message) return NextResponse.json({ error: 'الرسالة مطلوبة' }, { status: 400 })
+    if (!message && !imageUrl) return NextResponse.json({ error: 'اكتب رسالة أو أرفق صورة' }, { status: 400 })
     if (message.length > 2000) return NextResponse.json({ error: 'الرسالة طويلة جداً' }, { status: 400 })
 
     if (partId) {
@@ -157,6 +212,7 @@ export async function POST(req: NextRequest) {
           senderId: session.id,
           receiverId: target.otherUserId,
           message,
+          imageUrl,
         },
         include: { sender: { select: { id: true, name: true } } },
       })
@@ -165,7 +221,7 @@ export async function POST(req: NextRequest) {
         await createNotification({
           userId: target.otherUserId,
           title: 'رسالة عن قطعة غيار',
-          message: `${session.name}: ${message.substring(0, 50)}`,
+          message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
           type: 'CHAT',
           link: 'shop-dashboard',
         })
@@ -185,7 +241,7 @@ export async function POST(req: NextRequest) {
     const receiverId = isBuyer ? order.store.ownerId : order.buyerId
 
     const msg = await db.chatMessage.create({
-      data: { orderId, senderId: session.id, receiverId, message },
+      data: { orderId, senderId: session.id, receiverId, message, imageUrl },
       include: { sender: { select: { id: true, name: true } } },
     })
 
@@ -193,7 +249,7 @@ export async function POST(req: NextRequest) {
       await createNotification({
         userId: receiverId,
         title: 'رسالة جديدة',
-        message: `${session.name}: ${message.substring(0, 50)}`,
+        message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
         type: 'CHAT',
         link: isBuyer ? 'shop-dashboard' : 'orders',
       })
