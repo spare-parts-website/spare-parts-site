@@ -18,6 +18,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
     email: '',
     password: '',
     phone: '',
+    emailNotifications: false,
     role: 'BUYER' as 'BUYER' | 'SHOP_OWNER',
   })
 
@@ -131,6 +132,11 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                       />
                     </div>
                   </div>
+
+                  <label className="flex items-start gap-2 rounded-lg border p-3 text-sm cursor-pointer">
+                    <input type="checkbox" checked={form.emailNotifications} onChange={(e) => setForm({ ...form, emailNotifications: e.target.checked })} className="mt-1 size-4 accent-primary" />
+                    <span><span className="font-medium block">أرسل الإشعارات إلى بريدي الإلكتروني</span><span className="text-xs text-muted-foreground">مثل تحديثات الطلبات والرسائل الجديدة. يمكنك تغيير هذا الخيار لاحقاً.</span></span>
+                  </label>
                 </>
               )}
 

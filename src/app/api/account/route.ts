@@ -11,6 +11,7 @@ export async function PUT(req: NextRequest) {
     const phone = typeof body.phone === 'string' ? body.phone.trim() || null : session.phone || null
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : ''
+    const emailNotifications = typeof body.emailNotifications === 'boolean' ? body.emailNotifications : undefined
 
     if (name.length < 2 || name.length > 100) return NextResponse.json({ error: 'الاسم يجب أن يكون بين حرفين و100 حرف' }, { status: 400 })
     if (newPassword && (newPassword.length < 8 || newPassword.length > 128)) return NextResponse.json({ error: 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل' }, { status: 400 })
@@ -23,10 +24,10 @@ export async function PUT(req: NextRequest) {
 
     const updated = await db.user.update({
       where: { id: session.id },
-      data: { name, phone, ...(newPassword ? { password: await hashPassword(newPassword) } : {}) },
+      data: { name, phone, ...(emailNotifications !== undefined ? { emailNotifications } : {}), ...(newPassword ? { password: await hashPassword(newPassword) } : {}) },
     })
-    await createSession({ id: updated.id, name: updated.name, email: updated.email, role: updated.role as any, phone: updated.phone })
-    return NextResponse.json({ user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, phone: updated.phone } })
+    await createSession({ id: updated.id, name: updated.name, email: updated.email, role: updated.role as any, phone: updated.phone, emailNotifications: updated.emailNotifications })
+    return NextResponse.json({ user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, phone: updated.phone, emailNotifications: updated.emailNotifications } })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'تعذر تحديث الحساب' }, { status: 500 })
