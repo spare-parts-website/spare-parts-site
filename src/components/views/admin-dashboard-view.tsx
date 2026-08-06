@@ -62,7 +62,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
     const [u, p, s, o, r] = await Promise.all([
       fetch('/api/admin/users', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/admin/parts', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/stores', { cache: 'no-store' }).then((r) => r.json()),
+      fetch('/api/admin/stores', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/orders?scope=admin', { cache: 'no-store' }).then((r) => r.json()),
       fetch('/api/admin/reviews', { cache: 'no-store' }).then((r) => r.json()),
     ])
@@ -102,9 +102,29 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
   const handleDeleteUser = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا المستخدم؟')) return
     const res = await fetch(`/api/admin/users?id=${id}`, { method: 'DELETE' })
+    const data = await res.json()
     if (res.ok) {
       toast({ title: 'تم الحذف', description: 'تم حذف المستخدم' })
       loadAll()
+    } else {
+      toast({ title: 'تعذر الحذف', description: data.error || 'حدث خطأ أثناء حذف المستخدم', variant: 'destructive' })
+    }
+  }
+
+  const handleDeleteStore = async (id: string) => {
+    if (!confirm('سيتم حذف المتجر وقطعه وتقييماته نهائياً. هل أنت متأكد؟')) return
+    setSubmitting(true)
+    try {
+      const res = await fetch(`/api/admin/stores?id=${id}`, { method: 'DELETE' })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'تعذر حذف المتجر', description: data.error || 'حدث خطأ أثناء حذف المتجر', variant: 'destructive' })
+        return
+      }
+      toast({ title: 'تم حذف المتجر', description: 'تم حذف المتجر وبياناته التابعة' })
+      loadAll()
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -131,9 +151,12 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
   const handleDeletePart = async (id: string) => {
     if (!confirm('هل أنت متأكد من حذف هذه القطعة نهائياً؟')) return
     const res = await fetch(`/api/parts?id=${id}`, { method: 'DELETE' })
+    const data = await res.json()
     if (res.ok) {
       toast({ title: 'تم الحذف', description: 'تم حذف القطعة' })
       loadAll()
+    } else {
+      toast({ title: 'تعذر حذف القطعة', description: data.error || 'حدث خطأ أثناء حذف القطعة', variant: 'destructive' })
     }
   }
 
@@ -177,6 +200,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
     stores: stores.length,
     parts: parts.length,
     orders: orders.length,
+    blockedParts: parts.filter((part) => part.blocked).length,
     pendingReviews: productReviews.filter((r) => !r.blocked).length + storeReviews.filter((r) => !r.blocked).length,
   }
 
@@ -188,12 +212,13 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
       </div>
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         {[
           { label: 'المستخدمون', value: stats.users, icon: Users },
           { label: 'المتاجر', value: stats.stores, icon: StoreIcon },
           { label: 'قطع الغيار', value: stats.parts, icon: Package },
           { label: 'الطلبات', value: stats.orders, icon: ShoppingBag },
+          { label: 'قطع محجوبة', value: stats.blockedParts, icon: Ban },
           { label: 'تقييمات نشطة', value: stats.pendingReviews, icon: Star },
         ].map((stat) => (
           <Card key={stat.label}>
@@ -338,6 +363,21 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                         {s._count?.parts || 0} قطعة
                       </Badge>
                       <Stars value={s.avgRating || 0} size={12} />
+                    </div>
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t">
+                      <div className="text-xs text-muted-foreground truncate" dir="ltr">
+                        {s.owner?.email || 'بدون مالك'}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => handleDeleteStore(s.id)}
+                        disabled={submitting}
+                        className="shrink-0 gap-1"
+                      >
+                        <Trash2 className="size-3.5" />
+                        حذف
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

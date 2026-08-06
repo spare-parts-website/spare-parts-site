@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { deleteUserWithDependencies } from '@/lib/admin-deletion'
 
 export async function GET() {
   try {
@@ -55,19 +56,25 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    await requireRole('ADMIN')
+    const session = await requireRole('ADMIN')
     const { searchParams } = new URL(req.url)
     const id = searchParams.get('id')
     if (!id) {
       return NextResponse.json({ error: 'المعرف مطلوب' }, { status: 400 })
     }
-    await db.user.delete({ where: { id } })
+    if (id === session.id) {
+      return NextResponse.json({ error: 'لا يمكنك حذف حساب المدير الذي تستخدمه حالياً' }, { status: 400 })
+    }
+    await db.$transaction((tx) => deleteUserWithDependencies(tx, id))
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
+    if (e.message === 'USER_HAS_ORDERS' || e.message === 'STORE_HAS_ORDERS') {
+      return NextResponse.json({ error: 'لا يمكن حذف مستخدم لديه طلبات محفوظة. احفظ سجل الطلبات أولاً.' }, { status: 409 })
+    }
     console.error(e)
-    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر حذف المستخدم' }, { status: 500 })
   }
 }

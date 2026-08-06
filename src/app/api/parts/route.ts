@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, requireRole } from '@/lib/auth'
 import { isBlockedStoreName } from '@/lib/store-moderation'
+import { deletePartWithDependencies } from '@/lib/admin-deletion'
 
 export async function GET(req: NextRequest) {
   try {
@@ -199,15 +200,13 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
 
-    // Admin can either block (toggle) or hard delete; shop owner can delete own parts
-    if (isAdmin) {
-      await db.part.delete({ where: { id } })
-    } else {
-      await db.part.delete({ where: { id } })
-    }
+    await db.$transaction((tx) => deletePartWithDependencies(tx, id))
 
     return NextResponse.json({ ok: true })
-  } catch (e) {
+  } catch (e: any) {
+    if (e.message === 'PART_HAS_ORDERS') {
+      return NextResponse.json({ error: 'لا يمكن حذف قطعة مرتبطة بطلبات. احفظ سجل الطلبات أولاً.' }, { status: 409 })
+    }
     console.error(e)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
