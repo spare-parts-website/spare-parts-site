@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, requireRole } from '@/lib/auth'
+import { isBlockedStoreName } from '@/lib/store-moderation'
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
         images: { orderBy: { createdAt: 'asc' } },
       },
     })
-    if (!part || part.blocked) {
+    if (!part || part.blocked || isBlockedStoreName(part.store.name)) {
       return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
     }
     return NextResponse.json(
@@ -65,6 +66,8 @@ export async function GET(req: NextRequest) {
   })
 
   // Get categories and brands for filters
+  const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name))
+
   const categories = await db.part.findMany({
     where: { blocked: false, category: { not: null } },
     distinct: ['category'],
@@ -78,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        parts,
+        parts: visibleParts,
         categories: categories.map((c) => c.category).filter(Boolean),
         brands: brands.map((b) => b.brand).filter(Boolean),
       },

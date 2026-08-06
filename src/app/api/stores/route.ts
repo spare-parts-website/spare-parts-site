@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { isBlockedStoreName } from '@/lib/store-moderation'
 
 export async function GET(req: NextRequest) {
   try {
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
         },
       },
     })
-    if (!store) {
+    if (!store || isBlockedStoreName(store.name)) {
       return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
     }
     return NextResponse.json({ store })
@@ -52,8 +53,10 @@ export async function GET(req: NextRequest) {
   })
 
   // Compute average rating
+  const visibleStores = stores.filter((store) => !isBlockedStoreName(store.name))
+
   const storesWithRating = await Promise.all(
-    stores.map(async (s) => {
+    visibleStores.map(async (s) => {
       const reviews = await db.storeReview.findMany({
         where: { storeId: s.id, blocked: false },
         select: { rating: true },
