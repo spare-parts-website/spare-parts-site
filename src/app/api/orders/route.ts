@@ -57,8 +57,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'قطعة الغيار وعنوان التوصيل مطلوبان' }, { status: 400 })
     }
 
-    if (session.role !== 'BUYER') {
-      return NextResponse.json({ error: 'المشتري فقط يمكنه إنشاء الطلبات' }, { status: 403 })
+    if (session.role !== 'BUYER' && session.role !== 'SHOP_OWNER') {
+      return NextResponse.json({ error: 'المشتري أو صاحب المحل يمكنه إنشاء الطلبات' }, { status: 403 })
     }
 
     const part = await db.part.findUnique({
@@ -180,7 +180,7 @@ export async function PUT(req: NextRequest) {
       newStatus = 'REJECTED'
     } else if (action === 'pay') {
       // Buyer pays
-      if (session.role !== 'BUYER' || order.buyerId !== session.id) {
+      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       if (order.status !== 'APPROVED') {
@@ -202,7 +202,7 @@ export async function PUT(req: NextRequest) {
       newStatus = 'DELIVERED'
       if (order.paymentMethod === 'cod') newPaymentStatus = 'PAID'
     } else if (action === 'return') {
-      if (session.role !== 'BUYER' || order.buyerId !== session.id) {
+      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       if (order.status !== 'DELIVERED') {

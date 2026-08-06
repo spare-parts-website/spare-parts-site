@@ -33,14 +33,6 @@ export function CartDrawer() {
       })
       return
     }
-    if (user.role !== 'BUYER') {
-      toast({
-        title: 'غير مصرح',
-        description: 'فقط المشتري يمكنه إتمام الطلبات',
-        variant: 'destructive',
-      })
-      return
-    }
     setView({ name: 'checkout' })
     setCartOpen(false)
   }

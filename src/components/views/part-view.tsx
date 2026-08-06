@@ -98,10 +98,6 @@ export function PartView({ partId }: { partId: string }) {
       toast({ title: 'سجّل الدخول أولاً', description: 'يجب تسجيل الدخول لإتمام الطلب' })
       return
     }
-    if (user.role !== 'BUYER') {
-      toast({ title: 'غير مصرح', description: 'فقط المشتري يمكنه تقديم الطلبات', variant: 'destructive' })
-      return
-    }
     setSubmitting(true)
     try {
       const body = { ...orderForm, partId }
