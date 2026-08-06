@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
+import { createNotification } from '@/lib/notifications'
 
 // GET messages for an order
 export async function GET(req: NextRequest) {
@@ -78,21 +79,14 @@ export async function POST(req: NextRequest) {
       include: { sender: { select: { id: true, name: true } } },
     })
 
-    // Notify the receiver
+    // Persist the notification directly so it works on serverless hosting.
     try {
-      await fetch('http://127.0.0.1:3000/api/notify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-internal-notify-secret': process.env.AUTH_SECRET || 'local-development-only-change-me',
-        },
-        body: JSON.stringify({
-          userId: receiverId,
-          title: 'رسالة جديدة',
-          message: `${session.name}: ${message.trim().substring(0, 50)}`,
-          type: 'CHAT',
-          link: isBuyer ? 'shop-dashboard' : 'orders',
-        }),
+      await createNotification({
+        userId: receiverId,
+        title: 'رسالة جديدة',
+        message: `${session.name}: ${message.trim().substring(0, 50)}`,
+        type: 'CHAT',
+        link: isBuyer ? 'shop-dashboard' : 'orders',
       })
     } catch (e) {
       console.error('Notify error:', e)

@@ -19,7 +19,7 @@ export function Footer() {
               <span className="font-bold">قطع غيار</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              منصة متكاملة لربط مشتري قطع غيار السيارات بالمتاجر المعتمدة، مع توصيل ودفع إلكتروني آمن.
+              منصة متكاملة لربط مشتري قطع غيار السيارات بالمتاجر المعتمدة، مع توصيل ودفع عند الاستلام.
             </p>
           </div>
 

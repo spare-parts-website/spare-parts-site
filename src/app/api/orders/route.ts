@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, requireAuth } from '@/lib/auth'
 import { sendEmail, emailTemplates } from '@/lib/email'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET(req: NextRequest) {
   try {
@@ -56,6 +57,12 @@ export async function POST(req: NextRequest) {
     if (!partId || typeof deliveryAddress !== 'string' || !deliveryAddress.trim()) {
       return NextResponse.json({ error: 'قطعة الغيار وعنوان التوصيل مطلوبان' }, { status: 400 })
     }
+    if (deliveryAddress.trim().length > 500) {
+      return NextResponse.json({ error: 'عنوان التوصيل طويل جداً' }, { status: 400 })
+    }
+    if (typeof notes === 'string' && notes.trim().length > 1000) {
+      return NextResponse.json({ error: 'الملاحظات طويلة جداً' }, { status: 400 })
+    }
 
     if (session.role !== 'BUYER' && session.role !== 'SHOP_OWNER') {
       return NextResponse.json({ error: 'المشتري أو صاحب المحل يمكنه إنشاء الطلبات' }, { status: 403 })
@@ -101,21 +108,14 @@ export async function POST(req: NextRequest) {
       })
     })
 
-    // Notify shop owner about the new order (via internal API that persists + pushes via WebSocket)
+    // Persist the notification directly so it works on serverless hosting.
     try {
-      await fetch('http://127.0.0.1:3000/api/notify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-internal-notify-secret': process.env.AUTH_SECRET || 'local-development-only-change-me',
-        },
-        body: JSON.stringify({
-          userId: part.store.ownerId,
-          title: 'طلب جديد',
-          message: `طلب جديد من ${session.name} على "${part.name}" بكمية ${qty}.`,
-          type: 'NEW_ORDER',
-          link: 'shop-dashboard',
-        }),
+      await createNotification({
+        userId: part.store.ownerId,
+        title: 'طلب جديد',
+        message: `طلب جديد من ${session.name} على "${part.name}" بكمية ${qty}.`,
+        type: 'NEW_ORDER',
+        link: 'shop-dashboard',
       })
 
       // Send email to shop owner
@@ -249,17 +249,10 @@ export async function PUT(req: NextRequest) {
       })
     }
 
-    // Send notifications based on action (via internal API that persists + pushes via WebSocket)
+    // Persist notifications directly so they work on serverless hosting.
     const notify = async (userId: string, title: string, message: string, type: string, link?: string) => {
       try {
-        await fetch('http://127.0.0.1:3000/api/notify', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-internal-notify-secret': process.env.AUTH_SECRET || 'local-development-only-change-me',
-          },
-          body: JSON.stringify({ userId, title, message, type, link }),
-        })
+        await createNotification({ userId, title, message, type, link })
       } catch (e) {
         console.error('Notify error:', e)
       }

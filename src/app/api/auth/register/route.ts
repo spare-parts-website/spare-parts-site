@@ -37,26 +37,30 @@ export async function POST(req: NextRequest) {
     }
 
     const hashedPassword = await hashPassword(password)
-    const user = await db.user.create({
-      data: {
-        name,
-        email,
-        password: hashedPassword,
-        role,
-        phone: phone || null,
-      },
-    })
-
-    // If shop owner, create empty store
-    if (role === 'SHOP_OWNER') {
-      await db.store.create({
+    const user = await db.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
         data: {
-          name: `متجر ${name}`,
-          description: '',
-          ownerId: user.id,
+          name,
+          email,
+          password: hashedPassword,
+          role,
+          phone: phone || null,
         },
       })
-    }
+
+      // If shop owner, create the store atomically with the account.
+      if (role === 'SHOP_OWNER') {
+        await tx.store.create({
+          data: {
+            name: `متجر ${name}`,
+            description: '',
+            ownerId: createdUser.id,
+          },
+        })
+      }
+
+      return createdUser
+    })
 
     await createSession({
       id: user.id,

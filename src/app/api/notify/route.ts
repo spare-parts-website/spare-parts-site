@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { createNotification } from '@/lib/notifications'
 
 // Internal helper to push a notification via WebSocket and persist in DB
 // Can be called from other API routes
@@ -16,38 +17,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'userId, title, message required' }, { status: 400 })
     }
 
-    // Persist notification in DB
-    const { db } = await import('@/lib/db')
-    const notification = await db.notification.create({
-      data: {
-        userId,
-        title,
-        message,
-        type: type || 'SYSTEM',
-        link: link || null,
-      },
-    })
-
-    // Push via WebSocket (fire and forget)
-    try {
-      await fetch('http://127.0.0.1:3004/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userId,
-          notification: {
-            id: notification.id,
-            title: notification.title,
-            message: notification.message,
-            type: notification.type,
-            link: notification.link,
-            createdAt: notification.createdAt,
-          },
-        }),
-      })
-    } catch (e) {
-      console.error('Failed to push WebSocket notification:', e)
-    }
+    const notification = await createNotification({ userId, title, message, type, link })
 
     return NextResponse.json({ ok: true, notification })
   } catch (e) {

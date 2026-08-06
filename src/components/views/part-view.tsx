@@ -74,7 +74,7 @@ export function PartView({ partId }: { partId: string }) {
     quantity: 1,
     deliveryAddress: '',
     notes: '',
-    paymentMethod: 'card',
+    paymentMethod: 'cod',
   })
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' })
   const [submitting, setSubmitting] = useState(false)
@@ -450,29 +450,14 @@ export function PartView({ partId }: { partId: string }) {
                   </div>
                   <div className="space-y-2">
                     <Label>طريقة الدفع</Label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setOrderForm({ ...orderForm, paymentMethod: 'card' })}
-                        className={`p-3 rounded-lg border-2 text-sm transition ${
-                          orderForm.paymentMethod === 'card'
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border'
-                        }`}
-                      >
-                        بطاقة بنكية
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setOrderForm({ ...orderForm, paymentMethod: 'transfer' })}
-                        className={`p-3 rounded-lg border-2 text-sm transition ${
-                          orderForm.paymentMethod === 'transfer'
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border'
-                        }`}
-                      >
-                        تحويل بنكي
-                      </button>
+                    <div className="p-3 rounded-lg border-2 border-primary bg-primary/5 text-sm flex items-center gap-2">
+                      <Truck className="size-5 text-primary" />
+                      <div>
+                        <p className="font-medium">الدفع عند الاستلام</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          ادفع للمحل عند استلام القطعة
+                        </p>
+                      </div>
                     </div>
                   </div>
                   <div className="space-y-2">
@@ -561,7 +546,7 @@ export function PartView({ partId }: { partId: string }) {
             </div>
             <div className="text-center">
               <ShieldCheck className="size-5 mx-auto text-primary mb-1" />
-              <p className="text-xs text-muted-foreground">دفع آمن</p>
+              <p className="text-xs text-muted-foreground">الدفع عند الاستلام</p>
             </div>
             <div className="text-center">
               <RotateCcw className="size-5 mx-auto text-primary mb-1" />

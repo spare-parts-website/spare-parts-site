@@ -10,7 +10,6 @@ import {
   ShoppingBag,
   Package,
   Store as StoreIcon,
-  CreditCard,
   MapPin,
   Calendar,
   RotateCcw,
@@ -25,16 +24,6 @@ import {
 import { StatusBadge, formatPrice } from '@/components/common'
 import { OrderTimeline } from '@/components/order-timeline'
 import { useToast } from '@/hooks/use-toast'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import { Label } from '@/components/ui/label'
-import { Input } from '@/components/ui/input'
 
 interface OrderTimelineEntry {
   id: string
@@ -64,8 +53,6 @@ export function OrdersView() {
   const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
-  const [payOrder, setPayOrder] = useState<Order | null>(null)
-  const [card, setCard] = useState({ number: '', name: '', expiry: '', cvv: '' })
   const [submitting, setSubmitting] = useState(false)
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null)
 
@@ -95,32 +82,6 @@ export function OrdersView() {
         return
       }
       toast({ title: 'تم التحديث', description: 'تم تحديث حالة الطلب' })
-      load()
-    } finally {
-      setSubmitting(false)
-    }
-  }
-
-  const handlePay = async () => {
-    if (!payOrder) return
-    setSubmitting(true)
-    try {
-      const res = await fetch('/api/orders', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id: payOrder.id, action: 'pay' }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        toast({ title: 'خطأ', description: data.error, variant: 'destructive' })
-        return
-      }
-      toast({
-        title: 'تم الدفع بنجاح',
-        description: `تم دفع ${formatPrice(payOrder.totalPrice)}`,
-      })
-      setPayOrder(null)
-      setCard({ number: '', name: '', expiry: '', cvv: '' })
       load()
     } finally {
       setSubmitting(false)
@@ -233,12 +194,6 @@ export function OrdersView() {
 
                     {/* Actions */}
                     <div className="flex flex-wrap gap-2 pt-3 border-t">
-                      {false && order.paymentMethod !== 'cod' && order.status === 'APPROVED' && order.paymentStatus === 'UNPAID' && (
-                        <Button size="sm" onClick={() => setPayOrder(order)}>
-                          <CreditCard className="size-4 ml-1" />
-                          دفع الآن
-                        </Button>
-                      )}
                       {order.status === 'DELIVERED' && (
                         <Button
                           size="sm"
@@ -327,79 +282,6 @@ export function OrdersView() {
         </div>
       )}
 
-      {/* Payment dialog */}
-      <Dialog open={false} onOpenChange={(o) => !o && setPayOrder(null)}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>الدفع الإلكتروني</DialogTitle>
-            <DialogDescription>
-              أدخل بيانات البطاقة لإتمام الدفع
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-2">
-            <div className="p-4 rounded-lg bg-primary/5 border border-primary/20">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-muted-foreground">المبلغ المطلوب</span>
-                <span className="text-xl font-bold text-primary">
-                  {payOrder && formatPrice(payOrder.totalPrice)}
-                </span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>رقم البطاقة</Label>
-              <Input
-                value={card.number}
-                onChange={(e) => setCard({ ...card, number: e.target.value })}
-                placeholder="0000 0000 0000 0000"
-                dir="ltr"
-                maxLength={19}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>الاسم على البطاقة</Label>
-              <Input
-                value={card.name}
-                onChange={(e) => setCard({ ...card, name: e.target.value })}
-                placeholder="الاسم كما يظهر على البطاقة"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>تاريخ الانتهاء</Label>
-                <Input
-                  value={card.expiry}
-                  onChange={(e) => setCard({ ...card, expiry: e.target.value })}
-                  placeholder="MM/YY"
-                  dir="ltr"
-                  maxLength={5}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>CVV</Label>
-                <Input
-                  value={card.cvv}
-                  onChange={(e) => setCard({ ...card, cvv: e.target.value })}
-                  placeholder="000"
-                  dir="ltr"
-                  maxLength={3}
-                  type="password"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              * هذه بوابة دفع تجريبية. لن يتم خصم أي مبلغ فعلي.
-            </p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setPayOrder(null)}>
-              إلغاء
-            </Button>
-            <Button onClick={handlePay} disabled={submitting || !card.number || !card.name}>
-              {submitting ? 'جاري المعالجة...' : `دفع ${payOrder ? formatPrice(payOrder.totalPrice) : ''}`}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

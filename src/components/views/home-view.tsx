@@ -12,7 +12,7 @@ import {
   Search,
   ShieldCheck,
   Truck,
-  CreditCard,
+  Banknote,
   Star,
   ArrowLeft,
   Wrench,
@@ -76,11 +76,11 @@ export function HomeView() {
               قطع غيار أصلية من{' '}
               <span className="text-primary">متاجر معتمدة</span>
               <br className="hidden md:block" />
-              توصيل سريع ودفع آمن
+              توصيل سريع والدفع عند الاستلام
             </h1>
             <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
               تصفح آلاف قطع الغيار من مختلف المتاجر، قارن الأسعار، اطلب التوصيل،
-              وادفع إلكترونياً بكل سهولة وأمان. تقييمات حقيقية من عملاء سابقين
+              وادفع عند الاستلام بكل وضوح وأمان. تقييمات حقيقية من عملاء سابقين
               تساعدك على اختيار الأفضل.
             </p>
             <div className="flex flex-wrap justify-center gap-3 pt-2">
@@ -124,7 +124,7 @@ export function HomeView() {
           {[
             { icon: ShieldCheck, title: 'متاجر موثوقة', desc: 'جميع المتاجر معتمدة وموثقة' },
             { icon: Truck, title: 'توصيل سريع', desc: 'اطلب التوصيل لموقعك بضغطة' },
-            { icon: CreditCard, title: 'دفع إلكتروني', desc: 'ادفع بأمان عبر الإنترنت' },
+            { icon: Banknote, title: 'الدفع عند الاستلام', desc: 'ادفع بعد استلام القطعة' },
             { icon: TrendingUp, title: 'تقييمات حقيقية', desc: 'اطلع على تجارب العملاء' },
           ].map((f) => (
             <Card key={f.title} className="border-border/60 hover:shadow-md transition">

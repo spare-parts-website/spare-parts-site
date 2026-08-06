@@ -5,13 +5,11 @@ import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
-import { Badge } from '@/components/ui/badge'
 import {
   ShoppingCart,
   Package,
   Store as StoreIcon,
   MapPin,
-  CreditCard,
   CheckCircle2,
   ArrowRight,
   Truck,
@@ -26,7 +24,6 @@ export function CheckoutView() {
   const [submitting, setSubmitting] = useState(false)
   const [form, setForm] = useState({
     deliveryAddress: '',
-    paymentMethod: 'cod',
     notes: '',
   })
 
@@ -64,7 +61,7 @@ export function CheckoutView() {
             quantity: item.quantity,
             deliveryAddress: form.deliveryAddress,
             notes: form.notes,
-            paymentMethod: form.paymentMethod,
+            paymentMethod: 'cod',
           }),
         }).then((r) => r.json())
       )
@@ -140,38 +137,11 @@ export function CheckoutView() {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
-                <CreditCard className="size-5 text-primary" />
+                <Truck className="size-5 text-primary" />
                 طريقة الدفع
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <div className="hidden">
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, paymentMethod: 'card' })}
-                  className={`p-4 rounded-lg border-2 text-sm transition flex items-center gap-2 ${
-                    form.paymentMethod === 'card'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/40'
-                  }`}
-                >
-                  <CreditCard className="size-5" />
-                  بطاقة بنكية
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setForm({ ...form, paymentMethod: 'transfer' })}
-                  className={`p-4 rounded-lg border-2 text-sm transition flex items-center gap-2 ${
-                    form.paymentMethod === 'transfer'
-                      ? 'border-primary bg-primary/5'
-                      : 'border-border hover:border-primary/40'
-                  }`}
-                >
-                  <ShieldCheck className="size-5" />
-                  تحويل بنكي
-                </button>
-              </div>
-
               <div className="p-4 rounded-lg border-2 border-primary bg-primary/5 flex items-start gap-3">
                 <Truck className="size-5 text-primary mt-0.5 shrink-0" />
                 <div>
