@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { randomUUID } from 'crypto'
 import sharp from 'sharp'
 import { requireRoles } from '@/lib/auth'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
@@ -9,7 +10,9 @@ const BUCKET = 'uploads'
 
 export async function POST(req: NextRequest) {
   try {
-    await requireRoles(['BUYER', 'SHOP_OWNER', 'ADMIN'])
+    const session = await requireRoles(['BUYER', 'SHOP_OWNER', 'ADMIN'])
+    const limit = rateLimit(`upload:${session.id}:${requestAddress(req)}`, 20, 10 * 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'رفعت صوراً كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
 
     const supabaseUrl = process.env.SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY

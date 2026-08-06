@@ -34,6 +34,9 @@ export function Footer() {
                   الرئيسية
                 </button>
               </li>
+              <li><button className="text-muted-foreground hover:text-primary transition" onClick={() => setView({ name: 'legal', page: 'privacy' })}>الخصوصية</button></li>
+              <li><button className="text-muted-foreground hover:text-primary transition" onClick={() => setView({ name: 'legal', page: 'returns' })}>الاسترجاع</button></li>
+              <li><button className="text-muted-foreground hover:text-primary transition" onClick={() => setView({ name: 'legal', page: 'contact' })}>تواصل معنا</button></li>
               <li>
                 <button
                   className="text-muted-foreground hover:text-primary transition"

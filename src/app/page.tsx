@@ -20,6 +20,7 @@ import { WishlistView } from '@/components/views/wishlist-view'
 import { MyCarsView } from '@/components/views/my-cars-view'
 import { ChatView } from '@/components/views/chat-view'
 import { InboxView } from '@/components/views/inbox-view'
+import { LegalView } from '@/components/views/legal-view'
 import type { AuthUser } from '@/lib/store'
 
 export default function Home() {
@@ -65,6 +66,7 @@ export default function Home() {
         {view.name === 'orders' && <OrdersView />}
         {view.name === 'profile' && <ProfileView />}
         {view.name === 'inbox' && <InboxView />}
+        {view.name === 'legal' && <LegalView page={view.page} />}
         {view.name === 'shop-dashboard' && <ShopDashboardView tab={view.tab} />}
         {view.name === 'admin-dashboard' && <AdminDashboardView tab={view.tab} />}
         {view.name === 'checkout' && <CheckoutView />}

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
     const session = await requireAuth()
     const { searchParams } = new URL(req.url)
     const storeId = searchParams.get('storeId')
-    const code = searchParams.get('code')
+    const code = searchParams.get('code')?.trim().toUpperCase()
 
     // Validate a coupon by code (for buyer at checkout)
     if (code) {
@@ -69,22 +69,26 @@ export async function POST(req: NextRequest) {
     const session = await requireRole('SHOP_OWNER')
     const { code, discountPercent, maxUses, expiresAt } = await req.json()
 
-    if (!code || !discountPercent) {
+    const normalizedCode = typeof code === 'string' ? code.trim().toUpperCase() : ''
+    const percent = Number(discountPercent)
+    const uses = Number(maxUses)
+    if (!/^[A-Z0-9_-]{3,40}$/.test(normalizedCode) || !Number.isFinite(percent) || percent <= 0 || percent > 100) {
       return NextResponse.json({ error: 'الكود ونسبة الخصم مطلوبة' }, { status: 400 })
     }
+    if (!Number.isFinite(uses) || uses < 1 || uses > 100000) return NextResponse.json({ error: 'عدد الاستخدام غير صالح' }, { status: 400 })
 
     const store = await db.store.findUnique({ where: { ownerId: session.id } })
     if (!store) return NextResponse.json({ error: 'لا يوجد متجر' }, { status: 400 })
 
-    const existing = await db.coupon.findUnique({ where: { code: code.toUpperCase() } })
+    const existing = await db.coupon.findUnique({ where: { code: normalizedCode } })
     if (existing) return NextResponse.json({ error: 'الكود مستخدم بالفعل' }, { status: 400 })
 
     const coupon = await db.coupon.create({
       data: {
-        code: code.toUpperCase(),
+        code: normalizedCode,
         storeId: store.id,
-        discountPercent: parseFloat(discountPercent),
-        maxUses: parseInt(maxUses) || 100,
+        discountPercent: percent,
+        maxUses: uses,
         expiresAt: expiresAt ? new Date(expiresAt) : null,
       },
     })

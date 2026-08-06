@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
+import { rateLimit } from '@/lib/rate-limit'
 
 function unauthorized() {
   return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
@@ -192,6 +193,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
+    const limit = rateLimit(`chat:${session.id}`, 60, 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'رسائل كثيرة. حاول مرة أخرى بعد قليل.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const orderId = typeof body.orderId === 'string' ? body.orderId : null
     const partId = typeof body.partId === 'string' ? body.partId : null

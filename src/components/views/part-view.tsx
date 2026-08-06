@@ -101,7 +101,7 @@ export function PartView({ partId }: { partId: string }) {
     }
     setSubmitting(true)
     try {
-      const body = { ...orderForm, partId }
+      const body = { ...orderForm, partId, clientOrderId: crypto.randomUUID() }
       const res = await fetch('/api/orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

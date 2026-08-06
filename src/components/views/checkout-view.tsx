@@ -5,6 +5,7 @@ import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
+import { Input } from '@/components/ui/input'
 import {
   ShoppingCart,
   Package,
@@ -25,6 +26,7 @@ export function CheckoutView() {
   const [form, setForm] = useState({
     deliveryAddress: '',
     notes: '',
+    couponCode: '',
   })
 
   // Group cart items by store
@@ -49,6 +51,13 @@ export function CheckoutView() {
       toast({ title: 'خطأ', description: 'عنوان التوصيل مطلوب', variant: 'destructive' })
       return
     }
+    if (form.couponCode.trim()) {
+      const couponCheck = await fetch(`/api/coupons?code=${encodeURIComponent(form.couponCode.trim())}`, { cache: 'no-store' }).then((r) => r.json())
+      if (!couponCheck.valid) {
+        toast({ title: 'كوبون غير صالح', description: couponCheck.error || 'تحقق من الكود', variant: 'destructive' })
+        return
+      }
+    }
     setSubmitting(true)
     try {
       // Create one order per item (since each order is for a single part)
@@ -62,6 +71,8 @@ export function CheckoutView() {
             deliveryAddress: form.deliveryAddress,
             notes: form.notes,
             paymentMethod: 'cod',
+            couponCode: form.couponCode.trim() || undefined,
+            clientOrderId: crypto.randomUUID(),
           }),
         }).then((r) => r.json())
       )
@@ -74,9 +85,10 @@ export function CheckoutView() {
           variant: 'destructive',
         })
       } else {
+        const discount = results.reduce((sum, result) => sum + Number(result.order?.discount || 0), 0)
         toast({
           title: 'تم إرسال الطلبات بنجاح',
-          description: `تم إنشاء ${results.length} طلب لـ ${Object.keys(storeGroups).length} متجر`,
+          description: `تم إنشاء ${results.length} طلب لـ ${Object.keys(storeGroups).length} متجر${discount ? `، الخصم ${formatPrice(discount)}` : ''}`,
         })
         clearCart()
         setView({ name: 'orders' })
@@ -130,6 +142,14 @@ export function CheckoutView() {
                 rows={3}
                 required
               />
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle className="text-lg">كوبون الخصم</CardTitle></CardHeader>
+            <CardContent className="space-y-2">
+              <Input value={form.couponCode} onChange={(e) => setForm({ ...form, couponCode: e.target.value.toUpperCase() })} placeholder="أدخل الكود إن وجد" dir="ltr" />
+              <p className="text-xs text-muted-foreground">سيُطبّق الكوبون على المنتجات التابعة للمتجر الذي أصدره.</p>
             </CardContent>
           </Card>
 

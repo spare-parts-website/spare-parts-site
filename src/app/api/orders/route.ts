@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getSession, requireAuth } from '@/lib/auth'
 import { sendEmail, emailTemplates } from '@/lib/email'
 import { createNotification } from '@/lib/notifications'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
 export async function GET(req: NextRequest) {
   try {
@@ -51,8 +52,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
+    const limit = rateLimit(`orders:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'طلبات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { partId, quantity, deliveryAddress, notes } = body
+    const clientOrderId = typeof body.clientOrderId === 'string' && body.clientOrderId.length <= 100 ? body.clientOrderId : null
+    const couponCode = typeof body.couponCode === 'string' ? body.couponCode.trim().toUpperCase() : null
 
     if (!partId || typeof deliveryAddress !== 'string' || !deliveryAddress.trim()) {
       return NextResponse.json({ error: 'قطعة الغيار وعنوان التوصيل مطلوبان' }, { status: 400 })
@@ -80,7 +85,16 @@ export async function POST(req: NextRequest) {
     if (qty > 100) {
       return NextResponse.json({ error: 'الحد الأقصى للكمية في الطلب هو 100' }, { status: 400 })
     }
-    const order = await db.$transaction(async (tx) => {
+    const result = await db.$transaction(async (tx) => {
+      if (clientOrderId) {
+        const existing = await tx.order.findUnique({ where: { clientOrderId } })
+        if (existing) return { order: existing, duplicate: true }
+      }
+
+      const coupon = couponCode ? await tx.coupon.findUnique({ where: { code: couponCode } }) : null
+      if (couponCode && (!coupon || !coupon.active || (coupon.expiresAt && coupon.expiresAt < new Date()))) throw new Error('INVALID_COUPON')
+      const appliesCoupon = coupon && coupon.storeId === part.store.id ? coupon : null
+
       // Reserve stock at checkout so concurrent buyers cannot oversell it.
       const reserved = await tx.part.updateMany({
         where: { id: part.id, blocked: false, stock: { gte: qty } },
@@ -88,25 +102,42 @@ export async function POST(req: NextRequest) {
       })
       if (reserved.count !== 1) throw new Error('OUT_OF_STOCK')
 
-      return tx.order.create({
+      const subtotal = part.price * qty
+      const discount = appliesCoupon ? Math.round(subtotal * appliesCoupon.discountPercent) / 100 : 0
+      if (appliesCoupon) {
+        const used = await tx.coupon.updateMany({
+          where: { id: appliesCoupon.id, active: true, usedCount: { lt: appliesCoupon.maxUses } },
+          data: { usedCount: { increment: 1 } },
+        })
+        if (used.count !== 1) throw new Error('COUPON_EXHAUSTED')
+      }
+
+      const order = await tx.order.create({
         data: {
           partId: part.id,
           storeId: part.store.id,
           buyerId: session.id,
           quantity: qty,
-          totalPrice: part.price * qty,
+          totalPrice: Math.max(0, subtotal - discount),
           deliveryAddress: deliveryAddress.trim(),
           notes: typeof notes === 'string' ? notes.trim() || null : null,
           // Card data is intentionally not accepted. The beta uses cash on delivery.
           paymentMethod: 'cod',
           status: 'PENDING',
           paymentStatus: 'UNPAID',
+          couponCode: appliesCoupon?.code ?? null,
+          discount,
+          clientOrderId,
           timeline: {
             create: { status: 'PENDING', note: 'تم إنشاء الطلب والدفع عند الاستلام' },
           },
         },
       })
+      return { order, duplicate: false }
     })
+    const order = result.order
+
+    if (result.duplicate) return NextResponse.json({ order, duplicate: true })
 
     // Persist the notification directly so it works on serverless hosting.
     try {
@@ -135,6 +166,8 @@ export async function POST(req: NextRequest) {
     if (e.message === 'OUT_OF_STOCK') {
       return NextResponse.json({ error: 'الكمية المطلوبة غير متوفرة' }, { status: 400 })
     }
+    if (e.message === 'INVALID_COUPON') return NextResponse.json({ error: 'الكوبون غير صالح أو منتهي' }, { status: 400 })
+    if (e.message === 'COUPON_EXHAUSTED') return NextResponse.json({ error: 'انتهت استخدامات الكوبون' }, { status: 400 })
     if (e.message === 'UNAUTHORIZED') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
@@ -180,7 +213,7 @@ export async function PUT(req: NextRequest) {
       newStatus = 'REJECTED'
     } else if (action === 'pay') {
       // Buyer pays
-      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
+      if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       if (order.status !== 'APPROVED') {
@@ -202,7 +235,7 @@ export async function PUT(req: NextRequest) {
       newStatus = 'DELIVERED'
       if (order.paymentMethod === 'cod') newPaymentStatus = 'PAID'
     } else if (action === 'return') {
-      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
+      if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       if (order.status !== 'DELIVERED') {

@@ -1,11 +1,15 @@
 'use client'
 
+import { useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard } from 'lucide-react'
+import { Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock } from 'lucide-react'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { useToast } from '@/hooks/use-toast'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -14,7 +18,10 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export function ProfileView() {
-  const { user, setView } = useAppStore()
+  const { user, setUser, setView } = useAppStore()
+  const { toast } = useToast()
+  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', currentPassword: '', newPassword: '' })
+  const [saving, setSaving] = useState(false)
 
   if (!user) {
     return (
@@ -23,6 +30,23 @@ export function ProfileView() {
         <Button onClick={() => setView({ name: 'login' })}>تسجيل الدخول</Button>
       </div>
     )
+  }
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      const res = await fetch('/api/account', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'تعذر حفظ الحساب', description: data.error, variant: 'destructive' })
+        return
+      }
+      setUser(data.user)
+      setForm((current) => ({ ...current, currentPassword: '', newPassword: '' }))
+      toast({ title: 'تم تحديث الحساب', description: 'تم حفظ معلوماتك بنجاح' })
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -61,6 +85,20 @@ export function ProfileView() {
               </div>
             </div>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>تعديل الحساب</CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2"><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
+            <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></div>
+            <div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div>
+          </div>
+          <Button onClick={save} disabled={saving}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button>
+          <p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> لا نطلب كلمة المرور الحالية إلا عند تغيير كلمة المرور.</p>
         </CardContent>
       </Card>
 

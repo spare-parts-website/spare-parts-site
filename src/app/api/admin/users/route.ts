@@ -33,16 +33,32 @@ export async function GET() {
 
 export async function PUT(req: NextRequest) {
   try {
-    await requireRole('ADMIN')
+    const session = await requireRole('ADMIN')
     const body = await req.json()
     const { id, role } = body
     if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(role)) {
       return NextResponse.json({ error: 'دور غير صالح' }, { status: 400 })
     }
-    const updated = await db.user.update({
-      where: { id },
-      data: { role },
-      select: { id: true, name: true, email: true, role: true, phone: true },
+    if (id === session.id) return NextResponse.json({ error: 'لا يمكنك تغيير دور حساب المدير الحالي' }, { status: 400 })
+    const target = await db.user.findUnique({ where: { id }, include: { store: { select: { id: true } } } })
+    if (!target) return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+    if (target.role === 'SHOP_OWNER' && role !== 'SHOP_OWNER' && target.store) {
+      return NextResponse.json({ error: 'احذف أو انقل المتجر قبل تغيير دور صاحبه' }, { status: 409 })
+    }
+    if (target.role === 'ADMIN' && role !== 'ADMIN') {
+      const admins = await db.user.count({ where: { role: 'ADMIN' } })
+      if (admins <= 1) return NextResponse.json({ error: 'يجب أن يبقى مدير واحد على الأقل' }, { status: 409 })
+    }
+    const updated = await db.$transaction(async (tx) => {
+      const next = await tx.user.update({
+        where: { id },
+        data: { role },
+        select: { id: true, name: true, email: true, role: true, phone: true },
+      })
+      if (role === 'SHOP_OWNER' && !target.store) {
+        await tx.store.create({ data: { name: `متجر ${next.name}`, description: '', ownerId: next.id } })
+      }
+      return next
     })
     return NextResponse.json({ user: updated })
   } catch (e: any) {

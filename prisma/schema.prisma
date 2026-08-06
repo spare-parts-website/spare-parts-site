@@ -100,10 +100,14 @@ model Order {
   notes           String?
   couponCode      String?
   discount        Float    @default(0)
+  clientOrderId   String?  @unique
   timeline        OrderTimeline[]
   chatMessages    ChatMessage[]
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+
+  @@index([buyerId, createdAt])
+  @@index([storeId, createdAt])
 }
 
 // Order status timeline (track each status change)
@@ -203,6 +207,9 @@ model ChatMessage {
   imageUrl  String?
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([senderId, receiverId])
+  @@index([receiverId, read])
 }
 
 // Messages about a product before an order exists
@@ -221,4 +228,5 @@ model ProductMessage {
 
   @@index([partId])
   @@index([senderId, receiverId])
+  @@index([receiverId, read])
 }

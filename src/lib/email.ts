@@ -1,6 +1,5 @@
-// Simple email notification system
-// In production, integrate with a service like SendGrid, Resend, or AWS SES
-// For now, this logs emails to console and stores them in DB as a backup
+// Email notifications use Resend when configured. The development fallback logs
+// a warning instead of pretending that an email was delivered.
 
 interface EmailParams {
   to: string
@@ -9,38 +8,23 @@ interface EmailParams {
   text: string
 }
 
-// In-memory queue for emails (would be a real queue in production)
-const emailQueue: EmailParams[] = []
-
 export async function sendEmail({ to, subject, html, text }: EmailParams): Promise<boolean> {
   try {
-    // Log the email (in production, send via SMTP/API)
-    console.log(`
-========== EMAIL ==========
-To: ${to}
-Subject: ${subject}
-Body: ${text}
-===========================
-`)
-
-    // Add to queue (would be processed by a background worker)
-    emailQueue.push({ to, subject, html, text })
-
-    // In production, you would do something like:
-    // await fetch('https://api.sendgrid.com/v3/mail/send', {
-    //   method: 'POST',
-    //   headers: {
-    //     'Authorization': `Bearer ${process.env.SENDGRID_API_KEY}`,
-    //     'Content-Type': 'application/json',
-    //   },
-    //   body: JSON.stringify({
-    //     personalizations: [{ to: [{ email: to }] }],
-    //     from: { email: 'noreply@spareparts.com' },
-    //     subject,
-    //     content: [{ type: 'text/plain', value: text }, { type: 'text/html', value: html }],
-    //   }),
-    // })
-
+    const apiKey = process.env.RESEND_API_KEY
+    const from = process.env.EMAIL_FROM
+    if (!apiKey || !from) {
+      console.warn('Email not sent: configure RESEND_API_KEY and EMAIL_FROM.')
+      return false
+    }
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to: [to], subject, html, text }),
+    })
+    if (!response.ok) {
+      console.error('Email provider rejected message:', response.status, await response.text())
+      return false
+    }
     return true
   } catch (e) {
     console.error('Email send error:', e)

@@ -21,6 +21,7 @@ export type View =
   | { name: 'orders' }
   | { name: 'profile' }
   | { name: 'inbox' }
+  | { name: 'legal'; page: 'privacy' | 'terms' | 'returns' | 'contact' }
   | { name: 'shop-dashboard'; tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }
   | { name: 'admin-dashboard'; tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' }
   | { name: 'cart' }

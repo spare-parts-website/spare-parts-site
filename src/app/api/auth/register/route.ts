@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword, createSession } from '@/lib/auth'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
   try {
+    const limit = rateLimit(`register:${requestAddress(req)}`, 5, 60 * 60 * 1000)
+    if (!limit.allowed) {
+      return NextResponse.json({ error: 'محاولات تسجيل كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
+    }
     const body = await req.json()
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
