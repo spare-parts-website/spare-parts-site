@@ -42,12 +42,14 @@ interface Store {
   reviews: any[]
   verified: boolean
   completedOrderCount: number
+  canReview?: boolean
 }
 
 export function StoreView({ storeId }: { storeId: string }) {
   const { setView, user, setPendingView } = useAppStore()
   const { toast } = useToast()
   const [store, setStore] = useState<Store | null>(null)
+  const [canReview, setCanReview] = useState(false)
   const [loading, setLoading] = useState(true)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' })
@@ -57,7 +59,10 @@ export function StoreView({ storeId }: { storeId: string }) {
     setLoading(true)
     fetch(`/api/stores?id=${storeId}`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((data) => setStore(data.store || null))
+      .then((data) => {
+        setStore(data.store || null)
+        setCanReview(Boolean(data.canReview))
+      })
       .finally(() => setLoading(false))
   }
 
@@ -164,7 +169,7 @@ export function StoreView({ storeId }: { storeId: string }) {
                 </div>
                 <div className="flex items-center gap-2">
                   <FavoriteStoreButton storeId={store.id} returnView={{ name: 'store', storeId }} />
-                  <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+                  {canReview && <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm">
                         <Star className="size-4 ml-1" />
@@ -219,7 +224,7 @@ export function StoreView({ storeId }: { storeId: string }) {
                       </Button>
                     </DialogFooter>
                   </DialogContent>
-                  </Dialog>
+                  </Dialog>}
                 </div>
               </div>
 

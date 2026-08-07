@@ -46,6 +46,26 @@ export function CheckoutView() {
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
 
+  if (!user) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <ShoppingCart className="size-16 mx-auto mb-3 text-muted-foreground/50" />
+        <h2 className="text-xl font-semibold mb-2">سجّل الدخول لإتمام الطلب</h2>
+        <p className="text-muted-foreground mb-4">يجب تسجيل الدخول قبل إرسال طلب التوصيل.</p>
+        <Button onClick={() => setView({ name: 'login' })}>تسجيل الدخول</Button>
+      </div>
+    )
+  }
+
+  if (!['BUYER', 'SHOP_OWNER'].includes(user.role)) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <ShoppingCart className="size-16 mx-auto mb-3 text-muted-foreground/50" />
+        <h2 className="text-xl font-semibold">الشراء متاح للمشترين وأصحاب المحلات فقط</h2>
+      </div>
+    )
+  }
+
   const handleCheckout = async () => {
     if (!form.deliveryAddress) {
       toast({ title: 'خطأ', description: 'عنوان التوصيل مطلوب', variant: 'destructive' })

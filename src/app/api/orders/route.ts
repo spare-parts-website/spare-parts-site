@@ -13,6 +13,9 @@ export async function GET(req: NextRequest) {
     let where: any = {}
 
     if (scope === 'buyer') {
+      if (!['BUYER', 'SHOP_OWNER'].includes(session.role)) {
+        return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+      }
       where.buyerId = session.id
     } else if (scope === 'shop') {
       if (session.role !== 'SHOP_OWNER') {
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الملاحظات طويلة جداً' }, { status: 400 })
     }
 
-    if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(session.role)) {
+    if (!['BUYER', 'SHOP_OWNER'].includes(session.role)) {
       return NextResponse.json({ error: 'يجب تسجيل الدخول لإنشاء الطلبات' }, { status: 403 })
     }
 
@@ -78,6 +81,9 @@ export async function POST(req: NextRequest) {
     })
     if (!part || part.blocked) {
       return NextResponse.json({ error: 'قطعة الغيار غير متوفرة' }, { status: 404 })
+    }
+    if (session.role === 'SHOP_OWNER' && part.store.ownerId === session.id) {
+      return NextResponse.json({ error: 'لا يمكنك طلب قطعة من متجرك' }, { status: 400 })
     }
 
     const qty = Math.max(1, Math.floor(Number(quantity) || 1))
@@ -209,7 +215,7 @@ export async function PUT(req: NextRequest) {
       newStatus = 'REJECTED'
     } else if (action === 'pay') {
       // Buyer pays
-      if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(session.role) || order.buyerId !== session.id) {
+      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       if (order.status !== 'APPROVED') {
@@ -222,7 +228,7 @@ export async function PUT(req: NextRequest) {
       newStatus = 'PAID'
     } else if (action === 'deliver') {
       // The buyer confirms receipt and cash-on-delivery collection after receiving the order.
-      if (!['BUYER', 'ADMIN'].includes(session.role) || order.buyerId !== session.id) {
+      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       const canDeliver = order.status === 'PAID' || (order.status === 'APPROVED' && order.paymentMethod === 'cod')
@@ -232,7 +238,7 @@ export async function PUT(req: NextRequest) {
       newStatus = 'DELIVERED'
       if (order.paymentMethod === 'cod') newPaymentStatus = 'PAID'
     } else if (action === 'return') {
-      if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(session.role) || order.buyerId !== session.id) {
+      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       if (order.status !== 'DELIVERED') {

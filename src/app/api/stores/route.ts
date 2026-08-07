@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 import { isBlockedStoreName } from '@/lib/store-moderation'
 
 export async function GET(req: NextRequest) {
@@ -28,7 +29,14 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
     }
     const completedOrderCount = await db.order.count({ where: { storeId: store.id, status: 'DELIVERED' } })
-    return NextResponse.json({ store: { ...store, completedOrderCount } })
+    const session = await getSession()
+    const canReview = session && ['BUYER', 'SHOP_OWNER'].includes(session.role)
+      ? Boolean(await db.order.findFirst({
+          where: { buyerId: session.id, storeId: store.id, status: { in: ['DELIVERED', 'RETURNED'] } },
+          select: { id: true },
+        }))
+      : false
+    return NextResponse.json({ store: { ...store, completedOrderCount }, canReview })
   }
 
   const where = search

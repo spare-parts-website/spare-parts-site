@@ -65,7 +65,7 @@ export function OrdersView() {
   }
 
   useEffect(() => {
-    if (user) load()
+    if (user && ['BUYER', 'SHOP_OWNER'].includes(user.role)) load()
   }, [user])
 
   const handleAction = async (id: string, action: string) => {
@@ -96,6 +96,16 @@ export function OrdersView() {
         <Button className="mt-4" onClick={() => setView({ name: 'login' })}>
           تسجيل الدخول
         </Button>
+      </div>
+    )
+  }
+
+  if (!['BUYER', 'SHOP_OWNER'].includes(user.role)) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <ShoppingBag className="size-16 mx-auto mb-3 text-muted-foreground/50" />
+        <h2 className="text-xl font-semibold">طلبات العملاء متاحة للمشترين وأصحاب المحلات فقط</h2>
+        <Button className="mt-4" onClick={() => setView({ name: 'admin-dashboard', tab: 'orders' })}>لوحة المدير</Button>
       </div>
     )
   }

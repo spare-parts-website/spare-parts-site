@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth'
+import { requireRoles } from '@/lib/auth'
 
 // GET user's favorite stores
 export async function GET() {
   try {
-    const session = await requireAuth()
+    const session = await requireRoles(['BUYER', 'SHOP_OWNER'])
     const items = await db.storeWishlist.findMany({
       where: { userId: session.id },
       include: {
@@ -22,7 +22,7 @@ export async function GET() {
     })
     return NextResponse.json({ items })
   } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -30,7 +30,7 @@ export async function GET() {
 // POST - add a store to favorites
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth()
+    const session = await requireRoles(['BUYER', 'SHOP_OWNER'])
     const { storeId } = await req.json()
     if (!storeId) return NextResponse.json({ error: 'storeId مطلوب' }, { status: 400 })
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     })
     return NextResponse.json({ item })
   } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 // DELETE - remove a store from favorites
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await requireAuth()
+    const session = await requireRoles(['BUYER', 'SHOP_OWNER'])
     const { searchParams } = new URL(req.url)
     const storeId = searchParams.get('storeId')
     if (!storeId) return NextResponse.json({ error: 'storeId مطلوب' }, { status: 400 })
@@ -57,7 +57,7 @@ export async function DELETE(req: NextRequest) {
     await db.storeWishlist.deleteMany({ where: { userId: session.id, storeId } })
     return NextResponse.json({ ok: true })
   } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
 }

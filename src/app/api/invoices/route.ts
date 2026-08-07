@@ -2,6 +2,15 @@ import { NextRequest } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
 // GET /api/invoices?id=orderId - returns HTML invoice for printing
 export async function GET(req: NextRequest) {
   try {
@@ -29,11 +38,13 @@ export async function GET(req: NextRequest) {
       return new Response('Unauthorized', { status: 403 })
     }
 
-    const invoiceNumber = `INV-${order.id.slice(-8).toUpperCase()}`
-    const date = new Date(order.createdAt).toLocaleDateString('ar-EG')
-    const subtotal = order.totalPrice
+    // totalPrice is already stored after the coupon discount is applied.
     const discount = order.discount || 0
-    const total = subtotal - discount
+    const subtotal = order.totalPrice + discount
+    const total = order.totalPrice
+    const invoiceNumber = escapeHtml(`INV-${order.id.slice(-8).toUpperCase()}`)
+    const date = escapeHtml(new Date(order.createdAt).toLocaleDateString('ar-EG'))
+    const statusLabel = order.status === 'PAID' ? 'مدفوع' : order.status === 'DELIVERED' ? 'تم التوصيل' : order.status === 'PENDING' ? 'بانتظار الموافقة' : order.status
 
     const html = `<!DOCTYPE html>
 <html dir="rtl" lang="ar">
@@ -78,22 +89,22 @@ export async function GET(req: NextRequest) {
         <h1>فاتورة</h1>
         <p>رقم: ${invoiceNumber}</p>
         <p>التاريخ: ${date}</p>
-        <p>الحالة: <span class="status-badge">${order.status === 'PAID' ? 'مدفوع' : order.status === 'DELIVERED' ? 'تم التوصيل' : order.status === 'PENDING' ? 'بانتظار الموافقة' : order.status}</span></p>
+        <p>الحالة: <span class="status-badge">${escapeHtml(statusLabel)}</span></p>
       </div>
     </div>
 
     <div class="parties">
       <div class="party">
         <h3>من (المتجر)</h3>
-        <p class="name">${order.store.name}</p>
-        ${order.store.address ? `<p>${order.store.address}</p>` : ''}
-        ${order.store.phone ? `<p>هاتف: ${order.store.phone}</p>` : ''}
+        <p class="name">${escapeHtml(order.store.name)}</p>
+        ${order.store.address ? `<p>${escapeHtml(order.store.address)}</p>` : ''}
+        ${order.store.phone ? `<p>هاتف: ${escapeHtml(order.store.phone)}</p>` : ''}
       </div>
       <div class="party">
         <h3>إلى (العميل)</h3>
-        <p class="name">${order.buyer.name}</p>
-        <p>${order.buyer.email}</p>
-        ${order.buyer.phone ? `<p>هاتف: ${order.buyer.phone}</p>` : ''}
+        <p class="name">${escapeHtml(order.buyer.name)}</p>
+        <p>${escapeHtml(order.buyer.email)}</p>
+        ${order.buyer.phone ? `<p>هاتف: ${escapeHtml(order.buyer.phone)}</p>` : ''}
       </div>
     </div>
 
@@ -110,8 +121,8 @@ export async function GET(req: NextRequest) {
         <tbody>
           <tr>
             <td>
-              <strong>${order.part.name}</strong>
-              ${order.part.brand ? `<br><small style="color:#999">${order.part.brand}</small>` : ''}
+              <strong>${escapeHtml(order.part.name)}</strong>
+              ${order.part.brand ? `<br><small style="color:#999">${escapeHtml(order.part.brand)}</small>` : ''}
             </td>
             <td>${order.quantity}</td>
             <td>${order.part.price.toLocaleString('ar-EG')} ج.م</td>
@@ -123,14 +134,14 @@ export async function GET(req: NextRequest) {
 
     <div class="totals">
       <div class="row"><span>المجموع الفرعي:</span><span>${subtotal.toLocaleString('ar-EG')} ج.م</span></div>
-      ${discount > 0 ? `<div class="row"><span>الخصم${order.couponCode ? ` (${order.couponCode})` : ''}:</span><span>- ${discount.toLocaleString('ar-EG')} ج.م</span></div>` : ''}
+      ${discount > 0 ? `<div class="row"><span>الخصم${order.couponCode ? ` (${escapeHtml(order.couponCode)})` : ''}:</span><span>- ${discount.toLocaleString('ar-EG')} ج.م</span></div>` : ''}
       <div class="row total"><span>الإجمالي:</span><span>${total.toLocaleString('ar-EG')} ج.م</span></div>
     </div>
 
     ${order.deliveryAddress ? `
     <div style="margin-top: 30px; padding: 16px; background: #f9fafb; border-radius: 8px;">
       <h3 style="font-size: 14px; color: #999; margin-bottom: 8px;">عنوان التوصيل</h3>
-      <p>${order.deliveryAddress}</p>
+      <p>${escapeHtml(order.deliveryAddress)}</p>
     </div>` : ''}
 
     <div class="footer">

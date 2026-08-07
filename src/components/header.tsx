@@ -118,7 +118,7 @@ export function Header({ user }: { user: AuthUser | null }) {
           الرسائل
         </Button>
       )}
-      {user && (
+      {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') && (
         <Button
           variant={view.name === 'orders' ? 'default' : 'ghost'}
           size="sm"
@@ -237,20 +237,22 @@ export function Header({ user }: { user: AuthUser | null }) {
 
         {/* Cart + Theme + Notifications */}
         <div className="flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="relative"
-            onClick={() => setCartOpen(true)}
-          >
-            <ShoppingCart className="size-5" />
-            {cart.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 size-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                {cart.length > 9 ? '9+' : cart.length}
-              </span>
-            )}
-            <span className="sr-only">سلة التسوق</span>
-          </Button>
+          {(!user || user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="relative"
+              onClick={() => setCartOpen(true)}
+            >
+              <ShoppingCart className="size-5" />
+              {cart.length > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 size-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
+                  {cart.length > 9 ? '9+' : cart.length}
+                </span>
+              )}
+              <span className="sr-only">سلة التسوق</span>
+            </Button>
+          )}
           <ThemeToggle />
           {user && <NotificationsBell />}
         </div>

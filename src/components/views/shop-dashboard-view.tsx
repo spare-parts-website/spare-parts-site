@@ -158,9 +158,13 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   }
 
   useEffect(() => {
+    if (user?.role !== 'SHOP_OWNER') {
+      setLoading(false)
+      return
+    }
     setLoading(true)
     loadStore()
-  }, [])
+  }, [user])
 
   useEffect(() => {
     if (store) {

@@ -40,8 +40,15 @@ export async function GET(req: NextRequest) {
     if (!part || part.blocked || isBlockedStoreName(part.store.name)) {
       return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
     }
+    const session = await getSession()
+    const canReview = session && ['BUYER', 'SHOP_OWNER'].includes(session.role)
+      ? Boolean(await db.order.findFirst({
+          where: { buyerId: session.id, partId: part.id, status: { in: ['DELIVERED', 'RETURNED'] } },
+          select: { id: true },
+        }))
+      : false
     return NextResponse.json(
-      { part },
+      { part, canReview },
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     )
   }

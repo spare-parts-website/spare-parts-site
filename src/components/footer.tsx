@@ -80,7 +80,7 @@ export function Footer() {
             </ul>
           </div>
 
-          <div>
+          {user?.role !== 'ADMIN' && <div>
             <h4 className="font-semibold mb-3">هل أنت صاحب محل؟</h4>
             <p className="text-sm text-muted-foreground mb-3">
               انضم إلينا واعرض قطع غيارك لآلاف العملاء
@@ -102,7 +102,7 @@ export function Footer() {
                 لوحة التحكم
               </Button>
             )}
-          </div>
+          </div>}
         </div>
 
         <div className="mt-8 pt-6 border-t text-center text-sm text-muted-foreground">

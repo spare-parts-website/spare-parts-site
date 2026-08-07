@@ -80,8 +80,8 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
   }
 
   useEffect(() => {
-    loadAll()
-  }, [])
+    if (user?.role === 'ADMIN') loadAll()
+  }, [user])
 
   const handleRoleChange = async (id: string, role: string) => {
     setSubmitting(true)

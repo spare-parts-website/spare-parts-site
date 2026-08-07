@@ -67,6 +67,7 @@ export function PartView({ partId }: { partId: string }) {
   const { setView, user, setPendingView, addToCart } = useAppStore()
   const { toast } = useToast()
   const [part, setPart] = useState<Part | null>(null)
+  const [canReview, setCanReview] = useState(false)
   const [loading, setLoading] = useState(true)
   const [orderOpen, setOrderOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
@@ -86,7 +87,10 @@ export function PartView({ partId }: { partId: string }) {
     setLoading(true)
     fetch(`/api/parts?id=${partId}`, { cache: 'no-store' })
       .then((r) => r.json())
-      .then((data) => setPart(data.part || null))
+      .then((data) => {
+        setPart(data.part || null)
+        setCanReview(Boolean(data.canReview))
+      })
       .finally(() => setLoading(false))
   }
 
@@ -224,6 +228,7 @@ export function PartView({ partId }: { partId: string }) {
   const avgRating = part.reviews.length
     ? part.reviews.reduce((s, r) => s + r.rating, 0) / part.reviews.length
     : 0
+  const canShop = !user || (user.role !== 'ADMIN' && user.id !== part.store.ownerId)
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
@@ -426,8 +431,8 @@ export function PartView({ partId }: { partId: string }) {
               </DialogContent>
             </Dialog>
 
-            {/* Add to cart button */}
-            <Button
+            {/* Add to cart and buy buttons */}
+            {canShop && <Button
               size="lg"
               variant="outline"
               disabled={part.stock === 0}
@@ -446,9 +451,9 @@ export function PartView({ partId }: { partId: string }) {
             >
               <ShoppingCart className="size-4 ml-2" />
               أضف للسلة
-            </Button>
+            </Button>}
 
-            <Dialog open={orderOpen} onOpenChange={setOrderOpen}>
+            {canShop && <Dialog open={orderOpen} onOpenChange={setOrderOpen}>
               <DialogTrigger asChild>
                 <Button size="lg" disabled={part.stock === 0}>
                   <ShoppingCart className="size-4 ml-2" />
@@ -522,9 +527,9 @@ export function PartView({ partId }: { partId: string }) {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+            </Dialog>}
 
-            <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+            {canReview && <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
               <DialogTrigger asChild>
                 <Button size="lg" variant="outline">
                   <Star className="size-4 ml-2" />
@@ -579,7 +584,7 @@ export function PartView({ partId }: { partId: string }) {
                   </Button>
                 </DialogFooter>
               </DialogContent>
-            </Dialog>
+            </Dialog>}
           </div>
 
           {/* Trust signals */}

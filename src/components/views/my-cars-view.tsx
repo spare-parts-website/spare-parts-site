@@ -46,8 +46,8 @@ export function MyCarsView() {
   }
 
   useEffect(() => {
-    load()
-  }, [])
+    if (user && ['BUYER', 'SHOP_OWNER'].includes(user.role)) load()
+  }, [user])
 
   const handleAdd = async () => {
     if (!form.brand || !form.model) {
@@ -93,6 +93,15 @@ export function MyCarsView() {
         <Car className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold mb-4">سجّل الدخول لإدارة سياراتك</h2>
         <Button onClick={() => setView({ name: 'login' })}>تسجيل الدخول</Button>
+      </div>
+    )
+  }
+
+  if (!['BUYER', 'SHOP_OWNER'].includes(user.role)) {
+    return (
+      <div className="container mx-auto px-4 py-16 text-center">
+        <Car className="size-16 mx-auto mb-3 text-muted-foreground/50" />
+        <h2 className="text-xl font-semibold">هذه الصفحة مخصصة للمشترين وأصحاب المحلات</h2>
       </div>
     )
   }
