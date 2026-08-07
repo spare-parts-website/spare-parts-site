@@ -57,7 +57,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
         <Card className="border-border/60 shadow-sm">
           <CardHeader className="text-center pb-4">
             <div className="size-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 shadow-sm">
-              <img src="/ghyar-market-logo.jpg" alt="غيار ماركت" className="size-14 rounded-2xl bg-white object-contain p-1" />
+              <img src="/ghyar-market-logo.png" alt="غيار ماركت" className="size-14 rounded-2xl object-contain drop-shadow-sm" />
             </div>
             <CardTitle className="text-2xl">
               {mode === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}

@@ -214,9 +214,9 @@ export function Header({ user }: { user: AuthUser | null }) {
           className="flex items-center gap-2 shrink-0"
         >
           <img
-            src="/ghyar-market-logo.jpg"
+            src="/ghyar-market-logo.png"
             alt="غيار ماركت"
-            className="h-10 w-14 rounded-lg bg-white object-contain p-0.5 shadow-sm"
+            className="h-10 w-14 rounded-lg object-contain drop-shadow-sm"
           />
           <span className="hidden sm:inline text-lg font-bold text-foreground">
             غيار ماركت
