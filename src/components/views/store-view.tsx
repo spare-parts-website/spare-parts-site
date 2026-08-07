@@ -36,7 +36,7 @@ interface Store {
   address?: string | null
   phone?: string | null
   image?: string | null
-  owner: { name: string; phone?: string | null }
+  owner: { name: string; phone?: string | null; avatar?: string | null }
   parts: any[]
   reviews: any[]
   verified: boolean
@@ -138,10 +138,16 @@ export function StoreView({ storeId }: { storeId: string }) {
         <div className="h-24 bg-gradient-to-bl from-primary/20 to-accent" />
         <CardContent className="p-6 -mt-12">
           <div className="flex flex-col sm:flex-row gap-4 items-start">
-            <div className="size-20 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0">
-              <StoreIcon className="size-10" />
+            <div className="size-20 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+              {store.image ? <img src={store.image} alt={store.name} className="w-full h-full object-cover" /> : <StoreIcon className="size-10" />}
             </div>
             <div className="flex-1 space-y-2">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <div className="size-8 rounded-full overflow-hidden bg-primary/10 text-primary flex items-center justify-center font-semibold">
+                  {store.owner.avatar ? <img src={store.owner.avatar} alt={store.owner.name} className="w-full h-full object-cover" /> : store.owner.name.charAt(0)}
+                </div>
+                <span>صاحب المحل: {store.owner.name}</span>
+              </div>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">

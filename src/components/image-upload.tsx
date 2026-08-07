@@ -11,6 +11,7 @@ interface ImageUploadProps {
   onChange: (url: string) => void
   onUploadingChange?: (uploading: boolean) => void
   className?: string
+  cropPreview?: boolean
 }
 
 // Module-level ref to track any ongoing upload synchronously (works across re-renders)
@@ -19,7 +20,7 @@ export function isAnyUploadInProgress() {
   return anyUploadInProgress
 }
 
-export function ImageUpload({ value, onChange, onUploadingChange, className }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, onUploadingChange, className, cropPreview = false }: ImageUploadProps) {
   const { toast } = useToast()
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
@@ -123,8 +124,11 @@ export function ImageUpload({ value, onChange, onUploadingChange, className }: I
         <img
           src={value}
           alt="معاينة"
-          className="w-full h-40 object-contain rounded-lg border bg-muted/30"
+          className={cn('w-full h-40 rounded-lg border bg-muted/30', cropPreview ? 'object-cover' : 'object-contain')}
         />
+        {cropPreview && (
+          <p className="mt-2 text-xs text-muted-foreground">المعاينة توضح الجزء الذي سيظهر داخل قالب صورة المتجر.</p>
+        )}
         <button
           type="button"
           onClick={handleRemove}

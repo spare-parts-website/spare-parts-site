@@ -65,7 +65,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
             <CardDescription>
               {mode === 'login'
                 ? 'ادخل بياناتك للوصول إلى حسابك'
-                : 'انضم إلى منصة قطع الغيار'}
+                : 'انضم إلى غيار ماركت'}
             </CardDescription>
           </CardHeader>
           <CardContent>

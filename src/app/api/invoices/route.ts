@@ -71,8 +71,8 @@ export async function GET(req: NextRequest) {
   <div class="invoice">
     <div class="header">
       <div>
-        <div class="logo">قطع غيار</div>
-        <p style="color: #666; margin-top: 5px;">منصة قطع غيار السيارات</p>
+        <div class="logo">غيار ماركت</div>
+        <p style="color: #666; margin-top: 5px;">منصة غيار ماركت لقطع غيار السيارات</p>
       </div>
       <div class="invoice-info">
         <h1>فاتورة</h1>
@@ -135,7 +135,7 @@ export async function GET(req: NextRequest) {
 
     <div class="footer">
       <p>شكراً لتعاملكم معنا</p>
-      <p>هذه الفاتورة مولدة إلكترونياً من منصة قطع غيار</p>
+      <p>هذه الفاتورة مولدة إلكترونياً من منصة غيار ماركت</p>
     </div>
 
     <button class="print-btn" onclick="window.print()">طباعة / حفظ PDF</button>

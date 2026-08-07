@@ -10,6 +10,7 @@ import { Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashbo
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
+import { ImageUpload } from '@/components/image-upload'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -20,8 +21,9 @@ const ROLE_LABELS: Record<string, string> = {
 export function ProfileView() {
   const { user, setUser, setView } = useAppStore()
   const { toast } = useToast()
-  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', currentPassword: '', newPassword: '' })
+  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '', currentPassword: '', newPassword: '' })
   const [saving, setSaving] = useState(false)
+  const [avatarUploading, setAvatarUploading] = useState(false)
 
   if (!user) {
     return (
@@ -42,7 +44,7 @@ export function ProfileView() {
         return
       }
       setUser(data.user)
-      setForm((current) => ({ ...current, currentPassword: '', newPassword: '' }))
+      setForm((current) => ({ ...current, avatar: data.user.avatar || '', currentPassword: '', newPassword: '' }))
       toast({ title: 'تم تحديث الحساب', description: 'تم حفظ معلوماتك بنجاح' })
     } finally {
       setSaving(false)
@@ -60,9 +62,7 @@ export function ProfileView() {
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row items-start gap-5">
             <Avatar className="size-20">
-              <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-semibold">
-                {user.name.charAt(0)}
-              </AvatarFallback>
+              {user.avatar ? <img src={user.avatar} alt={user.name} className="aspect-square size-full object-cover" /> : <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-semibold">{user.name.charAt(0)}</AvatarFallback>}
             </Avatar>
             <div className="flex-1 space-y-3">
               <div>
@@ -91,13 +91,20 @@ export function ProfileView() {
       <Card>
         <CardHeader><CardTitle>تعديل الحساب</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          {user.role === 'SHOP_OWNER' && (
+            <div className="space-y-2">
+              <Label>صورة صاحب المحل</Label>
+              <p className="text-xs text-muted-foreground">ستظهر هذه الصورة بجانب إعلان متجرك ليعرف العملاء صاحب المحل.</p>
+              <ImageUpload value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} />
+            </div>
+          )}
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2"><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></div>
             <div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div>
           </div>
-          <Button onClick={save} disabled={saving}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button>
+          <Button onClick={save} disabled={saving || avatarUploading}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button>
           <p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> لا نطلب كلمة المرور الحالية إلا عند تغيير كلمة المرور.</p>
         </CardContent>
       </Card>

@@ -202,6 +202,10 @@ export async function POST(req: NextRequest) {
     const message = typeof body.message === 'string' ? body.message.trim() : ''
     const imageUrl = typeof body.imageUrl === 'string' && body.imageUrl.startsWith('https://') ? body.imageUrl : null
 
+    if (session.role === 'BUYER' && imageUrl) {
+      return NextResponse.json({ error: 'يمكن للمشتري إرسال رسائل نصية فقط' }, { status: 400 })
+    }
+
     if (!message && !imageUrl) return NextResponse.json({ error: 'اكتب رسالة أو أرفق صورة' }, { status: 400 })
     if (message.length > 2000) return NextResponse.json({ error: 'الرسالة طويلة جداً' }, { status: 400 })
 

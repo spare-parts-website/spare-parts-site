@@ -217,7 +217,7 @@ export function Header({ user }: { user: AuthUser | null }) {
             قطع
           </div>
           <span className="hidden sm:inline text-lg font-bold text-foreground">
-            قطع غيار
+            غيار ماركت
           </span>
         </button>
 

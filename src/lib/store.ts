@@ -8,6 +8,7 @@ export interface AuthUser {
   email: string
   role: UserRole
   phone?: string | null
+  avatar?: string | null
 }
 
 export type View =

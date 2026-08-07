@@ -16,10 +16,10 @@ export function Footer() {
               <div className="size-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm">
                 قطع
               </div>
-              <span className="font-bold">قطع غيار</span>
+              <span className="font-bold">غيار ماركت</span>
             </div>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              منصة متكاملة لربط مشتري قطع غيار السيارات بالمتاجر المعتمدة، مع توصيل ودفع عند الاستلام.
+              منصة متكاملة لربط مشتري قطع غيار السيارات بالمتاجر المعتمدة.
             </p>
           </div>
 
@@ -104,7 +104,7 @@ export function Footer() {
         </div>
 
         <div className="mt-8 pt-6 border-t text-center text-sm text-muted-foreground">
-          © {new Date().getFullYear()} منصة قطع غيار. جميع الحقوق محفوظة.
+          © {new Date().getFullYear()} غيار ماركت. جميع الحقوق محفوظة.
         </div>
       </div>
     </footer>

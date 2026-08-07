@@ -665,6 +665,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                   value={storeForm.image}
                   onChange={(url) => setStoreForm((prev) => ({ ...prev, image: url }))}
                   onUploadingChange={setStoreImageUploading}
+                  cropPreview
                 />
               </div>
               <Button onClick={handleSaveStore} disabled={submitting || storeImageUploading}>

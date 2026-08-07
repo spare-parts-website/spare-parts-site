@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
     const store = await db.store.findUnique({
       where: { id },
       include: {
-        owner: { select: { name: true, phone: true } },
+        owner: { select: { name: true, phone: true, avatar: true } },
         parts: {
           where: { blocked: false },
           orderBy: { createdAt: 'desc' },
@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
   const stores = await db.store.findMany({
     where,
     include: {
+      owner: { select: { name: true, avatar: true } },
       _count: { select: { parts: { where: { blocked: false } } } },
       parts: {
         where: { blocked: false },

@@ -30,6 +30,8 @@ interface Store {
   parts: { id: string; name: string; price: number; image?: string | null }[]
   avgRating: number
   reviewCount: number
+  image?: string | null
+  owner: { name: string; avatar?: string | null }
 }
 
 interface Part {
@@ -70,7 +72,7 @@ export function HomeView() {
           <div className="max-w-3xl mx-auto text-center space-y-6">
             <Badge variant="secondary" className="px-3 py-1 text-sm">
               <Wrench className="size-3.5 ml-1" />
-              منصة قطع غيار السيارات الأولى
+              غيار ماركت | سوق قطع غيار السيارات
             </Badge>
             <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-balance">
               قطع غيار أصلية من{' '}
@@ -281,8 +283,11 @@ function StoreCard({ store }: { store: Store }) {
     >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3">
-          <div className="size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0">
-            <StoreIcon className="size-6" />
+          <div className="relative size-12 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">
+            {store.image ? <img src={store.image} alt="" className="w-full h-full object-cover" /> : <StoreIcon className="size-6" />}
+            <div className="absolute -bottom-1 -left-1 size-6 rounded-full border-2 border-card bg-muted overflow-hidden" title={`صاحب المحل: ${store.owner.name}`}>
+              {store.owner.avatar ? <img src={store.owner.avatar} alt={store.owner.name} className="w-full h-full object-cover" /> : <span className="flex h-full w-full items-center justify-center text-[10px] font-bold">{store.owner.name.charAt(0)}</span>}
+            </div>
           </div>
           <div className="flex-1 min-w-0">
             <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">

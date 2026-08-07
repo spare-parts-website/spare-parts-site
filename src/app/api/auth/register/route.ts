@@ -73,6 +73,7 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
       phone: user.phone,
+      avatar: user.avatar,
     })
 
     return NextResponse.json({
@@ -81,6 +82,7 @@ export async function POST(req: NextRequest) {
       email: user.email,
       role: user.role,
       phone: user.phone,
+      avatar: user.avatar,
     })
   } catch (e) {
     console.error(e)

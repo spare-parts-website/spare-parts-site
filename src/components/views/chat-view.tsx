@@ -184,7 +184,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
         )}
 
         <div className="border-t p-3">
-          {attachment && (
+          {attachment && user.role !== 'BUYER' && (
             <div className="mb-2 flex items-center gap-2 rounded-lg bg-muted/40 p-2 text-xs">
               <img src={attachment} alt="المرفق" className="size-12 rounded object-cover" />
               <span className="flex-1">صورة جاهزة للإرسال</span>
@@ -192,10 +192,12 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
             </div>
           )}
           <form onSubmit={handleSend} className="flex gap-2">
-            <label className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md border hover:bg-muted disabled:opacity-50">
-              {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
-              <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" disabled={uploading || sending} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleAttachment(file); e.currentTarget.value = '' }} />
-            </label>
+            {user.role !== 'BUYER' && (
+              <label className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md border hover:bg-muted disabled:opacity-50" title="إرفاق صورة">
+                {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" disabled={uploading || sending} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleAttachment(file); e.currentTarget.value = '' }} />
+              </label>
+            )}
             <Input
               value={input}
               onChange={(e) => setInput(e.target.value)}
