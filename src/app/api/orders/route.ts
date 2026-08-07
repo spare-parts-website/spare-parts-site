@@ -221,12 +221,13 @@ export async function PUT(req: NextRequest) {
       newPaymentStatus = 'PAID'
       newStatus = 'PAID'
     } else if (action === 'deliver') {
-      if (session.role !== 'SHOP_OWNER' || order.store.ownerId !== session.id) {
+      // The buyer confirms receipt and cash-on-delivery collection after receiving the order.
+      if (!['BUYER', 'ADMIN'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
       const canDeliver = order.status === 'PAID' || (order.status === 'APPROVED' && order.paymentMethod === 'cod')
       if (!canDeliver) {
-        return NextResponse.json({ error: 'لا يمكن تأكيد التوصيل قبل الموافقة على الطلب' }, { status: 400 })
+        return NextResponse.json({ error: 'لا يمكن تأكيد الاستلام قبل الموافقة على الطلب' }, { status: 400 })
       }
       newStatus = 'DELIVERED'
       if (order.paymentMethod === 'cod') newPaymentStatus = 'PAID'
@@ -256,7 +257,7 @@ export async function PUT(req: NextRequest) {
       approve: 'وافق المحل على الطلب',
       reject: 'رفض المحل الطلب',
       pay: 'تم استلام الدفعة',
-      deliver: 'تم تأكيد التوصيل',
+      deliver: 'أكد العميل استلام الطلب وتحصيل الدفع',
       return: 'تم استرجاع القطعة',
       cancel: 'ألغى العميل الطلب وتمت إعادة الكمية للمخزون',
     }
@@ -295,7 +296,13 @@ export async function PUT(req: NextRequest) {
         await notify(storeOwner.ownerId, 'تم استلام دفعة', `دفع العميل ${order.totalPrice} ج.م لطلب "${order.part.name}".`, 'PAYMENT', 'shop-dashboard')
       }
     } else if (action === 'deliver') {
-      await notify(order.buyerId, 'تم توصيل طلبك', `تم توصيل "${order.part.name}". يمكنك تقييم المنتج أو طلب الاسترجاع.`, 'ORDER_STATUS', 'orders')
+      await notify(
+        order.store.ownerId,
+        'تم تأكيد استلام الطلب',
+        `أكد العميل استلام الطلب وتحصيل الدفع: ${order.part.name}، الكمية ${order.quantity}، الإجمالي ${order.totalPrice} ج.م، رقم الطلب ${order.id}.`,
+        'ORDER_STATUS',
+        'shop-dashboard',
+      )
     } else if (action === 'return') {
       const storeOwner = await db.store.findUnique({ where: { id: order.storeId }, select: { ownerId: true } })
       if (storeOwner) {

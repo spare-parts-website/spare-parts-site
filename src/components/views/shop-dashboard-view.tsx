@@ -567,16 +567,6 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                           </Button>
                         </>
                       )}
-                      {(order.status === 'PAID' || (order.status === 'APPROVED' && order.paymentMethod === 'cod')) && (
-                        <Button
-                          size="sm"
-                          onClick={() => handleOrderAction(order.id, 'deliver')}
-                          disabled={submitting}
-                        >
-                          <Check className="size-4 ml-1" />
-                          تأكيد التوصيل وتحصيل الدفع
-                        </Button>
-                      )}
                       {order.status === 'APPROVED' && (
                         <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
                           الدفع عند الاستلام

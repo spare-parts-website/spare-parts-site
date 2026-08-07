@@ -194,6 +194,16 @@ export function OrdersView() {
 
                     {/* Actions */}
                     <div className="flex flex-wrap gap-2 pt-3 border-t">
+                      {(order.status === 'PAID' || (order.status === 'APPROVED' && order.paymentMethod === 'cod')) && (
+                        <Button
+                          size="sm"
+                          onClick={() => handleAction(order.id, 'deliver')}
+                          disabled={submitting}
+                        >
+                          <CheckCircle2 className="size-4 ml-1" />
+                          تأكيد التوصيل وتحصيل الدفع
+                        </Button>
+                      )}
                       {order.status === 'DELIVERED' && (
                         <Button
                           size="sm"
