@@ -96,7 +96,7 @@ export function ProfileView() {
             <div className="space-y-2">
               <Label>صورة صاحب المحل</Label>
               <p className="text-xs text-muted-foreground">ستظهر هذه الصورة بجانب إعلان متجرك ليعرف العملاء صاحب المحل.</p>
-              <ImageUpload value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} />
+              <ImageUpload value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} className="max-w-sm" compact />
             </div>
           )}
           <div className="space-y-2">

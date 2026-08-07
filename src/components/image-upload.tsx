@@ -12,6 +12,7 @@ interface ImageUploadProps {
   onUploadingChange?: (uploading: boolean) => void
   className?: string
   cropPreview?: boolean
+  compact?: boolean
 }
 
 // Module-level ref to track any ongoing upload synchronously (works across re-renders)
@@ -20,7 +21,7 @@ export function isAnyUploadInProgress() {
   return anyUploadInProgress
 }
 
-export function ImageUpload({ value, onChange, onUploadingChange, className, cropPreview = false }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, onUploadingChange, className, cropPreview = false, compact = false }: ImageUploadProps) {
   const { toast } = useToast()
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
@@ -124,7 +125,7 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
         <img
           src={value}
           alt="معاينة"
-          className={cn('w-full h-40 rounded-lg border bg-muted/30', cropPreview ? 'object-cover' : 'object-contain')}
+          className={cn('w-full rounded-lg border bg-muted/30', compact ? 'h-24' : 'h-40', cropPreview ? 'object-cover' : 'object-contain')}
         />
         {cropPreview && (
           <p className="mt-2 text-xs text-muted-foreground">المعاينة توضح الجزء الذي سيظهر داخل قالب صورة المتجر.</p>
@@ -166,7 +167,8 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
         onDragLeave={handleDragLeave}
         disabled={uploading}
         className={cn(
-          'w-full h-40 rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 transition',
+          'w-full rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-2 transition',
+          compact ? 'h-24' : 'h-40',
           dragActive
             ? 'border-primary bg-primary/5'
             : 'border-border hover:border-primary/40 hover:bg-muted/30',

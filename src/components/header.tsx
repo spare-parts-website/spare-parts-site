@@ -262,9 +262,7 @@ export function Header({ user }: { user: AuthUser | null }) {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-2 px-2">
                   <Avatar className="size-8">
-                    <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">
-                      {user.name.charAt(0)}
-                    </AvatarFallback>
+                    {user.avatar ? <img src={user.avatar} alt={user.name} className="aspect-square size-full object-cover" /> : <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">{user.name.charAt(0)}</AvatarFallback>}
                   </Avatar>
                   <span className="hidden sm:inline text-sm font-medium">
                     {user.name}
