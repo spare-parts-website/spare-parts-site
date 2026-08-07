@@ -176,25 +176,6 @@ export function HomeView() {
         )}
       </section>
 
-      {/* CTA */}
-      <section className="container mx-auto px-4 pb-8">
-        <Card className="border-primary/20 bg-primary/5">
-          <CardContent className="p-8 md:p-12 text-center">
-            <StoreIcon className="size-12 mx-auto mb-4 text-primary" />
-            <h2 className="text-2xl md:text-3xl font-bold mb-3">
-              هل تملك متجر قطع غيار؟
-            </h2>
-            <p className="text-muted-foreground mb-6 max-w-xl mx-auto leading-relaxed">
-              انضم إلى منصتنا واعرض منتجاتك لآلاف العملاء. أضف قطع الغيار بالصور
-              والمعلومات، استقبل الطلبات، ووافق على التوصيل بكل سهولة.
-            </p>
-            <Button size="lg" onClick={() => setView({ name: 'register' })}>
-              ابدأ متجرك الآن
-            </Button>
-          </CardContent>
-        </Card>
-      </section>
-
       {/* Features */}
       <section className="container mx-auto px-4 pb-8">
         <h2 className="text-2xl md:text-3xl font-bold text-center mb-6">مميزات الموقع</h2>
