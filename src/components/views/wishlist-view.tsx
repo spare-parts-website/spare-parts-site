@@ -5,9 +5,8 @@ import { useAppStore } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Heart, Store as StoreIcon, Trash2, ShieldCheck } from 'lucide-react'
+import { Heart, Store as StoreIcon, ShieldCheck } from 'lucide-react'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
-import { useToast } from '@/hooks/use-toast'
 
 interface FavoriteStore {
   id: string
@@ -25,8 +24,7 @@ interface FavoriteStore {
 }
 
 export function WishlistView() {
-  const { setView, toggleFavoriteStore, setFavoriteStores } = useAppStore()
-  const { toast } = useToast()
+  const { setView, setFavoriteStores } = useAppStore()
   const [items, setItems] = useState<FavoriteStore[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -41,14 +39,6 @@ export function WishlistView() {
   }
 
   useEffect(() => { load() }, [])
-
-  const handleRemove = async (storeId: string) => {
-    const response = await fetch(`/api/wishlist?storeId=${storeId}`, { method: 'DELETE' })
-    if (!response.ok) return
-    setItems((prev) => prev.filter((item) => item.store.id !== storeId))
-    toggleFavoriteStore(storeId)
-    toast({ title: 'تم الحذف من المفضلة' })
-  }
 
   if (loading) {
     return <div className="container mx-auto px-4 py-8"><Skeleton className="h-10 w-48 mb-6" /><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}</div></div>
@@ -70,7 +60,7 @@ export function WishlistView() {
               <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><h2 className="font-bold truncate">{item.store.name}</h2>{item.store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" />}</div><p className="text-sm text-muted-foreground mt-1">{item.store._count.parts} قطعة غيار</p></div>
             </div>
             {item.store.description && <p className="text-sm text-muted-foreground line-clamp-2">{item.store.description}</p>}
-            <div className="flex gap-2"><Button className="flex-1" onClick={() => setView({ name: 'store', storeId: item.store.id })}>زيارة المتجر</Button><FavoriteStoreButton storeId={item.store.id} returnView={{ name: 'wishlist' }} /><Button size="icon" variant="outline" onClick={() => handleRemove(item.store.id)} aria-label="إزالة المتجر من المفضلة"><Trash2 className="size-4 text-red-500" /></Button></div>
+            <div className="flex gap-2"><Button className="flex-1" onClick={() => setView({ name: 'store', storeId: item.store.id })}>زيارة المتجر</Button><FavoriteStoreButton storeId={item.store.id} returnView={{ name: 'wishlist' }} /></div>
           </CardContent></Card>)}
         </div>
       )}
