@@ -58,7 +58,7 @@ interface Part {
   brand?: string | null
   image?: string | null
   carModels?: string | null
-  store: { id: string; name: string; address?: string | null; phone?: string | null }
+  store: { id: string; name: string; address?: string | null; phone?: string | null; ownerId: string }
   reviews: Review[]
   images?: PartImage[]
 }
@@ -390,10 +390,12 @@ export function PartView({ partId }: { partId: string }) {
           )}
 
           <div className="flex flex-wrap gap-2">
-            <Button size="lg" variant="outline" onClick={handleSellerChat}>
-              <MessageSquare className="size-4 ml-2" />
-              اسأل البائع
-            </Button>
+            {user?.id !== part.store.ownerId && (
+              <Button size="lg" variant="outline" onClick={handleSellerChat}>
+                <MessageSquare className="size-4 ml-2" />
+                اسأل البائع
+              </Button>
+            )}
 
             <Dialog open={reportOpen} onOpenChange={setReportOpen}>
               <DialogTrigger asChild>

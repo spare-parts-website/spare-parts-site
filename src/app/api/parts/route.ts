@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
       where: { id },
       include: {
         store: {
-          select: { id: true, name: true, address: true, phone: true },
+          select: { id: true, name: true, address: true, phone: true, ownerId: true },
         },
         reviews: {
           where: { blocked: false },
