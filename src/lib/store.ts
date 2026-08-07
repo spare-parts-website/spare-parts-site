@@ -71,10 +71,10 @@ interface AppState {
   setNotificationCount: (n: number) => void
 
   // Wishlist
-  wishlist: Set<string>
-  toggleWishlist: (partId: string) => void
-  setWishlist: (ids: string[]) => void
-  isInWishlist: (partId: string) => boolean
+  favoriteStores: Set<string>
+  toggleFavoriteStore: (storeId: string) => void
+  setFavoriteStores: (ids: string[]) => void
+  isFavoriteStore: (storeId: string) => boolean
 }
 
 export const useAppStore = create<AppState>((set) => ({
@@ -125,14 +125,14 @@ export const useAppStore = create<AppState>((set) => ({
   notificationCount: 0,
   setNotificationCount: (n) => set({ notificationCount: n }),
 
-  wishlist: new Set<string>(),
-  toggleWishlist: (partId) =>
+  favoriteStores: new Set<string>(),
+  toggleFavoriteStore: (storeId) =>
     set((state) => {
-      const newWishlist = new Set(state.wishlist)
-      if (newWishlist.has(partId)) newWishlist.delete(partId)
-      else newWishlist.add(partId)
-      return { wishlist: newWishlist }
+      const newFavorites = new Set(state.favoriteStores)
+      if (newFavorites.has(storeId)) newFavorites.delete(storeId)
+      else newFavorites.add(storeId)
+      return { favoriteStores: newFavorites }
     }),
-  setWishlist: (ids) => set({ wishlist: new Set(ids) }),
-  isInWishlist: (partId) => useAppStore.getState().wishlist.has(partId),
+  setFavoriteStores: (ids) => set({ favoriteStores: new Set(ids) }),
+  isFavoriteStore: (storeId) => useAppStore.getState().favoriteStores.has(storeId),
 }))

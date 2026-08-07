@@ -28,6 +28,7 @@ model User {
   storeReviews  StoreReview[]
   notifications Notification[]
   wishlist      Wishlist[]
+  storeWishlist StoreWishlist[]
   userCars      UserCar[]
   sentMessages  ChatMessage[]  @relation("ChatMessageSender")
   receivedMessages ChatMessage[] @relation("ChatMessageReceiver")
@@ -51,6 +52,7 @@ model Store {
   orders      Order[]
   reviews     StoreReview[]
   coupons     Coupon[]
+  wishlist    StoreWishlist[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -170,6 +172,20 @@ model Wishlist {
   createdAt DateTime @default(now())
 
   @@unique([userId, partId])
+}
+
+// Users save favorite stores. The legacy Wishlist model above is retained only
+// for existing database compatibility and is no longer used by the application.
+model StoreWishlist {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  storeId   String
+  store     Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, storeId])
+  @@index([storeId])
 }
 
 // User's saved cars (car profiles)

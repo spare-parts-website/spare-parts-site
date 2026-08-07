@@ -18,6 +18,7 @@ export async function deleteStoreWithDependencies(tx: any, storeId: string) {
   for (const part of parts) await deletePartWithDependencies(tx, part.id)
 
   await tx.storeReview.deleteMany({ where: { storeId } })
+  await tx.storeWishlist.deleteMany({ where: { storeId } })
   await tx.coupon.deleteMany({ where: { storeId } })
   await tx.store.delete({ where: { id: storeId } })
 }
@@ -39,6 +40,7 @@ export async function deleteUserWithDependencies(tx: any, userId: string) {
   await tx.storeReview.deleteMany({ where: { userId } })
   await tx.notification.deleteMany({ where: { userId } })
   await tx.wishlist.deleteMany({ where: { userId } })
+  await tx.storeWishlist.deleteMany({ where: { userId } })
   await tx.userCar.deleteMany({ where: { userId } })
   await tx.user.delete({ where: { id: userId } })
 }

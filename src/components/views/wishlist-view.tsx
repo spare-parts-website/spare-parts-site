@@ -4,29 +4,30 @@ import { useEffect, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Heart, Package, Store as StoreIcon, Trash2, ShoppingCart } from 'lucide-react'
-import { formatPrice } from '@/components/common'
+import { Heart, Store as StoreIcon, Trash2, ShieldCheck } from 'lucide-react'
+import { FavoriteStoreButton } from '@/components/favorite-store-button'
 import { useToast } from '@/hooks/use-toast'
 
-interface WishlistItem {
+interface FavoriteStore {
   id: string
-  part: {
+  store: {
     id: string
     name: string
-    price: number
+    description?: string | null
+    address?: string | null
+    phone?: string | null
     image?: string | null
-    stock: number
-    blocked: boolean
-    store: { id: string; name: string }
+    verified: boolean
+    _count: { parts: number }
+    owner: { name: string; avatar?: string | null }
   }
 }
 
 export function WishlistView() {
-  const { setView, setCartOpen, addToCart, toggleWishlist, setWishlist } = useAppStore()
+  const { setView, toggleFavoriteStore, setFavoriteStores } = useAppStore()
   const { toast } = useToast()
-  const [items, setItems] = useState<WishlistItem[]>([])
+  const [items, setItems] = useState<FavoriteStore[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = () => {
@@ -34,131 +35,43 @@ export function WishlistView() {
       .then((r) => r.json())
       .then((data) => {
         setItems(data.items || [])
-        setWishlist((data.items || []).map((i: WishlistItem) => i.part.id))
+        setFavoriteStores((data.items || []).map((item: FavoriteStore) => item.store.id))
       })
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => {
-    load()
-  }, [])
+  useEffect(() => { load() }, [])
 
-  const handleRemove = async (partId: string) => {
-    await fetch(`/api/wishlist?partId=${partId}`, { method: 'DELETE' })
-    setItems((prev) => prev.filter((i) => i.part.id !== partId))
-    toggleWishlist(partId)
+  const handleRemove = async (storeId: string) => {
+    const response = await fetch(`/api/wishlist?storeId=${storeId}`, { method: 'DELETE' })
+    if (!response.ok) return
+    setItems((prev) => prev.filter((item) => item.store.id !== storeId))
+    toggleFavoriteStore(storeId)
     toast({ title: 'تم الحذف من المفضلة' })
   }
 
-  const handleAddToCart = (item: WishlistItem) => {
-    if (item.part.stock === 0) {
-      toast({ title: 'نفد المخزون', variant: 'destructive' })
-      return
-    }
-    addToCart({
-      partId: item.part.id,
-      name: item.part.name,
-      price: item.part.price,
-      image: item.part.image,
-      storeId: item.part.store.id,
-      storeName: item.part.store.name,
-      stock: item.part.stock,
-    })
-    toast({ title: 'تمت الإضافة للسلة', description: item.part.name })
-  }
-
   if (loading) {
-    return (
-      <div className="container mx-auto px-4 py-8">
-        <Skeleton className="h-10 w-48 mb-6" />
-        <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-xl" />
-          ))}
-        </div>
-      </div>
-    )
+    return <div className="container mx-auto px-4 py-8"><Skeleton className="h-10 w-48 mb-6" /><div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}</div></div>
   }
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
       <div>
-        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2">
-          <Heart className="size-7 text-red-500" />
-          قائمة المفضلة
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          {items.length === 0 ? 'لا توجد قطع في مفضلتك' : `${items.length} قطعة محفوظة`}
-        </p>
+        <h1 className="text-2xl md:text-3xl font-bold flex items-center gap-2"><Heart className="size-7 text-red-500" />قائمة المفضلة</h1>
+        <p className="text-muted-foreground mt-1">{items.length === 0 ? 'لا توجد متاجر في مفضلتك' : `${items.length} متجر محفوظ`}</p>
       </div>
-
       {items.length === 0 ? (
-        <Card>
-          <CardContent className="py-16 text-center text-muted-foreground">
-            <Heart className="size-12 mx-auto mb-3 opacity-40" />
-            <p className="mb-4">لم تقم بإضافة أي قطع للمفضلة بعد</p>
-            <Button onClick={() => setView({ name: 'parts' })}>
-              تصفح قطع الغيار
-            </Button>
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-16 text-center text-muted-foreground"><Heart className="size-12 mx-auto mb-3 opacity-40" /><p className="mb-4">لم تقم بإضافة أي متجر للمفضلة بعد</p><Button onClick={() => setView({ name: 'stores' })}>تصفح المتاجر</Button></CardContent></Card>
       ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-          {items.map((item) => (
-            <Card key={item.id} className="overflow-hidden h-full flex flex-col">
-              <div
-                className="aspect-square bg-muted/30 flex items-center justify-center relative cursor-pointer"
-                onClick={() => setView({ name: 'part', partId: item.part.id })}
-              >
-                {item.part.image ? (
-                  <img src={item.part.image} alt={item.part.name} className="w-full h-full object-contain" />
-                ) : (
-                  <Package className="size-16 text-muted-foreground/40" />
-                )}
-                {item.part.stock === 0 && (
-                  <span className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-                    نفد
-                  </span>
-                )}
-              </div>
-              <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <StoreIcon className="size-3" />
-                  <span className="truncate">{item.part.store.name}</span>
-                </div>
-                <h3
-                  className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10 cursor-pointer hover:text-primary"
-                  onClick={() => setView({ name: 'part', partId: item.part.id })}
-                >
-                  {item.part.name}
-                </h3>
-                <div className="pt-1 flex items-center justify-between">
-                  <span className="text-lg font-bold text-primary">
-                    {formatPrice(item.part.price)}
-                  </span>
-                  {item.part.stock > 0 ? (
-                    <Badge variant="outline" className="text-emerald-600">متوفر</Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-red-500">نفد</Badge>
-                  )}
-                </div>
-                <div className="flex gap-2 pt-2">
-                  <Button
-                    size="sm"
-                    className="flex-1"
-                    disabled={item.part.stock === 0}
-                    onClick={() => handleAddToCart(item)}
-                  >
-                    <ShoppingCart className="size-4 ml-1" />
-                    للسلة
-                  </Button>
-                  <Button size="icon" variant="outline" onClick={() => handleRemove(item.part.id)}>
-                    <Trash2 className="size-4 text-red-500" />
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {items.map((item) => <Card key={item.id} className="overflow-hidden"><CardContent className="p-5 space-y-4">
+            <div className="flex items-start gap-3 cursor-pointer" onClick={() => setView({ name: 'store', storeId: item.store.id })}>
+              <div className="size-16 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">{item.store.image ? <img src={item.store.image} alt="" className="w-full h-full object-cover" /> : <StoreIcon className="size-8" />}</div>
+              <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><h2 className="font-bold truncate">{item.store.name}</h2>{item.store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" />}</div><p className="text-sm text-muted-foreground mt-1">{item.store._count.parts} قطعة غيار</p></div>
+            </div>
+            {item.store.description && <p className="text-sm text-muted-foreground line-clamp-2">{item.store.description}</p>}
+            <div className="flex gap-2"><Button className="flex-1" onClick={() => setView({ name: 'store', storeId: item.store.id })}>زيارة المتجر</Button><FavoriteStoreButton storeId={item.store.id} returnView={{ name: 'wishlist' }} /><Button size="icon" variant="outline" onClick={() => handleRemove(item.store.id)} aria-label="إزالة المتجر من المفضلة"><Trash2 className="size-4 text-red-500" /></Button></div>
+          </CardContent></Card>)}
         </div>
       )}
     </div>

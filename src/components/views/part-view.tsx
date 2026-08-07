@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   RotateCcw,
   Car,
-  Heart,
   MessageSquare,
   Flag,
 } from 'lucide-react'
@@ -65,7 +64,7 @@ interface Part {
 }
 
 export function PartView({ partId }: { partId: string }) {
-  const { setView, user, setPendingView, addToCart, wishlist, toggleWishlist, isInWishlist } = useAppStore()
+  const { setView, user, setPendingView, addToCart } = useAppStore()
   const { toast } = useToast()
   const [part, setPart] = useState<Part | null>(null)
   const [loading, setLoading] = useState(true)
@@ -424,37 +423,6 @@ export function PartView({ partId }: { partId: string }) {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-
-            {/* Wishlist button */}
-            <Button
-              size="lg"
-              variant="outline"
-              className={isInWishlist(part.id) ? 'text-red-500 border-red-200' : ''}
-              onClick={async () => {
-                if (!user) {
-                  setPendingView({ name: 'part', partId })
-                  setView({ name: 'login' })
-                  return
-                }
-                toggleWishlist(part.id)
-                try {
-                  await fetch('/api/wishlist', {
-                    method: isInWishlist(part.id) ? 'DELETE' : 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ partId: part.id }),
-                  })
-                  toast({
-                    title: isInWishlist(part.id) ? 'أضيف للمفضلة' : 'أُزيل من المفضلة',
-                  })
-                } catch {
-                  // revert on error
-                  toggleWishlist(part.id)
-                }
-              }}
-            >
-              <Heart className={`size-4 ml-2 ${isInWishlist(part.id) ? 'fill-red-500' : ''}`} />
-              {isInWishlist(part.id) ? 'في المفضلة' : 'أضف للمفضلة'}
-            </Button>
 
             {/* Add to cart button */}
             <Button

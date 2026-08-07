@@ -19,6 +19,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
+import { FavoriteStoreButton } from '@/components/favorite-store-button'
 
 interface Store {
   id: string
@@ -272,9 +273,12 @@ function StoreCard({ store }: { store: Store }) {
             </div>
           </div>
           <div className="flex-1 min-w-0">
-            <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">
-              {store.name}
-            </CardTitle>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
+              <div className="mr-auto" onClick={(event) => event.stopPropagation()}>
+                <FavoriteStoreButton storeId={store.id} returnView={{ name: 'home' }} />
+              </div>
+            </div>
             <div className="flex items-center gap-2 mt-1">
               <Stars value={store.avgRating} />
               <span className="text-xs text-muted-foreground">

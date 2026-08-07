@@ -28,6 +28,7 @@ import {
   DialogTrigger,
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
+import { FavoriteStoreButton } from '@/components/favorite-store-button'
 
 interface Store {
   id: string
@@ -161,13 +162,15 @@ export function StoreView({ storeId }: { storeId: string }) {
                     </span>
                   </div>
                 </div>
-                <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
-                  <DialogTrigger asChild>
-                    <Button variant="outline" size="sm">
-                      <Star className="size-4 ml-1" />
-                      تقييم المحل
-                    </Button>
-                  </DialogTrigger>
+                <div className="flex items-center gap-2">
+                  <FavoriteStoreButton storeId={store.id} returnView={{ name: 'store', storeId }} />
+                  <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="outline" size="sm">
+                        <Star className="size-4 ml-1" />
+                        تقييم المحل
+                      </Button>
+                    </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>تقييم المتجر</DialogTitle>
@@ -216,7 +219,8 @@ export function StoreView({ storeId }: { storeId: string }) {
                       </Button>
                     </DialogFooter>
                   </DialogContent>
-                </Dialog>
+                  </Dialog>
+                </div>
               </div>
 
               {store.description && (

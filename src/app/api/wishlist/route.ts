@@ -2,17 +2,19 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 
-// GET user's wishlist
+// GET user's favorite stores
 export async function GET() {
   try {
     const session = await requireAuth()
-    const items = await db.wishlist.findMany({
+    const items = await db.storeWishlist.findMany({
       where: { userId: session.id },
       include: {
-        part: {
+        store: {
           select: {
-            id: true, name: true, price: true, image: true, stock: true, blocked: true,
-            store: { select: { id: true, name: true } },
+            id: true, name: true, description: true, address: true, phone: true,
+            image: true, verified: true,
+            owner: { select: { name: true, avatar: true } },
+            _count: { select: { parts: true } },
           },
         },
       },
@@ -25,17 +27,17 @@ export async function GET() {
   }
 }
 
-// POST - add to wishlist
+// POST - add a store to favorites
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
-    const { partId } = await req.json()
-    if (!partId) return NextResponse.json({ error: 'partId مطلوب' }, { status: 400 })
+    const { storeId } = await req.json()
+    if (!storeId) return NextResponse.json({ error: 'storeId مطلوب' }, { status: 400 })
 
-    const item = await db.wishlist.upsert({
-      where: { userId_partId: { userId: session.id, partId } },
+    const item = await db.storeWishlist.upsert({
+      where: { userId_storeId: { userId: session.id, storeId } },
       update: {},
-      create: { userId: session.id, partId },
+      create: { userId: session.id, storeId },
     })
     return NextResponse.json({ item })
   } catch (e: any) {
@@ -44,15 +46,15 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// DELETE - remove from wishlist
+// DELETE - remove a store from favorites
 export async function DELETE(req: NextRequest) {
   try {
     const session = await requireAuth()
     const { searchParams } = new URL(req.url)
-    const partId = searchParams.get('partId')
-    if (!partId) return NextResponse.json({ error: 'partId مطلوب' }, { status: 400 })
+    const storeId = searchParams.get('storeId')
+    if (!storeId) return NextResponse.json({ error: 'storeId مطلوب' }, { status: 400 })
 
-    await db.wishlist.deleteMany({ where: { userId: session.id, partId } })
+    await db.storeWishlist.deleteMany({ where: { userId: session.id, storeId } })
     return NextResponse.json({ ok: true })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })

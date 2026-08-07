@@ -36,6 +36,17 @@ export default function Home() {
       .finally(() => setBootstrapped(true))
   }, [setUser])
 
+  useEffect(() => {
+    if (!user) {
+      useAppStore.getState().setFavoriteStores([])
+      return
+    }
+    fetch('/api/wishlist', { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : { items: [] }))
+      .then((data) => useAppStore.getState().setFavoriteStores((data.items || []).map((item: { store: { id: string } }) => item.store.id)))
+      .catch(() => useAppStore.getState().setFavoriteStores([]))
+  }, [user])
+
   // Scroll to top on view change
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'smooth' })
