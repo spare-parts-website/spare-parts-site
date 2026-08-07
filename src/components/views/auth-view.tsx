@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Wrench, Mail, Lock, User, Phone, Store } from 'lucide-react'
+import { Mail, Lock, User, Phone, Store } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 export function AuthView({ mode }: { mode: 'login' | 'register' }) {
@@ -57,7 +57,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
         <Card className="border-border/60 shadow-sm">
           <CardHeader className="text-center pb-4">
             <div className="size-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 shadow-sm">
-              <Wrench className="size-7" />
+              <img src="/ghyar-market-logo.jpg" alt="غيار ماركت" className="size-14 rounded-2xl bg-white object-contain p-1" />
             </div>
             <CardTitle className="text-2xl">
               {mode === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}

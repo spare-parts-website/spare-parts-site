@@ -213,9 +213,11 @@ export function Header({ user }: { user: AuthUser | null }) {
           onClick={() => setView({ name: 'home' })}
           className="flex items-center gap-2 shrink-0"
         >
-          <div className="size-9 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-sm">
-            قطع
-          </div>
+          <img
+            src="/ghyar-market-logo.jpg"
+            alt="غيار ماركت"
+            className="h-10 w-14 rounded-lg bg-white object-contain p-0.5 shadow-sm"
+          />
           <span className="hidden sm:inline text-lg font-bold text-foreground">
             غيار ماركت
           </span>
