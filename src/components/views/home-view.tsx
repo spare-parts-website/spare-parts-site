@@ -120,30 +120,6 @@ export function HomeView() {
         </div>
       </section>
 
-      {/* Features */}
-      <section className="container mx-auto px-4">
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            { icon: ShieldCheck, title: 'متاجر موثوقة', desc: 'جميع المتاجر معتمدة وموثقة' },
-            { icon: Truck, title: 'توصيل سريع', desc: 'اطلب التوصيل لموقعك بضغطة' },
-            { icon: Banknote, title: 'الدفع عند الاستلام', desc: 'ادفع بعد استلام القطعة' },
-            { icon: TrendingUp, title: 'تقييمات حقيقية', desc: 'اطلع على تجارب العملاء' },
-          ].map((f) => (
-            <Card key={f.title} className="border-border/60 hover:shadow-md transition">
-              <CardContent className="p-5 flex items-start gap-3">
-                <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <f.icon className="size-5" />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-1">{f.title}</h3>
-                  <p className="text-sm text-muted-foreground">{f.desc}</p>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </section>
-
       {/* Featured Parts */}
       <section className="container mx-auto px-4">
         <div className="flex items-center justify-between mb-6">
@@ -217,6 +193,31 @@ export function HomeView() {
             </Button>
           </CardContent>
         </Card>
+      </section>
+
+      {/* Features */}
+      <section className="container mx-auto px-4 pb-8">
+        <h2 className="text-2xl md:text-3xl font-bold text-center mb-6">مميزات الموقع</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            { icon: ShieldCheck, title: 'متاجر موثوقة', desc: 'جميع المتاجر معتمدة وموثقة' },
+            { icon: Truck, title: 'توصيل سريع', desc: 'اطلب التوصيل لموقعك بضغطة' },
+            { icon: Banknote, title: 'الدفع عند الاستلام', desc: 'ادفع بعد استلام القطعة' },
+            { icon: TrendingUp, title: 'تقييمات حقيقية', desc: 'اطلع على تجارب العملاء' },
+          ].map((f) => (
+            <Card key={f.title} className="border-border/60 hover:shadow-md transition">
+              <CardContent className="p-5 flex items-start gap-3">
+                <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                  <f.icon className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-semibold mb-1">{f.title}</h3>
+                  <p className="text-sm text-muted-foreground">{f.desc}</p>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
       </section>
     </div>
   )
