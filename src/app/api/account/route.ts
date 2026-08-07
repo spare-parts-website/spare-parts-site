@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, hashPassword, verifyPassword, createSession } from '@/lib/auth'
 import { deleteUploadedFiles } from '@/lib/storage'
+import { isProfileAvatar } from '@/lib/profile-avatars'
 
 export async function PUT(req: NextRequest) {
   try {
@@ -12,7 +13,13 @@ export async function PUT(req: NextRequest) {
     const phone = typeof body.phone === 'string' ? body.phone.trim() || null : session.phone || null
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : ''
-    const avatar = body.avatar === null ? null : typeof body.avatar === 'string' && body.avatar.trim().startsWith('https://') ? body.avatar.trim() : session.avatar || null
+    const avatar = body.avatar === null
+      ? null
+      : isProfileAvatar(body.avatar)
+        ? body.avatar
+        : typeof body.avatar === 'string' && body.avatar.trim().startsWith('https://')
+          ? body.avatar.trim()
+          : session.avatar || null
 
     if (name.length < 2 || name.length > 100) return NextResponse.json({ error: 'الاسم يجب أن يكون بين حرفين و100 حرف' }, { status: 400 })
     if (newPassword && (newPassword.length < 8 || newPassword.length > 128)) return NextResponse.json({ error: 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل' }, { status: 400 })
