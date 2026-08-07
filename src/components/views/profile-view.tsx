@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { ImageUpload } from '@/components/image-upload'
+import { ProfileAvatarPicker } from '@/components/profile-avatar-picker'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -98,6 +99,10 @@ export function ProfileView() {
               <ImageUpload value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} />
             </div>
           )}
+          <div className="space-y-2">
+            <Label>اختيار صورة الحساب</Label>
+            <ProfileAvatarPicker value={form.avatar} onChange={(avatar) => setForm({ ...form, avatar })} />
+          </div>
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2"><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>

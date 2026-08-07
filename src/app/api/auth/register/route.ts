@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword, createSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import { isProfileAvatar } from '@/lib/profile-avatars'
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +16,7 @@ export async function POST(req: NextRequest) {
     const password = typeof body.password === 'string' ? body.password : ''
     const role = body.role
     const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+    const avatar = isProfileAvatar(body.avatar) ? body.avatar : null
 
     if (!name || !email || !password) {
       return NextResponse.json({ error: 'جميع الحقول مطلوبة' }, { status: 400 })
@@ -50,6 +52,7 @@ export async function POST(req: NextRequest) {
           password: hashedPassword,
           role,
           phone: phone || null,
+          avatar,
         },
       })
 

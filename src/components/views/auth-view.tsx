@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Mail, Lock, User, Phone, Store } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { ProfileAvatarPicker } from '@/components/profile-avatar-picker'
 
 export function AuthView({ mode }: { mode: 'login' | 'register' }) {
   const { setView, setUser, pendingView } = useAppStore()
@@ -18,6 +19,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
     email: '',
     password: '',
     phone: '',
+    avatar: '',
     role: 'BUYER' as 'BUYER' | 'SHOP_OWNER',
   })
 
@@ -72,6 +74,10 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'register' && (
                 <>
+                  <div className="space-y-2">
+                    <Label>صورة الحساب (اختياري)</Label>
+                    <ProfileAvatarPicker value={form.avatar} onChange={(avatar) => setForm({ ...form, avatar })} />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="name">الاسم الكامل</Label>
                     <div className="relative">
