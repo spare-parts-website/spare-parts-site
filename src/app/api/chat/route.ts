@@ -230,7 +230,7 @@ export async function POST(req: NextRequest) {
           title: 'رسالة عن قطعة غيار',
           message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
           type: 'CHAT',
-          link: 'shop-dashboard',
+          link: 'inbox',
         })
       } catch (e) {
         console.error('Notify error:', e)
@@ -258,7 +258,7 @@ export async function POST(req: NextRequest) {
         title: 'رسالة جديدة',
         message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
         type: 'CHAT',
-        link: isBuyer ? 'shop-dashboard' : 'orders',
+        link: 'inbox',
       })
     } catch (e) {
       console.error('Notify error:', e)

@@ -11,7 +11,7 @@ import {
   SheetTrigger,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Bell, Check, Package, CreditCard, ShoppingCart, Star, Info } from 'lucide-react'
+import { Bell, Check, Package, CreditCard, ShoppingCart, Star, Info, MessageSquare } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Notification {
@@ -29,6 +29,7 @@ const TYPE_ICONS: Record<string, any> = {
   ORDER_STATUS: Package,
   PAYMENT: CreditCard,
   REVIEW: Star,
+  CHAT: MessageSquare,
   SYSTEM: Info,
 }
 
@@ -37,6 +38,7 @@ const TYPE_COLORS: Record<string, string> = {
   ORDER_STATUS: 'bg-blue-500',
   PAYMENT: 'bg-amber-500',
   REVIEW: 'bg-purple-500',
+  CHAT: 'bg-primary',
   SYSTEM: 'bg-muted-foreground',
 }
 
@@ -177,7 +179,9 @@ export function NotificationsBell() {
     )
     setNotificationCount(Math.max(0, useAppStore.getState().notificationCount - 1))
     setOpen(false)
-    if (notification.link) {
+    if (notification.type === 'CHAT') {
+      setView({ name: 'inbox' })
+    } else if (notification.link) {
       setView({ name: notification.link as any } as any)
     }
   }
