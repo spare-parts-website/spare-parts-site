@@ -312,31 +312,31 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[920px] table-fixed text-sm">
                     <thead className="bg-muted/50 border-b">
                       <tr>
-                        <th className="text-right p-3 font-semibold">الاسم</th>
-                        <th className="text-right p-3 font-semibold">البريد</th>
-                        <th className="text-right p-3 font-semibold">الهاتف</th>
-                        <th className="text-right p-3 font-semibold">الدور</th>
-                        <th className="text-right p-3 font-semibold">تاريخ التسجيل</th>
-                        <th className="text-right p-3 font-semibold">إجراءات</th>
+                        <th className="w-44 text-right p-3 font-semibold">الاسم</th>
+                        <th className="w-64 text-right p-3 font-semibold">البريد</th>
+                        <th className="w-40 text-right p-3 font-semibold">الهاتف</th>
+                        <th className="w-36 text-right p-3 font-semibold">الدور</th>
+                        <th className="w-36 text-right p-3 font-semibold">تاريخ التسجيل</th>
+                        <th className="w-24 text-right p-3 font-semibold">إجراءات</th>
                       </tr>
                     </thead>
                     <tbody>
                       {users.map((u) => (
                         <tr key={u.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="p-3">
+                          <td className="p-3 whitespace-nowrap">
                             <div className="flex items-center gap-2">
                               <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
                                 {u.name.charAt(0)}
                               </div>
-                              <span className="font-medium">{u.name}</span>
+                              <span className="font-medium truncate" title={u.name}>{u.name}</span>
                             </div>
                           </td>
-                          <td className="p-3 text-muted-foreground" dir="ltr">{u.email}</td>
-                          <td className="p-3 text-muted-foreground" dir="ltr">{u.phone || '—'}</td>
-                          <td className="p-3">
+                          <td className="p-3 text-muted-foreground whitespace-nowrap" dir="ltr"><span className="block truncate" title={u.email}>{u.email}</span></td>
+                          <td className="p-3 text-muted-foreground whitespace-nowrap" dir="ltr">{u.phone || '—'}</td>
+                          <td className="p-3 whitespace-nowrap">
                             <Select
                               value={u.role}
                               onValueChange={(v) => handleRoleChange(u.id, v)}
@@ -352,10 +352,10 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                               </SelectContent>
                             </Select>
                           </td>
-                          <td className="p-3 text-muted-foreground text-xs">
+                          <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
                             {new Date(u.createdAt).toLocaleDateString('ar-SA')}
                           </td>
-                          <td className="p-3">
+                          <td className="p-3 whitespace-nowrap">
                             <Button
                               size="icon"
                               variant="ghost"
@@ -387,16 +387,16 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
               {reports.map((report) => (
                 <Card key={report.id} className={report.status !== 'OPEN' ? 'opacity-70' : ''}>
                   <CardContent className="p-4 space-y-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
+                    <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <Badge variant={report.status === 'OPEN' ? 'destructive' : 'outline'}>{report.status === 'OPEN' ? 'مفتوح' : report.status}</Badge>
                           <Badge variant="secondary">{report.targetType === 'part' ? 'قطعة' : report.targetType === 'store' ? 'متجر' : 'مستخدم'}</Badge>
-                          <span className="font-semibold">{report.target?.name || report.targetId}</span>
+                          <span className="font-semibold break-words">{report.target?.name || report.targetId}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1">من: {report.reporter?.name} ({report.reporter?.email}) • {new Date(report.createdAt).toLocaleString('ar-SA')}</p>
+                        <p className="text-xs text-muted-foreground mt-1 break-words">من: {report.reporter?.name} ({report.reporter?.email}) • {new Date(report.createdAt).toLocaleString('ar-SA')}</p>
                       </div>
-                      <Flag className="size-5 text-amber-500 shrink-0" />
+                      <Flag className="size-5 text-amber-500 shrink-0 self-end sm:self-start" />
                     </div>
                     <p className="font-medium">{report.reason}</p>
                     {report.details && <p className="text-sm text-muted-foreground whitespace-pre-wrap">{report.details}</p>}
@@ -450,8 +450,8 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                       </Badge>
                       <Stars value={s.avgRating || 0} size={12} />
                     </div>
-                    <div className="flex items-center justify-between gap-2 pt-2 border-t">
-                      <div className="text-xs text-muted-foreground truncate" dir="ltr">
+                    <div className="flex flex-wrap items-center gap-2 pt-2 border-t">
+                      <div className="w-full sm:flex-1 min-w-0 text-xs text-muted-foreground truncate" dir="ltr">
                         {s.owner?.email || 'بدون مالك'}
                       </div>
                       <Button size="sm" variant="outline" onClick={() => handleVerifyStore(s.id, s.verified)} disabled={submitting} className="shrink-0 gap-1">
@@ -485,7 +485,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[720px] text-sm">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="text-right p-3 font-semibold">القطعة</th>
@@ -499,18 +499,18 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                     <tbody>
                       {parts.map((p) => (
                         <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="p-3 font-medium">{p.name}</td>
-                          <td className="p-3 text-muted-foreground">{p.store?.name}</td>
-                          <td className="p-3 text-primary font-medium">{formatPrice(p.price)}</td>
-                          <td className="p-3">{p.stock}</td>
-                          <td className="p-3">
+                          <td className="p-3 font-medium max-w-56 truncate whitespace-nowrap" title={p.name}>{p.name}</td>
+                          <td className="p-3 text-muted-foreground whitespace-nowrap">{p.store?.name}</td>
+                          <td className="p-3 text-primary font-medium whitespace-nowrap">{formatPrice(p.price)}</td>
+                          <td className="p-3 whitespace-nowrap">{p.stock}</td>
+                          <td className="p-3 whitespace-nowrap">
                             {p.blocked ? (
                               <Badge variant="destructive">محظور</Badge>
                             ) : (
                               <Badge variant="outline" className="text-emerald-600 border-emerald-200">نشط</Badge>
                             )}
                           </td>
-                          <td className="p-3">
+                          <td className="p-3 whitespace-nowrap">
                             <div className="flex gap-1">
                               <Button
                                 size="icon"
@@ -553,7 +553,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full text-sm">
+                  <table className="w-full min-w-[920px] text-sm">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="text-right p-3 font-semibold">القطعة</th>
@@ -568,13 +568,13 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                     <tbody>
                       {orders.map((o) => (
                         <tr key={o.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="p-3 font-medium line-clamp-1 max-w-32">{o.part.name}</td>
-                          <td className="p-3 text-muted-foreground">{o.store.name}</td>
-                          <td className="p-3">{o.buyer.name}</td>
-                          <td className="p-3 text-primary font-medium">{formatPrice(o.totalPrice)}</td>
-                          <td className="p-3"><StatusBadge status={o.status} /></td>
-                          <td className="p-3"><StatusBadge status={o.paymentStatus} /></td>
-                          <td className="p-3 text-xs text-muted-foreground">
+                          <td className="p-3 font-medium max-w-40 truncate whitespace-nowrap" title={o.part.name}>{o.part.name}</td>
+                          <td className="p-3 text-muted-foreground whitespace-nowrap">{o.store.name}</td>
+                          <td className="p-3 whitespace-nowrap">{o.buyer.name}</td>
+                          <td className="p-3 text-primary font-medium whitespace-nowrap">{formatPrice(o.totalPrice)}</td>
+                          <td className="p-3 whitespace-nowrap"><StatusBadge status={o.status} /></td>
+                          <td className="p-3 whitespace-nowrap"><StatusBadge status={o.paymentStatus} /></td>
+                          <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
                             {new Date(o.createdAt).toLocaleDateString('ar-SA')}
                           </td>
                         </tr>
@@ -608,18 +608,18 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                   ) : (
                     productReviews.map((r) => (
                       <div key={r.id} className={`p-3 rounded-lg border ${r.blocked ? 'bg-muted/30 opacity-60' : ''}`}>
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{r.user.name}</span>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-sm break-words">{r.user.name}</span>
                               <Stars value={r.rating} size={12} />
                               {r.blocked && <Badge variant="destructive" className="text-xs">محجوب</Badge>}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
+                            <p className="text-xs text-muted-foreground mt-0.5 break-words">
                               على: {r.part.name} • {new Date(r.createdAt).toLocaleDateString('ar-SA')}
                             </p>
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 shrink-0 self-end sm:self-start">
                             <Button
                               size="icon"
                               variant="ghost"
@@ -665,18 +665,18 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                   ) : (
                     storeReviews.map((r) => (
                       <div key={r.id} className={`p-3 rounded-lg border ${r.blocked ? 'bg-muted/30 opacity-60' : ''}`}>
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <span className="font-medium text-sm">{r.user.name}</span>
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 mb-2">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-sm break-words">{r.user.name}</span>
                               <Stars value={r.rating} size={12} />
                               {r.blocked && <Badge variant="destructive" className="text-xs">محجوب</Badge>}
                             </div>
-                            <p className="text-xs text-muted-foreground mt-0.5">
+                            <p className="text-xs text-muted-foreground mt-0.5 break-words">
                               على: {r.store.name} • {new Date(r.createdAt).toLocaleDateString('ar-SA')}
                             </p>
                           </div>
-                          <div className="flex gap-1">
+                          <div className="flex gap-1 shrink-0 self-end sm:self-start">
                             <Button
                               size="icon"
                               variant="ghost"
