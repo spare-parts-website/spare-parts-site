@@ -70,7 +70,7 @@ export function WishlistView() {
               <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><h2 className="font-bold truncate">{item.store.name}</h2>{item.store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" />}</div><p className="text-sm text-muted-foreground mt-1">{item.store._count.parts} قطعة غيار</p></div>
             </div>
             {item.store.description && <p className="text-sm text-muted-foreground line-clamp-2">{item.store.description}</p>}
-            <div className="flex gap-2"><Button className="flex-1" onClick={() => setView({ name: 'store', storeId: item.store.id })}>زيارة المتجر</Button><FavoriteStoreButton storeId={item.store.id} returnView={{ name: 'wishlist' }} /></div>
+            <div className="flex gap-2"><Button className="flex-1" onClick={() => setView({ name: 'store', storeId: item.store.id })}>زيارة المتجر</Button><FavoriteStoreButton storeId={item.store.id} /></div>
           </CardContent></Card>)}
         </div>
       )}

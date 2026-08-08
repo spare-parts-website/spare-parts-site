@@ -3,21 +3,18 @@
 import { Heart } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
-import { useAppStore, type View } from '@/lib/store'
+import { useAppStore } from '@/lib/store'
 
-export function FavoriteStoreButton({ storeId, returnView }: { storeId: string; returnView: View }) {
-  const { user, setView, setPendingView, toggleFavoriteStore, isFavoriteStore } = useAppStore()
+export function FavoriteStoreButton({ storeId }: { storeId: string }) {
+  const { user, toggleFavoriteStore, isFavoriteStore } = useAppStore()
   const { toast } = useToast()
+  const canFavorite = user?.role === 'BUYER' || user?.role === 'SHOP_OWNER'
   const favorite = isFavoriteStore(storeId)
+
+  if (!canFavorite) return null
 
   const handleClick = async (event: React.MouseEvent) => {
     event.stopPropagation()
-    if (!user) {
-      setPendingView(returnView)
-      setView({ name: 'login' })
-      return
-    }
-
     toggleFavoriteStore(storeId)
     try {
       const response = await fetch('/api/wishlist', {

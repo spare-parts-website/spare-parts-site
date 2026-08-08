@@ -167,7 +167,7 @@ export function StoreView({ storeId }: { storeId: string }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <FavoriteStoreButton storeId={store.id} returnView={{ name: 'store', storeId }} />
+                  <FavoriteStoreButton storeId={store.id} />
                   {canReview && <Dialog open={reviewOpen} onOpenChange={setReviewOpen}>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm">

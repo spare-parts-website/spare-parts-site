@@ -301,7 +301,7 @@ function StoreCard({ store }: { store: Store }) {
             <div className="flex items-center gap-2">
               <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
               <div className="mr-auto" onClick={(event) => event.stopPropagation()}>
-                <FavoriteStoreButton storeId={store.id} returnView={{ name: 'home' }} />
+                <FavoriteStoreButton storeId={store.id} />
               </div>
             </div>
             <div className="flex items-center gap-2 mt-1">

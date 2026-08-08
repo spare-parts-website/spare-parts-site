@@ -126,7 +126,7 @@ export function StoresView() {
                       <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
                       {store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر موثق" />}
                       <div className="mr-auto" onClick={(event) => event.stopPropagation()}>
-                        <FavoriteStoreButton storeId={store.id} returnView={{ name: 'stores' }} />
+                        <FavoriteStoreButton storeId={store.id} />
                       </div>
                     </div>
                     <div className="flex items-center gap-2 mt-1">
