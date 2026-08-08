@@ -174,18 +174,6 @@ export function Header({ user }: { user: AuthUser | null }) {
             <LayoutDashboard className="size-4" />
             لوحة المحل
           </Button>
-          <Button
-            variant={view.name === 'shop-dashboard' && 'tab' in view && view.tab === 'messages' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              setView({ name: 'shop-dashboard', tab: 'messages' })
-              setMobileOpen(false)
-            }}
-            className="justify-start gap-2"
-          >
-            <MessageSquare className="size-4" />
-            رسائل العملاء
-          </Button>
         </>
       )}
       {user?.role === 'ADMIN' && (
