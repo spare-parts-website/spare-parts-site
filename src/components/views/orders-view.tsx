@@ -214,7 +214,7 @@ export function OrdersView() {
                           disabled={submitting}
                         >
                           <CheckCircle2 className="size-4 ml-1" />
-                          تأكيد التوصيل وتحصيل الدفع
+                          تم استلام الطلب و الدفع
                         </Button>
                       )}
                       {order.status === 'DELIVERED' && (
