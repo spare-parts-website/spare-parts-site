@@ -45,7 +45,7 @@ interface Part {
   category?: string | null
   brand?: string | null
   image?: string | null
-  store: { id: string; name: string }
+  store: { id: string; name: string; owner: { name: string; avatar?: string | null } }
 }
 
 export function HomeView() {
@@ -251,10 +251,28 @@ function PartCard({ part }: { part: Part }) {
         )}
       </div>
       <CardContent className="p-4 space-y-2">
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <StoreIcon className="size-3" />
-          <span className="truncate">{part.store.name}</span>
-        </div>
+        <button
+          className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 text-right transition hover:border-primary/40 hover:bg-primary/5"
+          onClick={(event) => {
+            event.stopPropagation()
+            setView({ name: 'store', storeId: part.store.id })
+          }}
+        >
+          <div className="relative size-12 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-primary/10 text-primary">
+            {part.store.owner.avatar ? (
+              <Image src={part.store.owner.avatar} alt={part.store.owner.name} fill sizes="48px" className="object-cover" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-lg font-bold">{part.store.owner.name.charAt(0)}</span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-1.5 text-primary">
+              <StoreIcon className="size-4 shrink-0" />
+              <span className="truncate text-base font-bold">{part.store.name}</span>
+            </div>
+            <p className="mt-0.5 truncate text-sm font-medium text-muted-foreground">البائع: {part.store.owner.name}</p>
+          </div>
+        </button>
         <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10">
           {part.name}
         </h3>

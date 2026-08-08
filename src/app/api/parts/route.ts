@@ -27,7 +27,14 @@ export async function GET(req: NextRequest) {
       where: { id },
       include: {
         store: {
-          select: { id: true, name: true, address: true, phone: true, ownerId: true },
+          select: {
+            id: true,
+            name: true,
+            address: true,
+            phone: true,
+            ownerId: true,
+            owner: { select: { name: true, avatar: true } },
+          },
         },
         reviews: {
           where: { blocked: false },
@@ -85,7 +92,14 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, name: true, description: true, price: true, stock: true,
         category: true, brand: true, image: true, carModels: true,
-        createdAt: true, store: { select: { id: true, name: true } },
+        createdAt: true,
+        store: {
+          select: {
+            id: true,
+            name: true,
+            owner: { select: { name: true, avatar: true } },
+          },
+        },
       },
       orderBy,
       skip: (page - 1) * pageSize,

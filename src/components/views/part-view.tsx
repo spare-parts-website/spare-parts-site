@@ -59,7 +59,7 @@ interface Part {
   brand?: string | null
   image?: string | null
   carModels?: string | null
-  store: { id: string; name: string; address?: string | null; phone?: string | null; ownerId: string }
+  store: { id: string; name: string; address?: string | null; phone?: string | null; ownerId: string; owner: { name: string; avatar?: string | null } }
   reviews: Review[]
   images?: PartImage[]
 }
@@ -328,12 +328,24 @@ export function PartView({ partId }: { partId: string }) {
           </div>
 
           <button
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-primary transition"
+            className="flex w-full items-center gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 text-right transition hover:border-primary/40 hover:bg-primary/5"
             onClick={() => setView({ name: 'store', storeId: part.store.id })}
           >
-            <StoreIcon className="size-4" />
-            <span>{part.store.name}</span>
-            <ArrowRight className="size-3" />
+            <div className="relative size-16 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-primary/10 text-primary">
+              {part.store.owner.avatar ? (
+                <Image src={part.store.owner.avatar} alt={part.store.owner.name} fill sizes="64px" className="object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-2xl font-bold">{part.store.owner.name.charAt(0)}</span>
+              )}
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-primary">
+                <StoreIcon className="size-5 shrink-0" />
+                <span className="truncate text-lg font-bold">{part.store.name}</span>
+              </div>
+              <p className="mt-1 truncate text-base font-semibold text-muted-foreground">البائع: {part.store.owner.name}</p>
+            </div>
+            <ArrowRight className="size-4 shrink-0" />
           </button>
 
           <div className="flex items-center gap-3">

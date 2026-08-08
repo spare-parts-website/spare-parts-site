@@ -308,6 +308,19 @@ export function StoreView({ storeId }: { storeId: string }) {
                   )}
                 </div>
                 <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
+                  <div className="flex items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3">
+                    <div className="relative size-12 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-primary/10 text-primary">
+                      {store.owner.avatar ? (
+                        <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="48px" className="object-cover" />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-lg font-bold">{store.owner.name.charAt(0)}</span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-bold text-primary">{store.name}</p>
+                      <p className="truncate text-sm font-medium text-muted-foreground">البائع: {store.owner.name}</p>
+                    </div>
+                  </div>
                   <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10 flex-1">
                     {part.name}
                   </h3>
