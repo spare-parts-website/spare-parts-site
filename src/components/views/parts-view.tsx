@@ -260,7 +260,7 @@ export function PartsView() {
 
       {/* Grid */}
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-items-center">
           {Array.from({ length: 8 }).map((_, i) => (
             <Skeleton key={i} className="h-64 rounded-xl" />
           ))}
@@ -291,8 +291,17 @@ export function PartsView() {
           {parts.map((part) => (
             <Card
               key={part.id}
-              className="overflow-hidden cursor-pointer hover:shadow-md transition group h-full flex flex-col"
+              role="link"
+              tabIndex={0}
+              aria-label={`عرض تفاصيل ${part.name}`}
+              className="w-full max-w-sm overflow-hidden cursor-pointer hover:shadow-md transition group h-full flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setView({ name: 'part', partId: part.id })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setView({ name: 'part', partId: part.id })
+                }
+              }}
             >
               <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
                 {part.image ? (
@@ -347,6 +356,9 @@ export function PartsView() {
                     <span className="text-xs text-red-500">غير متوفر</span>
                   )}
                 </div>
+                <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'part', partId: part.id }) }}>
+                  عرض التفاصيل
+                </Button>
               </CardContent>
             </Card>
           ))}

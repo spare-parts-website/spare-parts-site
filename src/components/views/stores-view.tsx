@@ -84,7 +84,7 @@ export function StoresView() {
       </form>
 
       {loading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 justify-items-center">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-48 rounded-xl" />
           ))}
@@ -101,8 +101,17 @@ export function StoresView() {
           {stores.map((store) => (
             <Card
               key={store.id}
-              className="cursor-pointer hover:shadow-md transition group"
+              role="link"
+              tabIndex={0}
+              aria-label={`زيارة ${store.name}`}
+              className="w-full max-w-sm cursor-pointer hover:shadow-md transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setView({ name: 'store', storeId: store.id })}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                  event.preventDefault()
+                  setView({ name: 'store', storeId: store.id })
+                }
+              }}
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start gap-3">
@@ -154,6 +163,9 @@ export function StoresView() {
                   {store._count.parts} قطعة غيار
                 </Badge>
                 <p className="text-xs text-muted-foreground">{store.completedOrderCount} طلباً مكتملًا</p>
+                <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: store.id }) }}>
+                  زيارة المتجر
+                </Button>
               </CardContent>
             </Card>
           ))}

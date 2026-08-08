@@ -69,19 +69,19 @@ export function HomeView() {
     <div className="space-y-12">
       {/* Hero */}
       <section className="relative overflow-hidden bg-gradient-to-bl from-primary/10 via-accent/30 to-background">
-        <div className="container mx-auto px-4 py-16 md:py-24">
-          <div className="max-w-3xl mx-auto text-center space-y-6">
+        <div className="container mx-auto px-4 py-12 md:py-16">
+          <div className="max-w-3xl mx-auto text-center space-y-5">
             <Badge variant="secondary" className="px-3 py-1 text-sm">
               <Wrench className="size-3.5 ml-1" />
               غيار ماركت | سوق قطع غيار السيارات
             </Badge>
-            <h1 className="text-4xl md:text-6xl font-bold tracking-tight text-balance">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-balance">
               قطع غيار أصلية من{' '}
               <span className="text-primary">متاجر معتمدة</span>
               <br className="hidden md:block" />
               توصيل سريع والدفع عند الاستلام
             </h1>
-            <p className="text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+            <p className="text-base md:text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
               تصفح آلاف قطع الغيار من مختلف المتاجر، قارن الأسعار، اطلب التوصيل،
               وادفع عند الاستلام بكل وضوح وأمان. تقييمات حقيقية من عملاء سابقين
               تساعدك على اختيار الأفضل.
@@ -105,7 +105,7 @@ export function HomeView() {
                 setSearchQuery((fd.get('q') as string) || '')
                 setView({ name: 'parts' })
               }}
-              className="max-w-2xl mx-auto pt-6"
+              className="max-w-2xl mx-auto pt-4"
             >
               <div className="relative">
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -140,13 +140,15 @@ export function HomeView() {
               <Skeleton key={i} className="h-64 rounded-xl" />
             ))}
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {parts.map((part) => (
-              <PartCard key={part.id} part={part} />
-            ))}
-          </div>
-        )}
+        ) : parts.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد قطع مميزة حالياً</CardContent></Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 justify-items-center">
+              {parts.map((part) => (
+                <PartCard key={part.id} part={part} />
+              ))}
+            </div>
+          )}
       </section>
 
       {/* Featured Stores */}
@@ -168,13 +170,15 @@ export function HomeView() {
               <Skeleton key={i} className="h-48 rounded-xl" />
             ))}
           </div>
-        ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {stores.slice(0, 6).map((store) => (
-              <StoreCard key={store.id} store={store} />
-            ))}
-          </div>
-        )}
+        ) : stores.length === 0 ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد متاجر مميزة حالياً</CardContent></Card>
+          ) : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 justify-items-center">
+              {stores.slice(0, 6).map((store) => (
+                <StoreCard key={store.id} store={store} />
+              ))}
+            </div>
+          )}
       </section>
 
       {/* Features */}
@@ -209,8 +213,17 @@ function PartCard({ part }: { part: Part }) {
   const { setView } = useAppStore()
   return (
     <Card
-      className="overflow-hidden cursor-pointer hover:shadow-md transition group h-full"
+      role="link"
+      tabIndex={0}
+      aria-label={`عرض تفاصيل ${part.name}`}
+      className="w-full max-w-sm overflow-hidden cursor-pointer hover:shadow-md transition group h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => setView({ name: 'part', partId: part.id })}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          setView({ name: 'part', partId: part.id })
+        }
+      }}
     >
       <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
         {part.image ? (
@@ -252,6 +265,9 @@ function PartCard({ part }: { part: Part }) {
             {formatPrice(part.price)}
           </span>
         </div>
+        <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'part', partId: part.id }) }}>
+          عرض التفاصيل
+        </Button>
       </CardContent>
     </Card>
   )
@@ -261,8 +277,17 @@ function StoreCard({ store }: { store: Store }) {
   const { setView } = useAppStore()
   return (
     <Card
-      className="cursor-pointer hover:shadow-md transition group"
+      role="link"
+      tabIndex={0}
+      aria-label={`زيارة ${store.name}`}
+      className="w-full max-w-sm cursor-pointer hover:shadow-md transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => setView({ name: 'store', storeId: store.id })}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault()
+          setView({ name: 'store', storeId: store.id })
+        }
+      }}
     >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3">
@@ -305,6 +330,9 @@ function StoreCard({ store }: { store: Store }) {
             </span>
           )}
         </div>
+        <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: store.id }) }}>
+          زيارة المتجر
+        </Button>
       </CardContent>
     </Card>
   )

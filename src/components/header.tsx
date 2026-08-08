@@ -207,7 +207,7 @@ export function Header({ user }: { user: AuthUser | null }) {
 
   return (
     <header className="sticky top-0 z-40 w-full border-b bg-card/80 backdrop-blur-md supports-[backdrop-filter]:bg-card/60">
-      <div className="container mx-auto flex h-16 items-center gap-3 px-4">
+      <div className="container mx-auto flex h-14 items-center gap-2 px-3 sm:px-4">
         {/* Logo */}
         <button
           onClick={() => setView({ name: 'home' })}
@@ -224,12 +224,12 @@ export function Header({ user }: { user: AuthUser | null }) {
         </button>
 
         {/* Desktop Search with Autocomplete */}
-        <div className="hidden md:flex flex-1 max-w-md">
+        <div className="hidden md:flex flex-1 max-w-sm">
           <SearchBar />
         </div>
 
         {/* Desktop Nav */}
-        <nav className="hidden lg:flex items-center gap-1 mr-2">
+        <nav className="hidden xl:flex items-center gap-1 mr-2">
           {navItems}
         </nav>
 
@@ -350,7 +350,7 @@ export function Header({ user }: { user: AuthUser | null }) {
           {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden">
+              <Button variant="ghost" size="icon" className="xl:hidden">
                 <Menu className="size-5" />
                 <span className="sr-only">القائمة</span>
               </Button>

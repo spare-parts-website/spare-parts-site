@@ -141,8 +141,12 @@ export function StoreView({ storeId }: { storeId: string }) {
 
       {/* Store header */}
       <Card className="overflow-hidden">
-        <div className="h-24 bg-gradient-to-bl from-primary/20 to-accent" />
-        <CardContent className="p-6 -mt-12">
+        {store.image && (
+          <div className="h-16 sm:h-20 bg-muted/30 overflow-hidden">
+            <img src={store.image} alt="" className="w-full h-full object-cover opacity-80" />
+          </div>
+        )}
+        <CardContent className={`p-6 ${store.image ? '-mt-12' : ''}`}>
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div className="size-20 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden">
               {store.image ? <img src={store.image} alt={store.name} className="w-full h-full object-cover" /> : <StoreIcon className="size-10" />}
@@ -272,12 +276,21 @@ export function StoreView({ storeId }: { storeId: string }) {
             </CardContent>
           </Card>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-items-center">
             {store.parts.map((part: any) => (
               <Card
                 key={part.id}
-                className="overflow-hidden cursor-pointer hover:shadow-md transition group h-full flex flex-col"
+                role="link"
+                tabIndex={0}
+                aria-label={`عرض تفاصيل ${part.name}`}
+                className="w-full max-w-sm overflow-hidden cursor-pointer hover:shadow-md transition group h-full flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 onClick={() => setView({ name: 'part', partId: part.id })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setView({ name: 'part', partId: part.id })
+                  }
+                }}
               >
                 <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
                   {part.image ? (
