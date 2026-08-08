@@ -312,7 +312,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full min-w-[920px] table-fixed text-sm">
+                  <table dir="rtl" className="w-full min-w-[920px] table-fixed text-sm [&_th]:text-right [&_td]:text-right">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="w-44 text-right p-3 font-semibold">الاسم</th>
@@ -326,16 +326,16 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                     <tbody>
                       {users.map((u) => (
                         <tr key={u.id} className="border-b last:border-0 hover:bg-muted/30">
-                          <td className="p-3 whitespace-nowrap">
-                            <div className="flex items-center gap-2">
+                          <td className="p-3 text-right whitespace-nowrap">
+                            <div className="flex w-full items-center justify-start gap-2">
                               <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
                                 {u.name.charAt(0)}
                               </div>
                               <span className="font-medium truncate" title={u.name}>{u.name}</span>
                             </div>
                           </td>
-                          <td className="p-3 text-muted-foreground whitespace-nowrap" dir="ltr"><span className="block truncate" title={u.email}>{u.email}</span></td>
-                          <td className="p-3 text-muted-foreground whitespace-nowrap" dir="ltr">{u.phone || '—'}</td>
+                          <td className="p-3 text-right text-muted-foreground whitespace-nowrap" dir="ltr"><span className="block truncate" title={u.email}>{u.email}</span></td>
+                          <td className="p-3 text-right text-muted-foreground whitespace-nowrap" dir="ltr">{u.phone || '—'}</td>
                           <td className="p-3 whitespace-nowrap">
                             <Select
                               value={u.role}
@@ -485,7 +485,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full min-w-[720px] text-sm">
+                  <table dir="rtl" className="w-full min-w-[720px] text-sm [&_th]:text-right [&_td]:text-right">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="text-right p-3 font-semibold">القطعة</th>
@@ -553,7 +553,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
             <Card>
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table className="w-full min-w-[920px] text-sm">
+                  <table dir="rtl" className="w-full min-w-[920px] text-sm [&_th]:text-right [&_td]:text-right">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="text-right p-3 font-semibold">القطعة</th>
