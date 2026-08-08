@@ -141,12 +141,7 @@ export function StoreView({ storeId }: { storeId: string }) {
 
       {/* Store header */}
       <Card className="overflow-hidden">
-        {store.image && (
-          <div className="h-16 sm:h-20 bg-muted/30 overflow-hidden">
-            <img src={store.image} alt="" className="w-full h-full object-cover opacity-80" />
-          </div>
-        )}
-        <CardContent className={`p-6 ${store.image ? '-mt-12' : ''}`}>
+        <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div className="size-20 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden">
               {store.image ? <img src={store.image} alt={store.name} className="w-full h-full object-cover" /> : <StoreIcon className="size-10" />}
