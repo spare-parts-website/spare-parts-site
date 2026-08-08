@@ -31,6 +31,21 @@ export type View =
   | { name: 'chat'; orderId: string }
   | { name: 'chat'; partId: string; participantId?: string }
 
+const VIEW_HISTORY_KEY = '__sparePartsView'
+
+function pushViewToBrowserHistory(view: View) {
+  if (typeof window === 'undefined') return
+
+  const currentView = window.history.state?.[VIEW_HISTORY_KEY] as View | undefined
+  if (JSON.stringify(currentView) === JSON.stringify(view)) return
+
+  window.history.pushState(
+    { ...window.history.state, [VIEW_HISTORY_KEY]: view },
+    '',
+    window.location.href,
+  )
+}
+
 export interface CartItem {
   partId: string
   name: string
@@ -81,7 +96,10 @@ export const useAppStore = create<AppState>((set) => ({
   setUser: (u) => set({ user: u }),
 
   view: { name: 'home' },
-  setView: (v) => set({ view: v }),
+  setView: (v) => {
+    pushViewToBrowserHistory(v)
+    set({ view: v })
+  },
 
   pendingView: null,
   setPendingView: (v) => set({ pendingView: v }),

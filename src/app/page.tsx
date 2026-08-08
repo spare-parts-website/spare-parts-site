@@ -9,6 +9,8 @@ import { CartDrawer } from '@/components/cart-drawer'
 import { HomeView } from '@/components/views/home-view'
 import type { AuthUser } from '@/lib/store'
 
+const VIEW_HISTORY_KEY = '__sparePartsView'
+
 const ViewLoading = () => <div className="container mx-auto px-4 py-16 text-center text-muted-foreground">جاري تحميل الصفحة...</div>
 const AuthView = dynamic(() => import('@/components/views/auth-view').then((module) => module.AuthView), { loading: ViewLoading })
 const StoresView = dynamic(() => import('@/components/views/stores-view').then((module) => module.StoresView), { loading: ViewLoading })
@@ -37,6 +39,24 @@ export default function Home() {
       })
       .finally(() => setBootstrapped(true))
   }, [setUser])
+
+  useEffect(() => {
+    window.history.replaceState(
+      { ...window.history.state, [VIEW_HISTORY_KEY]: useAppStore.getState().view },
+      '',
+      window.location.href,
+    )
+
+    const handlePopState = (event: PopStateEvent) => {
+      const previousView = event.state?.[VIEW_HISTORY_KEY]
+      if (previousView) {
+        useAppStore.setState({ view: previousView })
+      }
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   useEffect(() => {
     if (!user) {
