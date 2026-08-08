@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { io, Socket } from 'socket.io-client'
-import { useAppStore } from '@/lib/store'
+import { useAppStore, type View } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -53,6 +53,34 @@ function timeAgo(dateString: string): string {
   const days = Math.floor(hours / 24)
   if (days < 7) return `قبل ${days} يوم`
   return date.toLocaleDateString('ar-EG')
+}
+
+function getNotificationDestination(notification: Notification, userRole: string): View | null {
+  if (notification.type === 'CHAT') {
+    return userRole === 'SHOP_OWNER'
+      ? { name: 'shop-dashboard', tab: 'messages' }
+      : { name: 'inbox' }
+  }
+
+  if (!notification.link) return null
+
+  const [viewName, tab] = notification.link.split(':')
+  if (viewName === 'shop-dashboard') {
+    return {
+      name: 'shop-dashboard',
+      tab: (tab || 'orders') as 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages',
+    }
+  }
+  if (viewName === 'admin-dashboard') {
+    return {
+      name: 'admin-dashboard',
+      tab: tab as 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' | undefined,
+    }
+  }
+  if (viewName === 'orders') return { name: 'orders' }
+  if (viewName === 'inbox') return { name: 'inbox' }
+  if (viewName === 'wishlist') return { name: 'wishlist' }
+  return null
 }
 
 export function NotificationsBell() {
@@ -179,11 +207,8 @@ export function NotificationsBell() {
     )
     setNotificationCount(Math.max(0, useAppStore.getState().notificationCount - 1))
     setOpen(false)
-    if (notification.type === 'CHAT') {
-      setView({ name: 'inbox' })
-    } else if (notification.link) {
-      setView({ name: notification.link as any } as any)
-    }
+    const destination = getNotificationDestination(notification, user?.role || '')
+    if (destination) setView(destination)
   }
 
   if (!user) return null
