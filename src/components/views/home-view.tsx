@@ -45,7 +45,7 @@ interface Part {
   category?: string | null
   brand?: string | null
   image?: string | null
-  store: { id: string; name: string; owner: { name: string; avatar?: string | null } }
+  store: { id: string; name: string; image?: string | null; owner: { name: string; avatar?: string | null } }
 }
 
 export function HomeView() {
@@ -226,6 +226,24 @@ function PartCard({ part }: { part: Part }) {
         }
       }}
     >
+      <div className="relative h-28 overflow-hidden bg-muted/30">
+        {part.store.image ? (
+          <Image
+            src={part.store.image}
+            alt={part.store.name}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            className="object-cover transition duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full items-center justify-center bg-primary/5 text-primary/40">
+            <StoreIcon className="size-10" />
+          </div>
+        )}
+        <span className="absolute bottom-2 right-2 rounded-full bg-card/90 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm backdrop-blur">
+          {part.store.name}
+        </span>
+      </div>
       <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
         {part.image ? (
            

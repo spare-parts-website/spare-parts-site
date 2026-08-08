@@ -288,6 +288,21 @@ export function StoreView({ storeId }: { storeId: string }) {
                   }
                 }}
               >
+                <div className="relative h-28 overflow-hidden bg-muted/30">
+                  {store.image ? (
+                    <Image
+                      src={store.image}
+                      alt={store.name}
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                      className="object-cover transition duration-500 group-hover:scale-105"
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center bg-primary/5 text-primary/40">
+                      <StoreIcon className="size-10" />
+                    </div>
+                  )}
+                </div>
                 <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
                   {part.image ? (
                      
