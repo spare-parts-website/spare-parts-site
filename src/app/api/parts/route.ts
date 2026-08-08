@@ -142,7 +142,14 @@ export async function POST(req: NextRequest) {
     const limit = rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
-    const { name, description, price, stock, category, brand, image, carModels } = body
+    const { name, description, price, stock, category, brand, image, carModels, images } = body
+
+    const galleryImages = Array.isArray(images)
+      ? images.filter((url): url is string => typeof url === 'string' && /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/.test(url)).slice(0, 3)
+      : []
+    if (Array.isArray(images) && galleryImages.length !== Math.min(images.length, 3)) {
+      return NextResponse.json({ error: 'روابط الصور غير صالحة' }, { status: 400 })
+    }
 
     if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160 || price == null) {
       return NextResponse.json({ error: 'الاسم والسعر مطلوبان' }, { status: 400 })
@@ -169,6 +176,7 @@ export async function POST(req: NextRequest) {
         image: image || null,
         carModels: carModels || null,
         storeId: store.id,
+        images: { create: galleryImages.map((url) => ({ url })) },
       },
     })
 
