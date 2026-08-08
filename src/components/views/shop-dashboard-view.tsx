@@ -205,9 +205,29 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         toast({ title: 'خطأ', description: data.error, variant: 'destructive' })
         return
       }
+      if (!editPart && galleryImages.length > 0) {
+        const galleryResults = await Promise.all(
+          galleryImages.map((url) => fetch('/api/part-images', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ partId: data.part.id, url }),
+          }))
+        )
+        if (galleryResults.some((galleryResponse) => !galleryResponse.ok)) {
+          toast({
+            title: 'تم حفظ القطعة مع الصورة الرئيسية فقط',
+            description: 'تعذر حفظ بعض الصور الإضافية. حاول إضافة الصور من جديد.',
+            variant: 'destructive',
+          })
+          setEditPart(null)
+          setPartForm(createEmptyPartForm())
+          loadAllParts()
+          return
+        }
+      }
       toast({
         title: editPart ? 'تم التحديث' : 'تمت الإضافة',
-        description: 'تم حفظ قطعة الغيار بنجاح',
+        description: editPart ? 'تم حفظ التعديلات بنجاح' : `تم حفظ قطعة الغيار مع ${partForm.images.length} صور`,
       })
       setEditPart(null)
       setPartForm(createEmptyPartForm())
