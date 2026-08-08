@@ -20,8 +20,6 @@ import {
   Car,
   MessageSquare,
   Flag,
-  ChevronLeft,
-  ChevronRight,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
 import {
@@ -277,7 +275,7 @@ export function PartView({ partId }: { partId: string }) {
                         className="absolute right-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-card/80 backdrop-blur shadow hover:bg-card transition flex items-center justify-center"
                         aria-label="السابق"
                       >
-                        <ChevronRight className="size-5" />
+                        ‹
                       </button>
                       <button
                         type="button"
@@ -285,7 +283,7 @@ export function PartView({ partId }: { partId: string }) {
                         className="absolute left-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-card/80 backdrop-blur shadow hover:bg-card transition flex items-center justify-center"
                         aria-label="التالي"
                       >
-                        <ChevronLeft className="size-5" />
+                        ›
                       </button>
                       <span className="absolute bottom-2 left-1/2 -translate-x-1/2 bg-card/80 backdrop-blur px-3 py-1 rounded-full text-xs">
                         {selectedImage + 1} / {allImages.length}
