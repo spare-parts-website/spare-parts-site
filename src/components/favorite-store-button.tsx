@@ -5,7 +5,13 @@ import { Button } from '@/components/ui/button'
 import { useToast } from '@/hooks/use-toast'
 import { useAppStore } from '@/lib/store'
 
-export function FavoriteStoreButton({ storeId }: { storeId: string }) {
+export function FavoriteStoreButton({
+  storeId,
+  onChange,
+}: {
+  storeId: string
+  onChange?: (favorite: boolean) => void
+}) {
   const { user, toggleFavoriteStore, isFavoriteStore } = useAppStore()
   const { toast } = useToast()
   const canFavorite = user?.role === 'BUYER' || user?.role === 'SHOP_OWNER'
@@ -17,12 +23,21 @@ export function FavoriteStoreButton({ storeId }: { storeId: string }) {
     event.stopPropagation()
     toggleFavoriteStore(storeId)
     try {
-      const response = await fetch('/api/wishlist', {
+      const url = favorite ? `/api/wishlist?storeId=${encodeURIComponent(storeId)}` : '/api/wishlist'
+      const response = await fetch(url, {
         method: favorite ? 'DELETE' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ storeId }),
+        ...(favorite
+          ? {}
+          : {
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ storeId }),
+            }),
       })
-      if (!response.ok) throw new Error('favorite request failed')
+      if (!response.ok) {
+        const data = await response.json().catch(() => null)
+        throw new Error(data?.error || 'favorite request failed')
+      }
+      onChange?.(!favorite)
       toast({ title: favorite ? 'تم الحذف من المفضلة' : 'تمت إضافة المتجر للمفضلة' })
     } catch {
       toggleFavoriteStore(storeId)
