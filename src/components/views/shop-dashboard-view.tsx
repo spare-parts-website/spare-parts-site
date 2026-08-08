@@ -64,7 +64,6 @@ interface Part {
   category?: string | null
   brand?: string | null
   image?: string | null
-  images?: { id: string; url: string }[]
   carModels?: string | null
   blocked: boolean
   store: { id: string; name: string }
@@ -151,7 +150,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   // Better: fetch all parts and filter by store
   const loadAllParts = async () => {
     if (!store) return
-    const res = await fetch('/api/parts?includeImages=true', { cache: 'no-store' })
+    const res = await fetch('/api/parts', { cache: 'no-store' })
     const data = await res.json()
     setParts((data.parts || []).filter((p: Part) => p.store.id === store.id))
   }
@@ -463,12 +462,12 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
               {parts.map((part) => (
                 <Card key={part.id}>
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className="relative size-16 rounded-lg bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
-                      {part.image ? <img src={part.image} alt={part.name} loading="lazy" decoding="async" className="w-full h-full object-contain" /> : <Package className="size-8 text-muted-foreground/40" />}
-                      {part.images && part.images.length > 0 && (
-                        <span className="absolute bottom-1 right-1 rounded-full bg-card/90 px-1.5 py-0.5 text-[10px] font-semibold shadow">
-                          {part.images.length + 1} صور
-                        </span>
+                    <div className="size-16 rounded-lg bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
+                      {part.image ? (
+                         
+                        <img src={part.image} alt={part.name} loading="lazy" decoding="async" className="w-full h-full object-contain" />
+                      ) : (
+                        <Package className="size-8 text-muted-foreground/40" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">

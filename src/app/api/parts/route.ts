@@ -17,7 +17,6 @@ export async function GET(req: NextRequest) {
   const minPrice = searchParams.get('minPrice')
   const maxPrice = searchParams.get('maxPrice')
   const carModel = searchParams.get('carModel') || ''
-  const includeImages = searchParams.get('includeImages') === 'true'
   const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1
   const pageSize = 24
@@ -102,7 +101,6 @@ export async function GET(req: NextRequest) {
             owner: { select: { name: true, avatar: true } },
           },
         },
-        ...(includeImages ? { images: { select: { id: true, url: true }, orderBy: { createdAt: 'asc' as const } } } : {}),
       },
       orderBy,
       skip: (page - 1) * pageSize,
