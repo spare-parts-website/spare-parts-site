@@ -8,10 +8,11 @@ import { Badge } from '@/components/ui/badge'
 import {
   Sheet,
   SheetContent,
+  SheetClose,
   SheetTrigger,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { Bell, Check, Package, CreditCard, ShoppingCart, Star, Info, MessageSquare } from 'lucide-react'
+import { Bell, Check, Package, CreditCard, ShoppingCart, Star, Info, MessageSquare, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface Notification {
@@ -226,7 +227,7 @@ export function NotificationsBell() {
           <span className="sr-only">الإشعارات</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-96 p-0 flex flex-col">
+      <SheetContent side="left" showClose={false} className="w-96 p-0 flex flex-col">
         <div className="p-4 border-b flex items-center justify-between">
           <SheetTitle className="flex items-center gap-2">
             <Bell className="size-5" />
@@ -246,6 +247,11 @@ export function NotificationsBell() {
                 تعليم الكل كمقروء
               </Button>
             )}
+            <SheetClose asChild>
+              <Button variant="ghost" size="icon" aria-label="إغلاق الإشعارات" title="إغلاق الإشعارات">
+                <X className="size-5" />
+              </Button>
+            </SheetClose>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto scrollbar-thin">
