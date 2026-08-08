@@ -10,6 +10,7 @@ export async function GET() {
       where: { userId: session.id },
       orderBy: { createdAt: 'desc' },
       take: 50,
+      select: { id: true, title: true, message: true, type: true, read: true, link: true, createdAt: true },
     })
     const unreadCount = await db.notification.count({
       where: { userId: session.id, read: false },

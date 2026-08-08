@@ -1,27 +1,30 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import dynamic from 'next/dynamic'
 import { useAppStore } from '@/lib/store'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { CartDrawer } from '@/components/cart-drawer'
 import { HomeView } from '@/components/views/home-view'
-import { AuthView } from '@/components/views/auth-view'
-import { StoresView } from '@/components/views/stores-view'
-import { PartsView } from '@/components/views/parts-view'
-import { PartView } from '@/components/views/part-view'
-import { StoreView } from '@/components/views/store-view'
-import { OrdersView } from '@/components/views/orders-view'
-import { ProfileView } from '@/components/views/profile-view'
-import { ShopDashboardView } from '@/components/views/shop-dashboard-view'
-import { AdminDashboardView } from '@/components/views/admin-dashboard-view'
-import { CheckoutView } from '@/components/views/checkout-view'
-import { WishlistView } from '@/components/views/wishlist-view'
-import { MyCarsView } from '@/components/views/my-cars-view'
-import { ChatView } from '@/components/views/chat-view'
-import { InboxView } from '@/components/views/inbox-view'
-import { LegalView } from '@/components/views/legal-view'
 import type { AuthUser } from '@/lib/store'
+
+const ViewLoading = () => <div className="container mx-auto px-4 py-16 text-center text-muted-foreground">جاري تحميل الصفحة...</div>
+const AuthView = dynamic(() => import('@/components/views/auth-view').then((module) => module.AuthView), { loading: ViewLoading })
+const StoresView = dynamic(() => import('@/components/views/stores-view').then((module) => module.StoresView), { loading: ViewLoading })
+const PartsView = dynamic(() => import('@/components/views/parts-view').then((module) => module.PartsView), { loading: ViewLoading })
+const PartView = dynamic(() => import('@/components/views/part-view').then((module) => module.PartView), { loading: ViewLoading })
+const StoreView = dynamic(() => import('@/components/views/store-view').then((module) => module.StoreView), { loading: ViewLoading })
+const OrdersView = dynamic(() => import('@/components/views/orders-view').then((module) => module.OrdersView), { loading: ViewLoading })
+const ProfileView = dynamic(() => import('@/components/views/profile-view').then((module) => module.ProfileView), { loading: ViewLoading })
+const ShopDashboardView = dynamic(() => import('@/components/views/shop-dashboard-view').then((module) => module.ShopDashboardView), { loading: ViewLoading })
+const AdminDashboardView = dynamic(() => import('@/components/views/admin-dashboard-view').then((module) => module.AdminDashboardView), { loading: ViewLoading })
+const CheckoutView = dynamic(() => import('@/components/views/checkout-view').then((module) => module.CheckoutView), { loading: ViewLoading })
+const WishlistView = dynamic(() => import('@/components/views/wishlist-view').then((module) => module.WishlistView), { loading: ViewLoading })
+const MyCarsView = dynamic(() => import('@/components/views/my-cars-view').then((module) => module.MyCarsView), { loading: ViewLoading })
+const ChatView = dynamic(() => import('@/components/views/chat-view').then((module) => module.ChatView), { loading: ViewLoading })
+const InboxView = dynamic(() => import('@/components/views/inbox-view').then((module) => module.InboxView), { loading: ViewLoading })
+const LegalView = dynamic(() => import('@/components/views/legal-view').then((module) => module.LegalView), { loading: ViewLoading })
 
 export default function Home() {
   const { view, user, setUser } = useAppStore()

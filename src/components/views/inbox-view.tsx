@@ -41,7 +41,9 @@ export function InboxView() {
 
   useEffect(() => {
     load()
-    const interval = setInterval(load, 10000)
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load()
+    }, 15000)
     return () => clearInterval(interval)
   }, [])
 
@@ -65,7 +67,7 @@ export function InboxView() {
             <Card key={`${thread.kind}:${thread.orderId || thread.partId}:${thread.otherUser.id}`} className={thread.unreadCount ? 'border-primary/50 bg-primary/5' : ''}>
               <CardContent className="p-4 flex items-center gap-3">
                 <div className="size-12 rounded-lg bg-muted/40 flex items-center justify-center shrink-0 overflow-hidden">
-                  {thread.part.image ? <img src={thread.part.image} alt="" className="w-full h-full object-contain" /> : <Package className="size-6 text-muted-foreground/50" />}
+                  {thread.part.image ? <img src={thread.part.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" /> : <Package className="size-6 text-muted-foreground/50" />}
                 </div>
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold truncate">{thread.part.name}</p>

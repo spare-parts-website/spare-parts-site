@@ -4,7 +4,7 @@ import sharp from 'sharp'
 import { requireRoles } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 
-const MAX_UPLOAD_BYTES = 5 * 1024 * 1024
+const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
 const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
 const BUCKET = 'uploads'
 
@@ -36,8 +36,8 @@ export async function POST(req: NextRequest) {
     const input = Buffer.from(await file.arrayBuffer())
     const output = await sharp(input)
       .rotate()
-      .resize({ width: 1600, height: 1600, fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 82 })
+      .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 78, effort: 4 })
       .toBuffer()
 
     const filename = `${Date.now()}-${randomUUID()}.webp`

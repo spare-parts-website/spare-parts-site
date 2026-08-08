@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -30,21 +30,22 @@ export function CheckoutView() {
   })
 
   // Group cart items by store
-  const storeGroups: Record<string, { storeName: string; items: typeof cart; subtotal: number }> = cart.reduce((acc, item) => {
+  const storeGroups = useMemo<Record<string, { storeName: string; items: typeof cart; subtotal: number }>>(() => cart.reduce((acc, item) => {
     if (!acc[item.storeId]) {
-      acc[item.storeId] = {
-        storeName: item.storeName,
-        items: [],
-        subtotal: 0,
-      }
+      acc[item.storeId] = { storeName: item.storeName, items: [], subtotal: 0 }
     }
     acc[item.storeId].items.push(item)
     acc[item.storeId].subtotal += item.price * item.quantity
     return acc
-  }, {} as Record<string, { storeName: string; items: typeof cart; subtotal: number }>)
+  }, {} as Record<string, { storeName: string; items: typeof cart; subtotal: number }>), [cart])
 
-  const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-  const totalItems = cart.reduce((sum, item) => sum + item.quantity, 0)
+  const { total, totalItems } = useMemo(() => cart.reduce(
+    (summary, item) => ({
+      total: summary.total + item.price * item.quantity,
+      totalItems: summary.totalItems + item.quantity,
+    }),
+    { total: 0, totalItems: 0 },
+  ), [cart])
 
   if (!user) {
     return (

@@ -17,6 +17,7 @@ export async function GET(req: NextRequest) {
         parts: {
           where: { blocked: false },
           orderBy: { createdAt: 'desc' },
+          select: { id: true, name: true, price: true, stock: true, category: true, brand: true, image: true },
         },
         reviews: {
           where: { blocked: false },
@@ -48,40 +49,46 @@ export async function GET(req: NextRequest) {
       }
     : {}
 
-  const stores = await db.store.findMany({
-    where,
-    include: {
-      owner: { select: { name: true, avatar: true } },
-      _count: { select: { parts: { where: { blocked: false } } } },
-      parts: {
-        where: { blocked: false },
-        take: 3,
-        select: { id: true, name: true, price: true, image: true },
+    const stores = await db.store.findMany({
+      where,
+      include: {
+        owner: { select: { name: true, avatar: true } },
+        _count: {
+          select: {
+            parts: { where: { blocked: false } },
+            orders: { where: { status: 'DELIVERED' } },
+          },
+        },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  })
+      orderBy: { createdAt: 'desc' },
+    })
 
   // Compute average rating
   const visibleStores = stores.filter((store) => !isBlockedStoreName(store.name))
 
-  const storesWithRating = await Promise.all(
-    visibleStores.map(async (s) => {
-      const [reviews, completedOrderCount] = await Promise.all([
-        db.storeReview.findMany({
-        where: { storeId: s.id, blocked: false },
-        select: { rating: true },
-        }),
-        db.order.count({ where: { storeId: s.id, status: 'DELIVERED' } }),
-      ])
-      const avgRating = reviews.length
-        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
-        : 0
-      return { ...s, avgRating, reviewCount: reviews.length, completedOrderCount }
-    })
-  )
+  const reviewGroups = visibleStores.length
+    ? await db.storeReview.groupBy({
+        by: ['storeId'],
+        where: { storeId: { in: visibleStores.map((store) => store.id) }, blocked: false },
+        _avg: { rating: true },
+        _count: { _all: true },
+      })
+    : []
+  const reviewByStore = new Map(reviewGroups.map((review) => [review.storeId, review]))
+  const storesWithRating = visibleStores.map((store) => {
+    const review = reviewByStore.get(store.id)
+    return {
+      ...store,
+      avgRating: review?._avg.rating || 0,
+      reviewCount: review?._count._all || 0,
+      completedOrderCount: store._count.orders,
+    }
+  })
 
-    return NextResponse.json({ stores: storesWithRating })
+    return NextResponse.json(
+      { stores: storesWithRating },
+      { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' } },
+    )
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'تعذر تحميل المتاجر' }, { status: 500 })

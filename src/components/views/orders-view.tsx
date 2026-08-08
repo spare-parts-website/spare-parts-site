@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -142,13 +143,15 @@ export function OrdersView() {
               <CardContent className="p-5">
                 <div className="flex flex-col md:flex-row gap-4">
                   {/* Part image */}
-                  <div className="size-24 rounded-lg bg-muted/30 flex items-center justify-center shrink-0">
+                  <div className="relative size-24 rounded-lg bg-muted/30 flex items-center justify-center shrink-0">
                     {order.part.image ? (
                        
-                      <img
+                      <Image
                         src={order.part.image}
                         alt={order.part.name}
-                        className="w-full h-full object-contain rounded-lg"
+                        fill
+                        sizes="96px"
+                        className="object-contain rounded-lg"
                       />
                     ) : (
                       <Package className="size-10 text-muted-foreground/40" />

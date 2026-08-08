@@ -453,7 +453,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                     <div className="size-16 rounded-lg bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
                       {part.image ? (
                          
-                        <img src={part.image} alt={part.name} className="w-full h-full object-contain" />
+                        <img src={part.image} alt={part.name} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                       ) : (
                         <Package className="size-8 text-muted-foreground/40" />
                       )}

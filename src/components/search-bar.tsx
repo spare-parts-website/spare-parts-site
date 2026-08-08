@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
+import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
 import { Search, Package, Store as StoreIcon, Car } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -31,7 +32,7 @@ export function SearchBar({ className }: { className?: string }) {
     debounceRef.current = setTimeout(async () => {
       setLoading(true)
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { cache: 'no-store' })
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
         const data = await res.json()
         setResults(data)
         setOpen(true)
@@ -112,9 +113,9 @@ export function SearchBar({ className }: { className?: string }) {
                     setQuery('')
                   }}
                 >
-                  <div className="size-10 rounded bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className="relative size-10 rounded bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
                     {part.image ? (
-                      <img src={part.image} alt={part.name} className="w-full h-full object-contain" />
+                      <Image src={part.image} alt={part.name} fill sizes="40px" className="object-contain" />
                     ) : (
                       <Package className="size-5 text-muted-foreground/50" />
                     )}

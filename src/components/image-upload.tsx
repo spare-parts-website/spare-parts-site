@@ -46,11 +46,11 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
       return
     }
 
-    // Validate size (5MB max)
-    if (file.size > 5 * 1024 * 1024) {
+    // Validate size (4MB max)
+    if (file.size > 4 * 1024 * 1024) {
       toast({
         title: 'حجم الصورة كبير',
-        description: 'الحد الأقصى للحجم 5 ميجا',
+        description: 'الحد الأقصى للحجم 4 ميجا',
         variant: 'destructive',
       })
       return
@@ -192,7 +192,7 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
                 اضغط لاختيار صورة أو اسحبها هنا
               </p>
               <p className="text-xs text-muted-foreground mt-0.5">
-                JPG, PNG, WebP • بحد أقصى 5 ميجا
+                JPG, PNG, WebP • بحد أقصى 4 ميجا
               </p>
             </div>
           </>

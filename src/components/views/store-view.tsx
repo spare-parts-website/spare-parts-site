@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -143,13 +144,13 @@ export function StoreView({ storeId }: { storeId: string }) {
       <Card className="overflow-hidden">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row gap-4 items-start">
-            <div className="size-20 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden">
-              {store.image ? <img src={store.image} alt={store.name} className="w-full h-full object-cover" /> : <StoreIcon className="size-10" />}
+            <div className="relative size-20 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden">
+              {store.image ? <Image src={store.image} alt={store.name} fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-10" />}
             </div>
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="size-8 rounded-full overflow-hidden bg-primary/10 text-primary flex items-center justify-center font-semibold">
-                  {store.owner.avatar ? <img src={store.owner.avatar} alt={store.owner.name} className="w-full h-full object-cover" /> : store.owner.name.charAt(0)}
+                <div className="relative size-8 rounded-full overflow-hidden bg-primary/10 text-primary flex items-center justify-center font-semibold">
+                  {store.owner.avatar ? <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="32px" className="object-cover" /> : store.owner.name.charAt(0)}
                 </div>
                 <span>صاحب المحل: {store.owner.name}</span>
               </div>
@@ -290,10 +291,12 @@ export function StoreView({ storeId }: { storeId: string }) {
                 <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
                   {part.image ? (
                      
-                    <img
+                    <Image
                       src={part.image}
                       alt={part.name}
-                      className="w-full h-full object-contain group-hover:scale-105 transition"
+                      fill
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
+                      className="object-contain group-hover:scale-105 transition"
                     />
                   ) : (
                     <Package className="size-16 text-muted-foreground/40" />

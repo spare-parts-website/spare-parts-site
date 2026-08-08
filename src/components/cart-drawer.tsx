@@ -79,7 +79,7 @@ export function CartDrawer() {
                   <div key={item.partId} className="p-4 flex gap-3">
                     <div className="size-20 rounded-lg bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
                       {item.image ? (
-                        <img src={item.image} alt={item.name} className="w-full h-full object-contain" />
+                        <img src={item.image} alt={item.name} loading="lazy" decoding="async" className="w-full h-full object-contain" />
                       ) : (
                         <Package className="size-8 text-muted-foreground/40" />
                       )}

@@ -90,6 +90,7 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false)
   const [connected, setConnected] = useState(false)
   const socketRef = useRef<Socket | null>(null)
+  const connectedRef = useRef(false)
 
   // Fetch initial notifications
   useEffect(() => {
@@ -112,8 +113,10 @@ export function NotificationsBell() {
     }
     load()
 
-    // Poll every 10 seconds for near-real-time updates
-    const interval = setInterval(load, 10000)
+    // Poll only as a fallback when the socket is unavailable and the tab is visible.
+    const interval = setInterval(() => {
+      if (!connectedRef.current && document.visibilityState === 'visible') load()
+    }, 15000)
 
     return () => {
       cancelled = true
@@ -140,15 +143,18 @@ export function NotificationsBell() {
         socketRef.current = socket
 
         socket.on('connect', () => {
+          connectedRef.current = true
           setConnected(true)
           socket?.emit('authenticate', { userId: user.id })
         })
 
         socket.on('disconnect', () => {
+          connectedRef.current = false
           setConnected(false)
         })
 
         socket.on('connect_error', () => {
+          connectedRef.current = false
           setConnected(false)
         })
 
@@ -170,6 +176,7 @@ export function NotificationsBell() {
     connect()
 
     return () => {
+      connectedRef.current = false
       if (socket) {
         socket.disconnect()
         socketRef.current = null

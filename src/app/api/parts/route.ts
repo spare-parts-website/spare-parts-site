@@ -79,30 +79,32 @@ export async function GET(req: NextRequest) {
         ? { name: 'asc' as const }
         : { createdAt: 'desc' as const }
 
-  const [parts, total] = await Promise.all([
+  const [parts, total, categories, brands] = await Promise.all([
     db.part.findMany({
       where,
-      include: { store: { select: { id: true, name: true } } },
+      select: {
+        id: true, name: true, description: true, price: true, stock: true,
+        category: true, brand: true, image: true, carModels: true,
+        createdAt: true, store: { select: { id: true, name: true } },
+      },
       orderBy,
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
     db.part.count({ where }),
+    db.part.findMany({
+      where: { blocked: false, category: { not: null } },
+      distinct: ['category'],
+      select: { category: true },
+    }),
+    db.part.findMany({
+      where: { blocked: false, brand: { not: null } },
+      distinct: ['brand'],
+      select: { brand: true },
+    }),
   ])
 
-  // Get categories and brands for filters
   const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name))
-
-  const categories = await db.part.findMany({
-    where: { blocked: false, category: { not: null } },
-    distinct: ['category'],
-    select: { category: true },
-  })
-  const brands = await db.part.findMany({
-    where: { blocked: false, brand: { not: null } },
-    distinct: ['brand'],
-    select: { brand: true },
-  })
 
     return NextResponse.json(
       {
@@ -111,7 +113,7 @@ export async function GET(req: NextRequest) {
         categories: categories.map((c) => c.category).filter(Boolean),
         brands: brands.map((b) => b.brand).filter(Boolean),
       },
-      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' } }
     )
   } catch (e) {
     console.error(e)

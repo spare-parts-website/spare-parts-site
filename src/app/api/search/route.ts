@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ parts: [], stores: [], carModels: [] })
   }
 
-  const [parts, stores] = await Promise.all([
+  const [parts, stores, partsWithCars] = await Promise.all([
     db.part.findMany({
       where: {
         blocked: false,
@@ -34,14 +34,14 @@ export async function GET(req: NextRequest) {
       take: 5,
       select: { id: true, name: true, description: true },
     }),
+    db.part.findMany({
+      where: { blocked: false, carModels: { contains: q } },
+      select: { carModels: true },
+      take: 50,
+    }),
   ])
 
   // Get matching car models
-  const partsWithCars = await db.part.findMany({
-    where: { blocked: false, carModels: { contains: q } },
-    select: { carModels: true },
-    take: 50,
-  })
   const carModelsSet = new Set<string>()
   partsWithCars.forEach((p) => {
     if (p.carModels) {
@@ -52,9 +52,8 @@ export async function GET(req: NextRequest) {
     }
   })
 
-  return NextResponse.json({
-    parts,
-    stores,
-    carModels: Array.from(carModelsSet).slice(0, 8),
-  })
+  return NextResponse.json(
+    { parts, stores, carModels: Array.from(carModelsSet).slice(0, 8) },
+    { headers: { 'Cache-Control': 'public, max-age=10, s-maxage=30, stale-while-revalidate=60' } },
+  )
 }

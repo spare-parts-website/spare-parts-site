@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState, useMemo } from 'react'
+import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -78,7 +79,7 @@ export function PartsView() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/parts?${buildUrl}`, { cache: 'no-store' })
+    fetch(`/api/parts?${buildUrl}`)
       .then((r) => r.json())
       .then((data) => {
         setParts(data.parts || [])
@@ -306,10 +307,12 @@ export function PartsView() {
               <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
                 {part.image ? (
                    
-                  <img
+                  <Image
                     src={part.image}
                     alt={part.name}
-                    className="w-full h-full object-contain group-hover:scale-105 transition"
+                    fill
+                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
+                    className="object-contain group-hover:scale-105 transition"
                   />
                 ) : (
                   <Package className="size-16 text-muted-foreground/40" />

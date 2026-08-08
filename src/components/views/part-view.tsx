@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -250,10 +251,13 @@ export function PartView({ partId }: { partId: string }) {
               <>
                 <div className="aspect-square bg-muted/30 flex items-center justify-center relative">
                   {allImages.length > 0 ? (
-                    <img
+                    <Image
                       src={allImages[selectedImage] || allImages[0]}
                       alt={part.name}
-                      className="w-full h-full object-contain"
+                      fill
+                      priority
+                      sizes="(max-width: 768px) 100vw, 50vw"
+                      className="object-contain"
                     />
                   ) : (
                     <Package className="size-32 text-muted-foreground/30" />
@@ -295,11 +299,11 @@ export function PartView({ partId }: { partId: string }) {
                         key={idx}
                         type="button"
                         onClick={() => setSelectedImage(idx)}
-                        className={`size-16 rounded-lg overflow-hidden border-2 transition shrink-0 ${
+                        className={`relative size-16 rounded-lg overflow-hidden border-2 transition shrink-0 ${
                           selectedImage === idx ? 'border-primary' : 'border-transparent opacity-60 hover:opacity-100'
                         }`}
                       >
-                        <img src={img} alt="" className="w-full h-full object-contain bg-muted/30" />
+                        <Image src={img} alt="" fill sizes="64px" className="object-contain bg-muted/30" />
                       </button>
                     ))}
                   </div>

@@ -46,8 +46,9 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
 
   useEffect(() => {
     load()
-    // Poll every 5 seconds for new messages
-    const interval = setInterval(load, 5000)
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') load()
+    }, 10000)
     return () => clearInterval(interval)
   }, [orderId, partId, participantId])
 
@@ -86,8 +87,8 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
       toast({ title: 'نوع الملف غير مدعوم', description: 'اختر صورة JPG أو PNG أو WebP', variant: 'destructive' })
       return
     }
-    if (file.size > 5 * 1024 * 1024) {
-      toast({ title: 'الصورة كبيرة جداً', description: 'الحد الأقصى 5 ميجا', variant: 'destructive' })
+    if (file.size > 4 * 1024 * 1024) {
+      toast({ title: 'الصورة كبيرة جداً', description: 'الحد الأقصى 4 ميجا', variant: 'destructive' })
       return
     }
     setUploading(true)
@@ -170,7 +171,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
                           {msg.sender.name}
                         </p>
                       )}
-                        {msg.imageUrl && <img src={msg.imageUrl} alt="صورة مرفقة" className="max-h-52 max-w-full rounded-lg object-contain mb-1" />}
+                        {msg.imageUrl && <img src={msg.imageUrl} alt="صورة مرفقة" loading="lazy" decoding="async" className="max-h-52 max-w-full rounded-lg object-contain mb-1" />}
                         {msg.message && <p className="text-sm whitespace-pre-wrap break-words">{msg.message}</p>}
                       <p className={cn('text-xs mt-1', isMine ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
                         {new Date(msg.createdAt).toLocaleTimeString('ar-EG', { hour: '2-digit', minute: '2-digit' })}
