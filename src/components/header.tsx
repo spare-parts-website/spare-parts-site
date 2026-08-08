@@ -25,7 +25,6 @@ import {
   ShoppingCart,
   MessageSquare,
   Heart,
-  Car,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import { Input } from '@/components/ui/input'
@@ -133,32 +132,18 @@ export function Header({ user }: { user: AuthUser | null }) {
         </Button>
       )}
       {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') && (
-        <>
-          <Button
-            variant={view.name === 'wishlist' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              setView({ name: 'wishlist' })
-              setMobileOpen(false)
-            }}
-            className="justify-start gap-2"
-          >
-            <Heart className="size-4" />
-            المفضلة
-          </Button>
-          <Button
-            variant={view.name === 'my-cars' ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              setView({ name: 'my-cars' })
-              setMobileOpen(false)
-            }}
-            className="justify-start gap-2"
-          >
-            <Car className="size-4" />
-            سياراتي
-          </Button>
-        </>
+        <Button
+          variant={view.name === 'wishlist' ? 'default' : 'ghost'}
+          size="sm"
+          onClick={() => {
+            setView({ name: 'wishlist' })
+            setMobileOpen(false)
+          }}
+          className="justify-start gap-2"
+        >
+          <Heart className="size-4" />
+          المفضلة
+        </Button>
       )}
       {user?.role === 'SHOP_OWNER' && (
         <>

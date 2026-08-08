@@ -15,12 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from '@/components/ui/popover'
-import { Package, Search, Store as StoreIcon, Filter, X, Car, Check, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 
 interface Part {
@@ -41,13 +36,10 @@ export function PartsView() {
   const [parts, setParts] = useState<Part[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [brands, setBrands] = useState<string[]>([])
-  const [carBrands, setCarBrands] = useState<{ brand: string; models: string[] }[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState(searchQuery)
   const [category, setCategory] = useState('')
   const [brand, setBrand] = useState('')
-  const [carModel, setCarModel] = useState('')
-  const [carPopoverOpen, setCarPopoverOpen] = useState(false)
   const [sort, setSort] = useState('newest')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -58,24 +50,15 @@ export function PartsView() {
     setPage(1)
   }, [searchQuery])
 
-  // Fetch car models once
-  useEffect(() => {
-    fetch('/api/car-models', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => setCarBrands(data.grouped || []))
-      .catch(() => {})
-  }, [])
-
   const buildUrl = useMemo(() => {
     const params = new URLSearchParams()
     if (search) params.set('search', search)
     if (category) params.set('category', category)
     if (brand) params.set('brand', brand)
-    if (carModel) params.set('carModel', carModel)
     params.set('sort', sort)
     params.set('page', String(page))
     return params.toString()
-  }, [search, category, brand, carModel, sort, page])
+  }, [search, category, brand, sort, page])
 
   useEffect(() => {
     setLoading(true)
@@ -91,7 +74,7 @@ export function PartsView() {
       .finally(() => setLoading(false))
   }, [buildUrl])
 
-  const hasFilters = category || brand || search || carModel
+  const hasFilters = category || brand || search
 
   return (
     <div className="container mx-auto px-4 py-8 space-y-6">
@@ -165,79 +148,6 @@ export function PartsView() {
             </SelectContent>
           </Select>
 
-          {/* Car model filter */}
-          <Popover open={carPopoverOpen} onOpenChange={setCarPopoverOpen}>
-            <PopoverTrigger asChild>
-              <Button
-                variant={carModel ? 'default' : 'outline'}
-                size="sm"
-                className="h-9 gap-1.5"
-              >
-                <Car className="size-4" />
-                {carModel || 'سيارتي'}
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-80 p-0" align="start">
-              <div className="p-3 border-b">
-                <h4 className="font-medium text-sm">اختر سيارتك</h4>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  عرض القطع المتوافقة مع سيارتك فقط
-                </p>
-              </div>
-              <div className="max-h-72 overflow-y-auto scrollbar-thin">
-                <button
-                  className="w-full text-right px-3 py-2 hover:bg-muted/50 transition flex items-center justify-between text-sm"
-                          onClick={() => {
-                            setCarModel('')
-                            setPage(1)
-                    setCarPopoverOpen(false)
-                  }}
-                >
-                  <span>كل السيارات</span>
-                  {!carModel && <Check className="size-4 text-primary" />}
-                </button>
-                {carBrands.map((group) => (
-                  <div key={group.brand}>
-                    <div className="px-3 py-1.5 bg-muted/30 text-xs font-semibold text-muted-foreground sticky top-0">
-                      {group.brand}
-                    </div>
-                    {group.models.map((m) => (
-                      <button
-                        key={m}
-                        className="w-full text-right px-3 py-2 hover:bg-muted/50 transition flex items-center justify-between text-sm"
-                          onClick={() => {
-                            setCarModel(m)
-                            setPage(1)
-                          setCarPopoverOpen(false)
-                        }}
-                      >
-                        <span>{m}</span>
-                        {carModel === m && <Check className="size-4 text-primary" />}
-                      </button>
-                    ))}
-                  </div>
-                ))}
-              </div>
-              {carModel && (
-                <div className="p-2 border-t">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="w-full"
-                    onClick={() => {
-                      setCarModel('')
-                      setPage(1)
-                      setCarPopoverOpen(false)
-                    }}
-                  >
-                    <X className="size-4 ml-1" />
-                    مسح اختيار السيارة
-                  </Button>
-                </div>
-              )}
-            </PopoverContent>
-          </Popover>
-
           {hasFilters && (
             <Button
               variant="ghost"
@@ -246,7 +156,6 @@ export function PartsView() {
                 setSearch('')
                 setCategory('')
                 setBrand('')
-                setCarModel('')
                 setPage(1)
                 useAppStore.setState({ searchQuery: '' })
               }}

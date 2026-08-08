@@ -21,7 +21,6 @@ const ShopDashboardView = dynamic(() => import('@/components/views/shop-dashboar
 const AdminDashboardView = dynamic(() => import('@/components/views/admin-dashboard-view').then((module) => module.AdminDashboardView), { loading: ViewLoading })
 const CheckoutView = dynamic(() => import('@/components/views/checkout-view').then((module) => module.CheckoutView), { loading: ViewLoading })
 const WishlistView = dynamic(() => import('@/components/views/wishlist-view').then((module) => module.WishlistView), { loading: ViewLoading })
-const MyCarsView = dynamic(() => import('@/components/views/my-cars-view').then((module) => module.MyCarsView), { loading: ViewLoading })
 const ChatView = dynamic(() => import('@/components/views/chat-view').then((module) => module.ChatView), { loading: ViewLoading })
 const InboxView = dynamic(() => import('@/components/views/inbox-view').then((module) => module.InboxView), { loading: ViewLoading })
 const LegalView = dynamic(() => import('@/components/views/legal-view').then((module) => module.LegalView), { loading: ViewLoading })
@@ -85,7 +84,6 @@ export default function Home() {
         {view.name === 'admin-dashboard' && <AdminDashboardView tab={view.tab} />}
         {view.name === 'checkout' && <CheckoutView />}
         {view.name === 'wishlist' && <WishlistView />}
-        {view.name === 'my-cars' && <MyCarsView />}
         {view.name === 'chat' && 'orderId' in view && <ChatView orderId={view.orderId} />}
         {view.name === 'chat' && 'partId' in view && <ChatView partId={view.partId} participantId={view.participantId} />}
       </main>

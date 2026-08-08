@@ -28,7 +28,6 @@ export type View =
   | { name: 'cart' }
   | { name: 'checkout' }
   | { name: 'wishlist' }
-  | { name: 'my-cars' }
   | { name: 'chat'; orderId: string }
   | { name: 'chat'; partId: string; participantId?: string }
 
