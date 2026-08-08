@@ -5,7 +5,6 @@ import { isBlockedStoreName } from '@/lib/store-moderation'
 import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
-import { ensurePartImagesTable } from '@/lib/part-images'
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,7 +24,6 @@ export async function GET(req: NextRequest) {
   const sort = searchParams.get('sort') || 'newest'
 
   if (id) {
-    await ensurePartImagesTable()
     const part = await db.part.findUnique({
       where: { id },
       include: {
