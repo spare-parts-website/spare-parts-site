@@ -1,6 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { randomUUID } from 'crypto'
-import sharp from 'sharp'
 import { db } from '@/lib/db'
 import { getSession, requireRole } from '@/lib/auth'
 import { isBlockedStoreName } from '@/lib/store-moderation'
@@ -8,37 +6,6 @@ import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { ensurePartImagesTable } from '@/lib/part-images'
-
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
-const ALLOWED_IMAGE_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
-
-async function uploadPartImage(file: File) {
-  const supabaseUrl = process.env.SUPABASE_URL
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!supabaseUrl || !serviceRoleKey) throw new Error('Supabase Storage environment variables are missing')
-
-  const input = Buffer.from(await file.arrayBuffer())
-  const output = await sharp(input)
-    .rotate()
-    .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
-    .webp({ quality: 78, effort: 4 })
-    .toBuffer()
-  const filename = `${Date.now()}-${randomUUID()}.webp`
-  const bucket = 'uploads'
-  const baseUrl = supabaseUrl.replace(/\/$/, '')
-  const response = await fetch(`${baseUrl}/storage/v1/object/${bucket}/${filename}`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${serviceRoleKey}`,
-      apikey: serviceRoleKey,
-      'Content-Type': 'image/webp',
-      'x-upsert': 'false',
-    },
-    body: new Uint8Array(output),
-  })
-  if (!response.ok) throw new Error(`Image upload failed: ${response.status}`)
-  return `${baseUrl}/storage/v1/object/public/${bucket}/${filename}`
-}
 
 export async function GET(req: NextRequest) {
   try {
@@ -178,65 +145,6 @@ export async function POST(req: NextRequest) {
     const session = await requireRole('SHOP_OWNER')
     const limit = rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
-    const contentType = req.headers.get('content-type') || ''
-    if (contentType.includes('multipart/form-data')) {
-      const formData = await req.formData()
-      const name = formData.get('name')
-      const description = formData.get('description')
-      const price = formData.get('price')
-      const stock = formData.get('stock')
-      const category = formData.get('category')
-      const brand = formData.get('brand')
-      const carModels = formData.get('carModels')
-      const parsedMainIndex = Number.parseInt(String(formData.get('mainIndex') || '0'), 10)
-      const files = formData.getAll('images').filter((entry): entry is File => entry instanceof File)
-
-      if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160 || price == null) {
-        return NextResponse.json({ error: 'الاسم والسعر مطلوبان' }, { status: 400 })
-      }
-      if (files.length > 4) return NextResponse.json({ error: 'يمكن رفع 4 صور كحد أقصى' }, { status: 400 })
-      for (const file of files) {
-        if (!ALLOWED_IMAGE_TYPES.has(file.type)) return NextResponse.json({ error: 'صيغة الصورة غير مدعومة' }, { status: 400 })
-        if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) return NextResponse.json({ error: 'حجم كل صورة يجب أن يكون أقل من 4 ميجا' }, { status: 400 })
-      }
-
-      const numericPrice = Number(price)
-      const numericStock = Number(stock || 0)
-      if (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000 || !Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000) {
-        return NextResponse.json({ error: 'السعر أو المخزون غير صالح' }, { status: 400 })
-      }
-      const store = await db.store.findUnique({ where: { ownerId: session.id } })
-      if (!store) return NextResponse.json({ error: 'ليس لديك متجر' }, { status: 400 })
-
-      const uploadedUrls: string[] = []
-      try {
-        for (const file of files) uploadedUrls.push(await uploadPartImage(file))
-        const mainIndex = uploadedUrls.length > 0 && parsedMainIndex >= 0 && parsedMainIndex < uploadedUrls.length ? parsedMainIndex : 0
-        const mainImage = uploadedUrls[mainIndex] || null
-        const galleryImages = uploadedUrls.filter((_, index) => index !== mainIndex)
-        if (galleryImages.length > 0) await ensurePartImagesTable()
-        const part = await db.part.create({
-          data: {
-            name: name.trim(),
-            description: typeof description === 'string' ? description.trim().slice(0, 5000) || null : null,
-            price: numericPrice,
-            stock: numericStock,
-            category: typeof category === 'string' ? category || null : null,
-            brand: typeof brand === 'string' ? brand || null : null,
-            image: mainImage,
-            carModels: typeof carModels === 'string' ? carModels || null : null,
-            storeId: store.id,
-            images: { create: galleryImages.map((url) => ({ url })) },
-          },
-          include: { images: true },
-        })
-        return NextResponse.json({ part })
-      } catch (error) {
-        if (uploadedUrls.length > 0) await deleteUploadedFiles(uploadedUrls)
-        throw error
-      }
-    }
-
     const body = await req.json()
     const { name, description, price, stock, category, brand, image, carModels } = body
 
