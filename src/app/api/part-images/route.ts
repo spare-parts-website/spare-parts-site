@@ -3,10 +3,12 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
+import { ensurePartImagesTable } from '@/lib/part-images'
 
 // POST - add image to part
 export async function POST(req: NextRequest) {
   try {
+    await ensurePartImagesTable()
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     const limit = rateLimit(`part-images:${session.id}:${requestAddress(req)}`, 40, 10 * 60 * 1000)
@@ -37,6 +39,7 @@ export async function POST(req: NextRequest) {
 // DELETE - remove image
 export async function DELETE(req: NextRequest) {
   try {
+    await ensurePartImagesTable()
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
 
