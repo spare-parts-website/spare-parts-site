@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ImageUpload, isAnyUploadInProgress } from '@/components/image-upload'
-import { PartImagesUpload } from '@/components/part-images-upload'
+import { PartImagesUpload, type PartPhoto } from '@/components/part-images-upload'
 import {
   Tabs,
   TabsContent,
@@ -77,7 +77,8 @@ const createEmptyPartForm = () => ({
   stock: '',
   category: '',
   brand: '',
-  images: [] as string[],
+  image: '',
+  photos: [] as PartPhoto[],
   mainImageIndex: 0,
   carModels: '',
 })
@@ -113,7 +114,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     image: '',
   })
   const [submitting, setSubmitting] = useState(false)
-  const [imageUploading, setImageUploading] = useState(false)
+  const [imageUploading] = useState(false)
   const [storeImageUploading, setStoreImageUploading] = useState(false)
 
   const loadStore = () => {
@@ -186,48 +187,47 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       toast({ title: 'خطأ', description: 'الاسم والسعر مطلوبان', variant: 'destructive' })
       return
     }
-    setSubmitting(true)
+      setSubmitting(true)
     try {
       const method = editPart ? 'PUT' : 'POST'
-      const mainImage = partForm.images[partForm.mainImageIndex] || partForm.images[0] || ''
-      const galleryImages = partForm.images.filter((_, index) => index !== partForm.mainImageIndex).slice(0, 3)
-      const { images: _images, mainImageIndex: _mainImageIndex, ...partDetails } = partForm
-      const body = editPart
-        ? { ...partDetails, image: mainImage, id: editPart.id }
-        : { ...partDetails, image: mainImage, images: galleryImages }
-      const res = await fetch('/api/parts', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      })
+      let res: Response
+      if (editPart) {
+        res = await fetch('/api/parts', {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: editPart.id,
+            name: partForm.name,
+            description: partForm.description,
+            price: partForm.price,
+            stock: partForm.stock,
+            category: partForm.category,
+            brand: partForm.brand,
+            image: partForm.image,
+            carModels: partForm.carModels,
+          }),
+        })
+      } else {
+        const formData = new FormData()
+        formData.append('name', partForm.name)
+        formData.append('description', partForm.description)
+        formData.append('price', partForm.price)
+        formData.append('stock', partForm.stock)
+        formData.append('category', partForm.category)
+        formData.append('brand', partForm.brand)
+        formData.append('carModels', partForm.carModels)
+        formData.append('mainIndex', String(partForm.mainImageIndex))
+        partForm.photos.forEach((photo) => formData.append('images', photo.file))
+        res = await fetch('/api/parts', { method: 'POST', body: formData })
+      }
       const data = await res.json()
       if (!res.ok) {
         toast({ title: 'خطأ', description: data.error, variant: 'destructive' })
         return
       }
-      if (!editPart && galleryImages.length > 0) {
-        const galleryResults = await Promise.all(
-          galleryImages.map((url) => fetch('/api/part-images', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ partId: data.part.id, url }),
-          }))
-        )
-        if (galleryResults.some((galleryResponse) => !galleryResponse.ok)) {
-          toast({
-            title: 'تم حفظ القطعة مع الصورة الرئيسية فقط',
-            description: 'تعذر حفظ بعض الصور الإضافية. حاول إضافة الصور من جديد.',
-            variant: 'destructive',
-          })
-          setEditPart(null)
-          setPartForm(createEmptyPartForm())
-          loadAllParts()
-          return
-        }
-      }
       toast({
         title: editPart ? 'تم التحديث' : 'تمت الإضافة',
-        description: editPart ? 'تم حفظ التعديلات بنجاح' : `تم حفظ قطعة الغيار مع ${partForm.images.length} صور`,
+        description: editPart ? 'تم حفظ التعديلات بنجاح' : `تم حفظ قطعة الغيار مع ${partForm.photos.length} صور`,
       })
       setEditPart(null)
       setPartForm(createEmptyPartForm())
@@ -255,7 +255,8 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       stock: part.stock.toString(),
       category: part.category || '',
       brand: part.brand || '',
-      images: part.image ? [part.image] : [],
+      image: part.image || '',
+      photos: [],
       mainImageIndex: 0,
       carModels: part.carModels || '',
     })
@@ -414,11 +415,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                 <div className="space-y-2 md:col-span-2">
                   <Label>صور القطعة (حتى 4 صور)</Label>
                   <PartImagesUpload
-                    value={partForm.images}
+                    value={partForm.photos}
                     mainIndex={partForm.mainImageIndex}
-                    onChange={(images) => setPartForm((prev) => ({ ...prev, images }))}
+                    onChange={(photos) => setPartForm((prev) => ({ ...prev, photos }))}
                     onMainChange={(mainImageIndex) => setPartForm((prev) => ({ ...prev, mainImageIndex }))}
-                    onUploadingChange={setImageUploading}
                   />
                 </div>
               </div>
