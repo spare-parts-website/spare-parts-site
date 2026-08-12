@@ -14,9 +14,9 @@ export function Footer() {
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <img
-                src="/ghyar-market-logo.png"
+                src="/ghyar-market-logo.svg"
                 alt="غيار ماركت"
-                className="h-11 w-16 rounded-xl object-contain drop-shadow-sm"
+                className="h-12 w-12 rounded-xl object-contain drop-shadow-sm"
               />
               <span className="font-bold">غيار ماركت</span>
             </div>
