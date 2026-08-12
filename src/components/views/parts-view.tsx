@@ -241,28 +241,6 @@ export function PartsView() {
                 )}
               </div>
               <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
-                <button
-                  className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-muted/25 p-3 text-right transition hover:border-primary/40 hover:bg-primary/5"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setView({ name: 'store', storeId: part.store.id })
-                  }}
-                >
-                  <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/10 text-primary">
-                    {part.store.owner.avatar ? (
-                      <Image src={part.store.owner.avatar} alt={part.store.owner.name} fill sizes="48px" className="object-cover" />
-                    ) : (
-                      <span className="flex h-full w-full items-center justify-center text-lg font-bold">{part.store.owner.name.charAt(0)}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 text-primary">
-                      <StoreIcon className="size-4 shrink-0" />
-                      <span className="truncate text-base font-bold">{part.store.name}</span>
-                    </div>
-                    <p className="mt-0.5 truncate text-sm font-medium text-muted-foreground">البائع: {part.store.owner.name}</p>
-                  </div>
-                </button>
                 <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10 flex-1">
                   {part.name}
                 </h3>
@@ -284,17 +262,25 @@ export function PartsView() {
                 <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'part', partId: part.id }) }}>
                   عرض التفاصيل
                 </Button>
-                <div className="flex items-end justify-between gap-3 border-t border-border/60 pt-3">
-                  <div className="min-w-0 text-right">
-                    <p className="text-xs text-muted-foreground">صورة المتجر</p>
-                    <p className="truncate text-sm font-semibold text-primary">{part.store.name}</p>
-                  </div>
-                  <div className="relative size-20 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/5">
+                <div className="flex items-stretch gap-3 border-t border-border/60 pt-3">
+                  <div className="relative h-28 w-28 shrink-0 overflow-hidden rounded-2xl border border-primary/20 bg-primary/5">
                     {part.store.image ? (
-                      <Image src={part.store.image} alt={part.store.name} fill sizes="80px" className="object-cover transition duration-500 group-hover:scale-105" />
+                      <Image src={part.store.image} alt={part.store.name} fill sizes="112px" className="object-cover transition duration-500 group-hover:scale-105" />
                     ) : (
                       <StoreIcon className="absolute inset-0 m-auto size-8 text-primary/40" />
                     )}
+                  </div>
+                  <div className="min-w-0 flex-1 space-y-1 text-right">
+                    <button type="button" className="flex w-full items-center justify-end gap-1 text-sm font-bold text-primary hover:underline" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
+                      <StoreIcon className="size-4 shrink-0" />
+                      <span className="truncate">{part.store.name}</span>
+                    </button>
+                    <p className="truncate text-xs text-muted-foreground">البائع: {part.store.owner.name}</p>
+                    {part.brand && <p className="truncate text-xs text-muted-foreground">الماركة: {part.brand}</p>}
+                    {part.carModels && <p className="truncate text-xs text-muted-foreground">متوافق مع: {part.carModels}</p>}
+                    <p className={`text-xs font-semibold ${part.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
+                      {part.stock > 0 ? `متوفر · ${part.stock} قطعة` : 'غير متوفر حالياً'}
+                    </p>
                   </div>
                 </div>
               </CardContent>
