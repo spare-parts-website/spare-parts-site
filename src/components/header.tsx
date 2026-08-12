@@ -328,7 +328,7 @@ export function Header({ user }: { user: AuthUser | null }) {
                 <span className="sr-only">القائمة</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-[min(88vw,22rem)] gap-4 p-4">
+            <SheetContent side="right" className="mobile-sheet-content w-[min(88vw,22rem)] gap-4 p-4 pt-16">
               <SheetTitle className="text-right text-lg font-bold">القائمة</SheetTitle>
               <div className="md:hidden">
                 <SearchBar />

@@ -39,7 +39,7 @@ export function CartDrawer() {
 
   return (
     <Sheet open={cartOpen} onOpenChange={setCartOpen}>
-      <SheetContent side="left" className="w-full sm:w-[440px] p-0 flex flex-col">
+      <SheetContent side="left" className="mobile-sheet-content w-full p-0 pt-16 sm:w-[440px]">
         <SheetHeader className="p-4 border-b">
           <SheetTitle className="flex items-center gap-2">
             <ShoppingCart className="size-5" />
