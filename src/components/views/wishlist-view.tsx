@@ -67,7 +67,7 @@ export function WishlistView() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => <Card key={item.id} className="overflow-hidden"><CardContent className="p-5 space-y-4">
             <div className="flex items-start gap-3 cursor-pointer" onClick={() => setView({ name: 'store', storeId: item.store.id })}>
-              <div className="relative size-16 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">{item.store.image ? <Image src={item.store.image} alt={item.store.name} fill sizes="64px" className="object-cover" /> : <StoreIcon className="size-8" />}</div>
+              <div className="relative size-16 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">{item.store.image ? <Image src={item.store.image} alt={item.store.name} fill sizes="128px" quality={100} className="object-cover" /> : <StoreIcon className="size-8" />}</div>
               <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><h2 className="font-bold truncate">{item.store.name}</h2>{item.store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" />}</div><p className="text-sm text-muted-foreground mt-1">{item.store._count.parts} قطعة غيار</p></div>
             </div>
             {item.store.description && <p className="text-sm text-muted-foreground line-clamp-2">{item.store.description}</p>}

@@ -145,7 +145,7 @@ export function StoreView({ storeId }: { storeId: string }) {
         <CardContent className="p-5 md:p-8">
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div className="relative size-24 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden sm:size-28">
-              {store.image ? <Image src={store.image} alt={store.name} fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-10" />}
+              {store.image ? <Image src={store.image} alt={store.name} fill sizes="160px" quality={100} className="object-cover" /> : <StoreIcon className="size-10" />}
             </div>
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -297,7 +297,8 @@ export function StoreView({ storeId }: { storeId: string }) {
                       src={store.image}
                       alt={store.name}
                       fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 75vw, 1100px"
+                      quality={100}
                       className="object-cover transition duration-500 group-hover:scale-105"
                     />
                   ) : (
