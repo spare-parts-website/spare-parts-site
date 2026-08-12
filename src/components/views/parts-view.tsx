@@ -216,24 +216,6 @@ export function PartsView() {
                 }
               }}
             >
-              <div className="relative h-32 overflow-hidden bg-muted/35">
-                {part.store.image ? (
-                  <Image
-                    src={part.store.image}
-                    alt={part.store.name}
-                    fill
-                    sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-                    className="object-cover transition duration-500 group-hover:scale-105"
-                  />
-                ) : (
-                  <div className="flex h-full items-center justify-center bg-primary/5 text-primary/40">
-                    <StoreIcon className="size-10" />
-                  </div>
-                )}
-                <span className="absolute bottom-3 right-3 rounded-full border border-card/30 bg-card/90 px-2.5 py-1 text-xs font-bold text-primary shadow-sm backdrop-blur">
-                  {part.store.name}
-                </span>
-              </div>
               <div className="relative flex aspect-[1.15/1] items-center justify-center overflow-hidden bg-muted/25">
                 {part.image ? (
                    
@@ -302,6 +284,19 @@ export function PartsView() {
                 <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'part', partId: part.id }) }}>
                   عرض التفاصيل
                 </Button>
+                <div className="flex items-end justify-between gap-3 border-t border-border/60 pt-3">
+                  <div className="min-w-0 text-right">
+                    <p className="text-xs text-muted-foreground">صورة المتجر</p>
+                    <p className="truncate text-sm font-semibold text-primary">{part.store.name}</p>
+                  </div>
+                  <div className="relative size-20 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/5">
+                    {part.store.image ? (
+                      <Image src={part.store.image} alt={part.store.name} fill sizes="80px" className="object-cover transition duration-500 group-hover:scale-105" />
+                    ) : (
+                      <StoreIcon className="absolute inset-0 m-auto size-8 text-primary/40" />
+                    )}
+                  </div>
+                </div>
               </CardContent>
             </Card>
           ))}
