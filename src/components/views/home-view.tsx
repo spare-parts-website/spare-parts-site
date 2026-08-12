@@ -74,27 +74,26 @@ export function HomeView() {
           <div className="mx-auto max-w-4xl space-y-6 text-center">
             <Badge variant="secondary" className="rounded-full border border-primary/15 bg-primary/10 px-4 py-1.5 text-sm text-primary">
               <Wrench className="size-3.5 ml-1" />
-              غيار ماركت | سوق قطع غيار السيارات
+              غيار ماركت | قطع غيار موثوقة
             </Badge>
-            <h1 className="text-4xl font-extrabold leading-[1.2] tracking-tight text-balance sm:text-5xl md:text-6xl">
-              قطع غيار أصلية من{' '}
-              <span className="text-primary">متاجر معتمدة</span>
+            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-balance sm:text-3xl md:text-4xl">
+              قطع غيار موثوقة،{' '}
+              <span className="text-primary">في مكان واحد</span>
               <br className="hidden md:block" />
-              توصيل سريع والدفع عند الاستلام
+              اطلبها بسهولة من متاجر موثوقة
             </h1>
-            <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground md:text-lg">
-              تصفح آلاف قطع الغيار من مختلف المتاجر، قارن الأسعار، اطلب التوصيل،
-              وادفع عند الاستلام بكل وضوح وأمان. تقييمات حقيقية من عملاء سابقين
-              تساعدك على اختيار الأفضل.
+            <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground md:text-base">
+              ابحث عن القطعة المناسبة، قارن الأسعار، واطلبها من متجر تثق به.
+              توصيل مريح ودفع عند الاستلام.
             </p>
             <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
               <Button size="lg" className="h-12 px-7" onClick={() => setView({ name: 'parts' })}>
                 <Search className="size-4 ml-2" />
-                تصفح قطع الغيار
+                تصفح القطع
               </Button>
               <Button size="lg" variant="outline" className="h-12 bg-card/60 px-7" onClick={() => setView({ name: 'stores' })}>
                 <StoreIcon className="size-4 ml-2" />
-                استكشف المتاجر
+                تصفح المتاجر
               </Button>
             </div>
 
