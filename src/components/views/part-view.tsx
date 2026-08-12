@@ -232,15 +232,15 @@ export function PartView({ partId }: { partId: string }) {
   const canShop = !user || (user.role !== 'ADMIN' && user.id !== part.store.ownerId)
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="content-container space-y-7 py-10">
       <Button variant="ghost" size="sm" onClick={() => setView({ name: 'parts' })}>
         <ArrowRight className="size-4 ml-1" />
         العودة
       </Button>
 
-      <div className="grid md:grid-cols-2 gap-8">
+      <div className="grid gap-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] lg:items-start">
         {/* Image Gallery */}
-        <Card className="overflow-hidden">
+        <Card className="market-card overflow-hidden">
           {/* Build array of all images (main image + additional images) */}
           {(() => {
             const allImages: string[] = []
@@ -249,7 +249,7 @@ export function PartView({ partId }: { partId: string }) {
 
             return (
               <>
-                <div className="aspect-square bg-muted/30 flex items-center justify-center relative">
+                <div className="relative flex aspect-square items-center justify-center overflow-hidden bg-muted/25">
                   {allImages.length > 0 ? (
                     <Image
                       src={allImages[selectedImage] || allImages[0]}
@@ -272,7 +272,7 @@ export function PartView({ partId }: { partId: string }) {
                       <button
                         type="button"
                         onClick={() => setSelectedImage((s) => (s - 1 + allImages.length) % allImages.length)}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-card/80 backdrop-blur shadow hover:bg-card transition flex items-center justify-center"
+                        className="absolute right-3 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border bg-card/85 text-xl shadow-lg backdrop-blur transition hover:bg-card"
                         aria-label="السابق"
                       >
                         ‹
@@ -280,7 +280,7 @@ export function PartView({ partId }: { partId: string }) {
                       <button
                         type="button"
                         onClick={() => setSelectedImage((s) => (s + 1) % allImages.length)}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 size-9 rounded-full bg-card/80 backdrop-blur shadow hover:bg-card transition flex items-center justify-center"
+                        className="absolute left-3 top-1/2 flex size-11 -translate-y-1/2 items-center justify-center rounded-full border bg-card/85 text-xl shadow-lg backdrop-blur transition hover:bg-card"
                         aria-label="التالي"
                       >
                         ›
@@ -322,16 +322,16 @@ export function PartView({ partId }: { partId: string }) {
               )}
               {part.brand && <Badge variant="secondary">{part.brand}</Badge>}
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold leading-tight">
+            <h1 className="text-3xl font-extrabold leading-tight md:text-4xl">
               {part.name}
             </h1>
           </div>
 
           <button
-            className="flex w-full items-center gap-3 rounded-2xl border border-border/60 bg-muted/20 p-4 text-right transition hover:border-primary/40 hover:bg-primary/5"
+            className="surface-panel flex w-full items-center gap-4 border-border/70 bg-muted/25 p-4 text-right transition hover:border-primary/40 hover:bg-primary/5"
             onClick={() => setView({ name: 'store', storeId: part.store.id })}
           >
-            <div className="relative size-16 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-primary/10 text-primary">
+            <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-primary/20 bg-primary/10 text-primary">
               {part.store.owner.avatar ? (
                 <Image src={part.store.owner.avatar} alt={part.store.owner.name} fill sizes="64px" className="object-cover" />
               ) : (
@@ -355,7 +355,7 @@ export function PartView({ partId }: { partId: string }) {
             </span>
           </div>
 
-          <Card className="bg-primary/5 border-primary/20">
+          <Card className="market-card border-primary/20 bg-primary/5">
             <CardContent className="p-5 flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">السعر</p>

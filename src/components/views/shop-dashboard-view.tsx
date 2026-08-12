@@ -280,16 +280,19 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">لوحة تحكم المحل</h1>
+    <div className="content-container space-y-7 py-10">
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">إدارة المتجر</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">لوحة تحكم المحل</h1>
         <p className="text-muted-foreground mt-1">
           {store ? store.name : 'جاري التحميل...'}
         </p>
+        </div>
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-        <TabsList className="grid w-full max-w-3xl grid-cols-6">
+        <TabsList className="grid w-full max-w-4xl grid-cols-3 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
           <TabsTrigger value="parts" className="gap-1.5 text-xs sm:text-sm">
             <Package className="size-4" />
             <span className="hidden sm:inline">القطع</span>
@@ -332,7 +335,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
           </div>
 
           {/* Add/Edit form */}
-          <Card>
+          <Card className="market-card">
             <CardContent className="p-5 space-y-4">
               <h3 className="font-semibold">
                 {editPart ? 'تعديل قطعة الغيار' : 'إضافة قطعة غيار جديدة'}
@@ -448,7 +451,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
           ) : (
             <div className="space-y-3">
               {parts.map((part) => (
-                <Card key={part.id}>
+                <Card key={part.id} className="market-card">
                   <CardContent className="p-4 flex items-center gap-4">
                     <div className="size-16 rounded-lg bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
                       {part.image ? (
@@ -511,7 +514,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
           ) : (
             <div className="space-y-3">
               {orders.map((order) => (
-                <Card key={order.id}>
+                <Card key={order.id} className="market-card">
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
@@ -615,7 +618,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
         {/* Store tab */}
         <TabsContent value="store" className="space-y-4">
-          <Card>
+          <Card className="market-card">
             <CardHeader>
               <CardTitle>معلومات المتجر</CardTitle>
             </CardHeader>

@@ -117,7 +117,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl">
+    <div className="content-container max-w-3xl py-10">
       <Button
         variant="ghost"
         size="sm"
@@ -128,7 +128,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
         العودة للطلبات
       </Button>
 
-      <Card className="h-[70vh] flex flex-col">
+      <Card className="market-card flex h-[min(70vh,48rem)] min-h-[30rem] flex-col">
         <CardHeader className="border-b">
           <CardTitle className="flex items-center gap-2 text-lg">
             <MessageSquare className="size-5 text-primary" />

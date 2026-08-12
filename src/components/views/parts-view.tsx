@@ -77,22 +77,25 @@ export function PartsView() {
   const hasFilters = category || brand || search
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">قطع الغيار</h1>
+    <div className="content-container space-y-7 py-10">
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">السوق</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">قطع الغيار</h1>
         <p className="text-muted-foreground mt-1">
           {loading ? 'جاري التحميل...' : `${total} قطعة غيار متوفرة`}
         </p>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="space-y-3">
+      <div className="surface-panel space-y-4 p-4 md:p-5">
         <form
           onSubmit={(e) => {
             e.preventDefault()
             useAppStore.setState({ searchQuery: search })
           }}
-          className="relative max-w-xl"
+          className="relative w-full max-w-2xl"
         >
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
@@ -204,7 +207,7 @@ export function PartsView() {
               role="link"
               tabIndex={0}
               aria-label={`عرض تفاصيل ${part.name}`}
-              className="w-full max-w-sm overflow-hidden cursor-pointer hover:shadow-md transition group h-full flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="market-card w-full overflow-hidden cursor-pointer transition group h-full flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setView({ name: 'part', partId: part.id })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -213,7 +216,7 @@ export function PartsView() {
                 }
               }}
             >
-              <div className="relative h-28 overflow-hidden bg-muted/30">
+              <div className="relative h-32 overflow-hidden bg-muted/35">
                 {part.store.image ? (
                   <Image
                     src={part.store.image}
@@ -227,11 +230,11 @@ export function PartsView() {
                     <StoreIcon className="size-10" />
                   </div>
                 )}
-                <span className="absolute bottom-2 right-2 rounded-full bg-card/90 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm backdrop-blur">
+                <span className="absolute bottom-3 right-3 rounded-full border border-card/30 bg-card/90 px-2.5 py-1 text-xs font-bold text-primary shadow-sm backdrop-blur">
                   {part.store.name}
                 </span>
               </div>
-              <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
+              <div className="relative flex aspect-[1.15/1] items-center justify-center overflow-hidden bg-muted/25">
                 {part.image ? (
                    
                   <Image
@@ -257,13 +260,13 @@ export function PartsView() {
               </div>
               <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
                 <button
-                  className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 text-right transition hover:border-primary/40 hover:bg-primary/5"
+                  className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-muted/25 p-3 text-right transition hover:border-primary/40 hover:bg-primary/5"
                   onClick={(e) => {
                     e.stopPropagation()
                     setView({ name: 'store', storeId: part.store.id })
                   }}
                 >
-                  <div className="relative size-12 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-primary/10 text-primary">
+                  <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/10 text-primary">
                     {part.store.owner.avatar ? (
                       <Image src={part.store.owner.avatar} alt={part.store.owner.name} fill sizes="48px" className="object-cover" />
                     ) : (

@@ -179,42 +179,42 @@ export function Header({ user }: { user: AuthUser | null }) {
   )
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b bg-card/80 backdrop-blur-md supports-[backdrop-filter]:bg-card/60">
-      <div className="container mx-auto flex h-14 items-center gap-2 px-3 sm:px-4">
+    <header className="site-header sticky top-0 z-40 w-full border-b backdrop-blur-xl supports-[backdrop-filter]:bg-card/60">
+      <div className="content-container flex min-h-16 items-center gap-2 py-2">
         {/* Logo */}
         <button
           onClick={() => setView({ name: 'home' })}
-          className="flex items-center gap-2 shrink-0"
+          className="group flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-primary/5"
         >
           <img
             src="/ghyar-market-logo.png"
             alt="غيار ماركت"
-            className="h-10 w-14 rounded-lg object-contain drop-shadow-sm"
+            className="h-10 w-14 rounded-xl object-contain drop-shadow-sm transition group-hover:scale-105"
           />
-          <span className="hidden sm:inline text-lg font-bold text-foreground">
+          <span className="hidden text-lg font-extrabold tracking-tight text-foreground sm:inline">
             غيار ماركت
           </span>
         </button>
 
         {/* Desktop Search with Autocomplete */}
-        <div className="hidden md:flex flex-1 max-w-sm">
+        <div className="hidden min-w-0 max-w-sm flex-1 md:flex">
           <SearchBar />
         </div>
 
         {/* Desktop Nav */}
-        <nav className="hidden xl:flex items-center gap-1 mr-2">
+        <nav className="mr-1 hidden items-center gap-0.5 xl:flex">
           {navItems}
         </nav>
 
         <div className="flex-1 lg:flex-none" />
 
         {/* Cart + Theme + Notifications */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           {(!user || user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
             <Button
               variant="ghost"
               size="icon"
-              className="relative"
+              className="relative size-10 rounded-xl"
               onClick={() => setCartOpen(true)}
             >
               <ShoppingCart className="size-5" />
@@ -231,11 +231,11 @@ export function Header({ user }: { user: AuthUser | null }) {
         </div>
 
         {/* Auth */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           {user ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="sm" className="gap-2 px-2">
+                <Button variant="ghost" size="sm" className="gap-2 rounded-xl px-1.5 sm:px-2">
                   <Avatar className="size-8">
                     {user.avatar ? <img src={user.avatar} alt={user.name} className="aspect-square size-full object-cover" /> : <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">{user.name.charAt(0)}</AvatarFallback>}
                   </Avatar>
@@ -323,17 +323,17 @@ export function Header({ user }: { user: AuthUser | null }) {
           {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="xl:hidden">
+              <Button variant="ghost" size="icon" className="size-10 rounded-xl xl:hidden">
                 <Menu className="size-5" />
                 <span className="sr-only">القائمة</span>
               </Button>
             </SheetTrigger>
-            <SheetContent side="right" className="w-72 p-4 flex flex-col gap-4">
-              <SheetTitle className="text-right">القائمة</SheetTitle>
+            <SheetContent side="right" className="w-[min(88vw,22rem)] gap-4 p-4">
+              <SheetTitle className="text-right text-lg font-bold">القائمة</SheetTitle>
               <div className="md:hidden">
                 <SearchBar />
               </div>
-              <div className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1 rounded-2xl border bg-card/70 p-2">
                 {navItems}
               </div>
               <div className="flex items-center justify-between pt-2 border-t">

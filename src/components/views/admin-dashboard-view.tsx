@@ -245,10 +245,13 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">لوحة تحكم المدير</h1>
+    <div className="content-container space-y-7 py-10">
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">إدارة المنصة</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">لوحة تحكم المدير</h1>
         <p className="text-muted-foreground mt-1">إدارة شاملة للنظام</p>
+        </div>
       </div>
 
       {/* Stats */}
@@ -261,7 +264,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           { label: 'قطع محجوبة', value: stats.blockedParts, icon: Ban },
           { label: 'تقييمات نشطة', value: stats.pendingReviews, icon: Star },
         ].map((stat) => (
-          <Card key={stat.label}>
+          <Card key={stat.label} className="market-card">
             <CardContent className="p-4 flex items-center gap-3">
               <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
                 <stat.icon className="size-5" />
@@ -276,7 +279,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-        <TabsList className="grid w-full max-w-3xl grid-cols-3 sm:grid-cols-6">
+        <TabsList className="grid w-full max-w-4xl grid-cols-3 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
           <TabsTrigger value="users" className="gap-1 text-xs sm:text-sm">
             <Users className="size-4" />
             <span className="hidden sm:inline">المستخدمون</span>
@@ -309,10 +312,10 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           {loading ? (
             <Skeleton className="h-64 rounded-xl" />
           ) : (
-            <Card>
+            <Card className="market-card overflow-hidden">
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
-                  <table dir="rtl" className="w-full min-w-[920px] table-fixed text-sm [&_th]:text-right [&_td]:text-right">
+                  <table dir="rtl" className="w-full min-w-[920px] table-auto text-sm [&_th]:text-right [&_th]:align-middle [&_td]:text-right [&_td]:align-middle">
                     <thead className="bg-muted/50 border-b">
                       <tr>
                         <th className="w-44 text-right p-3 font-semibold">الاسم</th>
@@ -385,7 +388,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           ) : (
             <div className="space-y-3">
               {reports.map((report) => (
-                <Card key={report.id} className={report.status !== 'OPEN' ? 'opacity-70' : ''}>
+                <Card key={report.id} className={`market-card ${report.status !== 'OPEN' ? 'opacity-70' : ''}`}>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -422,7 +425,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           ) : (
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               {stores.map((s) => (
-                <Card key={s.id}>
+                <Card key={s.id} className="market-card">
                   <CardContent className="p-4 space-y-2">
                     <div className="flex items-center gap-3">
                       <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
@@ -482,7 +485,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           {loading ? (
             <Skeleton className="h-64 rounded-xl" />
           ) : (
-            <Card>
+            <Card className="market-card overflow-hidden">
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
                   <table dir="rtl" className="w-full min-w-[720px] text-sm [&_th]:text-right [&_td]:text-right">
@@ -550,7 +553,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           {loading ? (
             <Skeleton className="h-64 rounded-xl" />
           ) : (
-            <Card>
+            <Card className="market-card overflow-hidden">
               <CardContent className="p-0">
                 <div className="overflow-x-auto scrollbar-thin">
                   <table dir="rtl" className="w-full min-w-[920px] text-sm [&_th]:text-right [&_td]:text-right">
@@ -595,7 +598,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           ) : (
             <div className="space-y-4">
               {/* Product reviews */}
-              <Card>
+              <Card className="market-card">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <Package className="size-4" />
@@ -652,7 +655,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
               </Card>
 
               {/* Store reviews */}
-              <Card>
+              <Card className="market-card">
                 <CardHeader>
                   <CardTitle className="text-base flex items-center gap-2">
                     <StoreIcon className="size-4" />

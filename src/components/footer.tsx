@@ -8,15 +8,15 @@ export function Footer() {
   const { setView, user } = useAppStore()
 
   return (
-    <footer className="mt-auto border-t bg-card">
-      <div className="container mx-auto px-4 py-10">
-        <div className="grid gap-8 md:grid-cols-4">
+    <footer className="mt-16 border-t bg-card/70">
+      <div className="content-container py-12">
+        <div className="grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <img
                 src="/ghyar-market-logo.png"
                 alt="غيار ماركت"
-                className="h-10 w-14 rounded-lg object-contain drop-shadow-sm"
+                className="h-11 w-16 rounded-xl object-contain drop-shadow-sm"
               />
               <span className="font-bold">غيار ماركت</span>
             </div>
@@ -26,7 +26,7 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold mb-3">روابط سريعة</h4>
+            <h4 className="mb-4 font-bold">روابط سريعة</h4>
             <ul className="space-y-2 text-sm">
               <li>
                 <button
@@ -59,7 +59,7 @@ export function Footer() {
           </div>
 
           <div>
-            <h4 className="font-semibold mb-3">مميزاتنا</h4>
+            <h4 className="mb-4 font-bold">مميزاتنا</h4>
             <ul className="space-y-2 text-sm text-muted-foreground">
               <li className="flex items-center gap-2">
                 <ShieldCheck className="size-4 text-primary" />
@@ -81,7 +81,7 @@ export function Footer() {
           </div>
 
           {user?.role !== 'ADMIN' && <div>
-            <h4 className="font-semibold mb-3">هل أنت صاحب محل؟</h4>
+            <h4 className="mb-4 font-bold">هل أنت صاحب محل؟</h4>
             <p className="text-sm text-muted-foreground mb-3">
               انضم إلينا واعرض قطع غيارك لآلاف العملاء
             </p>
@@ -105,7 +105,7 @@ export function Footer() {
           </div>}
         </div>
 
-        <div className="mt-8 pt-6 border-t text-center text-sm text-muted-foreground">
+        <div className="mt-10 border-t pt-6 text-center text-sm text-muted-foreground">
           © {new Date().getFullYear()} غيار ماركت. جميع الحقوق محفوظة.
         </div>
       </div>

@@ -60,12 +60,15 @@ export function StoresView() {
   }, [])
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">المتاجر</h1>
+    <div className="content-container space-y-7 py-10">
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">البائعون</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">المتاجر</h1>
         <p className="text-muted-foreground mt-1">
           تصفح جميع المتاجر المعتمدة على المنصة
         </p>
+        </div>
       </div>
 
       <form
@@ -73,7 +76,7 @@ export function StoresView() {
           e.preventDefault()
           load(search)
         }}
-        className="relative max-w-xl"
+        className="surface-panel relative max-w-2xl p-2"
       >
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
@@ -105,7 +108,7 @@ export function StoresView() {
               role="link"
               tabIndex={0}
               aria-label={`زيارة ${store.name}`}
-              className="w-full max-w-sm cursor-pointer hover:shadow-md transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="market-card w-full cursor-pointer transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               onClick={() => setView({ name: 'store', storeId: store.id })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
@@ -116,7 +119,7 @@ export function StoresView() {
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start gap-3">
-                  <div className="relative size-20 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">
+                  <div className="relative size-24 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
                     {store.image ? <Image src={store.image} alt={store.name} fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-7" />}
                     <div className="absolute -bottom-1 -left-1 size-8 rounded-full border-2 border-card bg-muted overflow-hidden" title={`صاحب المحل: ${store.owner.name}`}>
                       {store.owner.avatar ? <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="32px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center text-[10px] font-bold">{store.owner.name.charAt(0)}</span>}

@@ -131,24 +131,27 @@ export function CheckoutView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
+    <div className="content-container space-y-7 py-10">
       <Button variant="ghost" size="sm" onClick={() => setView({ name: 'parts' })}>
         <ArrowRight className="size-4 ml-1" />
         متابعة التسوق
       </Button>
 
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">إتمام الطلب</h1>
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">الخطوة الأخيرة</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">إتمام الطلب</h1>
         <p className="text-muted-foreground mt-1">
           {totalItems} قطعة من {Object.keys(storeGroups).length} متجر • الإجمالي: {formatPrice(total)}
         </p>
+        </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left: Forms */}
         <div className="lg:col-span-2 space-y-6">
           {/* Delivery address */}
-          <Card>
+          <Card className="market-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <MapPin className="size-5 text-primary" />
@@ -166,7 +169,7 @@ export function CheckoutView() {
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="market-card">
             <CardHeader><CardTitle className="text-lg">كوبون الخصم</CardTitle></CardHeader>
             <CardContent className="space-y-2">
               <Input value={form.couponCode} onChange={(e) => setForm({ ...form, couponCode: e.target.value.toUpperCase() })} placeholder="أدخل الكود إن وجد" dir="ltr" />
@@ -175,7 +178,7 @@ export function CheckoutView() {
           </Card>
 
           {/* Payment method */}
-          <Card>
+          <Card className="market-card">
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Truck className="size-5 text-primary" />
@@ -197,7 +200,7 @@ export function CheckoutView() {
           </Card>
 
           {/* Notes */}
-          <Card>
+          <Card className="market-card">
             <CardHeader>
               <CardTitle className="text-lg">ملاحظات (اختياري)</CardTitle>
             </CardHeader>
@@ -214,7 +217,7 @@ export function CheckoutView() {
 
         {/* Right: Order summary */}
         <div className="space-y-4">
-          <Card className="lg:sticky lg:top-20">
+          <Card className="market-card lg:sticky lg:top-24">
             <CardHeader>
               <CardTitle className="text-lg">ملخص الطلب</CardTitle>
             </CardHeader>

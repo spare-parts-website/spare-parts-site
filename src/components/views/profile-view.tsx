@@ -53,13 +53,16 @@ export function ProfileView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">الملف الشخصي</h1>
+    <div className="content-container space-y-7 py-10">
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">الحساب</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الملف الشخصي</h1>
         <p className="text-muted-foreground mt-1">معلومات حسابك</p>
+        </div>
       </div>
 
-      <Card>
+      <Card className="market-card">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row items-start gap-5">
             <Avatar className="size-20">
@@ -89,7 +92,7 @@ export function ProfileView() {
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="market-card">
         <CardHeader><CardTitle>تعديل الحساب</CardTitle></CardHeader>
         <CardContent className="space-y-4">
           {user.role === 'SHOP_OWNER' && (
@@ -115,7 +118,7 @@ export function ProfileView() {
       </Card>
 
       {/* Quick actions */}
-      <Card>
+      <Card className="market-card">
         <CardHeader>
           <CardTitle>إجراءات سريعة</CardTitle>
         </CardHeader>

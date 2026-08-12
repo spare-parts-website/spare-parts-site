@@ -54,11 +54,11 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
   }
 
   return (
-    <div className="container mx-auto px-4 py-12">
-      <div className="max-w-md mx-auto">
-        <Card className="border-border/60 shadow-sm">
+    <div className="content-container flex min-h-[calc(100vh-13rem)] items-center justify-center py-10">
+      <div className="w-full max-w-md">
+        <Card className="market-card border-border/60 shadow-xl shadow-primary/5">
           <CardHeader className="text-center pb-4">
-            <div className="size-14 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center mx-auto mb-3 shadow-sm">
+            <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <img src="/ghyar-market-logo.png" alt="غيار ماركت" className="size-14 rounded-2xl object-contain drop-shadow-sm" />
             </div>
             <CardTitle className="text-2xl">

@@ -112,12 +112,15 @@ export function OrdersView() {
   }
 
   return (
-    <div className="container mx-auto px-4 py-8 space-y-6">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">طلباتي</h1>
+    <div className="content-container space-y-7 py-10">
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">المتابعة</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">طلباتي</h1>
         <p className="text-muted-foreground mt-1">
           {loading ? 'جاري التحميل...' : `${orders.length} طلب`}
         </p>
+        </div>
       </div>
 
       {loading ? (
@@ -139,11 +142,11 @@ export function OrdersView() {
       ) : (
         <div className="space-y-4">
           {orders.map((order) => (
-            <Card key={order.id}>
+            <Card key={order.id} className="market-card">
               <CardContent className="p-5">
                 <div className="flex flex-col md:flex-row gap-4">
                   {/* Part image */}
-                  <div className="relative size-24 rounded-lg bg-muted/30 flex items-center justify-center shrink-0">
+                  <div className="relative size-24 rounded-2xl bg-muted/30 flex items-center justify-center shrink-0">
                     {order.part.image ? (
                        
                       <Image

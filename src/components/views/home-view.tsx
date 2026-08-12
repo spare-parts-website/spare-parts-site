@@ -67,32 +67,32 @@ export function HomeView() {
   }, [])
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-16 pb-8">
       {/* Hero */}
-      <section className="relative overflow-hidden bg-gradient-to-bl from-primary/10 via-accent/30 to-background">
-        <div className="container mx-auto px-4 py-12 md:py-16">
-          <div className="max-w-3xl mx-auto text-center space-y-5">
-            <Badge variant="secondary" className="px-3 py-1 text-sm">
+      <section className="hero-shell">
+        <div className="content-container py-14 md:py-24">
+          <div className="mx-auto max-w-4xl space-y-6 text-center">
+            <Badge variant="secondary" className="rounded-full border border-primary/15 bg-primary/10 px-4 py-1.5 text-sm text-primary">
               <Wrench className="size-3.5 ml-1" />
               غيار ماركت | سوق قطع غيار السيارات
             </Badge>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold tracking-tight text-balance">
+            <h1 className="text-4xl font-extrabold leading-[1.2] tracking-tight text-balance sm:text-5xl md:text-6xl">
               قطع غيار أصلية من{' '}
               <span className="text-primary">متاجر معتمدة</span>
               <br className="hidden md:block" />
               توصيل سريع والدفع عند الاستلام
             </h1>
-            <p className="text-base md:text-lg text-muted-foreground leading-relaxed max-w-2xl mx-auto">
+            <p className="mx-auto max-w-2xl text-base leading-8 text-muted-foreground md:text-lg">
               تصفح آلاف قطع الغيار من مختلف المتاجر، قارن الأسعار، اطلب التوصيل،
               وادفع عند الاستلام بكل وضوح وأمان. تقييمات حقيقية من عملاء سابقين
               تساعدك على اختيار الأفضل.
             </p>
-            <div className="flex flex-wrap justify-center gap-3 pt-2">
-              <Button size="lg" onClick={() => setView({ name: 'parts' })}>
+            <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
+              <Button size="lg" className="h-12 px-7" onClick={() => setView({ name: 'parts' })}>
                 <Search className="size-4 ml-2" />
                 تصفح قطع الغيار
               </Button>
-              <Button size="lg" variant="outline" onClick={() => setView({ name: 'stores' })}>
+              <Button size="lg" variant="outline" className="h-12 bg-card/60 px-7" onClick={() => setView({ name: 'stores' })}>
                 <StoreIcon className="size-4 ml-2" />
                 استكشف المتاجر
               </Button>
@@ -106,7 +106,7 @@ export function HomeView() {
                 setSearchQuery((fd.get('q') as string) || '')
                 setView({ name: 'parts' })
               }}
-              className="max-w-2xl mx-auto pt-4"
+              className="mx-auto max-w-2xl pt-3"
             >
               <div className="relative">
                 <Search className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
@@ -114,7 +114,7 @@ export function HomeView() {
                   name="q"
                   type="search"
                   placeholder="ابحث عن قطعة غيار، ماركة، أو نوع..."
-                  className="w-full pr-12 pl-4 py-4 rounded-xl bg-card border border-border shadow-sm focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary text-base"
+                  className="h-14 w-full rounded-2xl border border-border/80 bg-card/90 px-4 pl-4 pr-12 text-base shadow-lg shadow-primary/5 outline-none transition placeholder:text-muted-foreground/75 focus:border-primary focus:ring-4 focus:ring-primary/15"
                 />
               </div>
             </form>
@@ -123,13 +123,14 @@ export function HomeView() {
       </section>
 
       {/* Featured Parts */}
-      <section className="container mx-auto px-4">
-        <div className="flex items-center justify-between mb-6">
+      <section className="content-container">
+        <div className="page-heading">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold">قطع غيار مميزة</h2>
+            <p className="page-kicker">اختيارات اليوم</p>
+            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl">قطع غيار مميزة</h2>
             <p className="text-muted-foreground mt-1">أحدث القطع المضافة من المتاجر</p>
           </div>
-          <Button variant="ghost" onClick={() => setView({ name: 'parts' })}>
+          <Button variant="ghost" className="shrink-0" onClick={() => setView({ name: 'parts' })}>
             عرض الكل
             <ArrowLeft className="size-4 mr-1" />
           </Button>
@@ -144,7 +145,7 @@ export function HomeView() {
         ) : parts.length === 0 ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد قطع مميزة حالياً</CardContent></Card>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 justify-items-center">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
               {parts.map((part) => (
                 <PartCard key={part.id} part={part} />
               ))}
@@ -153,10 +154,11 @@ export function HomeView() {
       </section>
 
       {/* Featured Stores */}
-      <section className="container mx-auto px-4">
-        <div className="flex items-center justify-between mb-6">
+      <section className="content-container">
+        <div className="page-heading">
           <div>
-            <h2 className="text-2xl md:text-3xl font-bold">متاجر مميزة</h2>
+            <p className="page-kicker">اعرف البائع</p>
+            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl">متاجر مميزة</h2>
             <p className="text-muted-foreground mt-1">تعرّف على أفضل المتاجر المعتمدة</p>
           </div>
           <Button variant="ghost" onClick={() => setView({ name: 'stores' })}>
@@ -174,7 +176,7 @@ export function HomeView() {
         ) : stores.length === 0 ? (
             <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد متاجر مميزة حالياً</CardContent></Card>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 justify-items-center">
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
               {stores.slice(0, 6).map((store) => (
                 <StoreCard key={store.id} store={store} />
               ))}
@@ -183,8 +185,11 @@ export function HomeView() {
       </section>
 
       {/* Features */}
-      <section className="container mx-auto px-4 pb-8">
-        <h2 className="text-2xl md:text-3xl font-bold text-center mb-6">مميزات الموقع</h2>
+      <section className="content-container pb-8">
+        <div className="mb-6 text-center">
+          <p className="page-kicker">تجربة أوضح</p>
+          <h2 className="mt-1 text-2xl font-extrabold md:text-3xl">مميزات الموقع</h2>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           {[
             { icon: ShieldCheck, title: 'متاجر موثوقة', desc: 'جميع المتاجر معتمدة وموثقة' },
@@ -192,7 +197,7 @@ export function HomeView() {
             { icon: Banknote, title: 'الدفع عند الاستلام', desc: 'ادفع بعد استلام القطعة' },
             { icon: TrendingUp, title: 'تقييمات حقيقية', desc: 'اطلع على تجارب العملاء' },
           ].map((f) => (
-            <Card key={f.title} className="border-border/60 hover:shadow-md transition">
+            <Card key={f.title} className="market-card border-border/60">
               <CardContent className="p-5 flex items-start gap-3">
                 <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
                   <f.icon className="size-5" />
@@ -217,7 +222,7 @@ function PartCard({ part }: { part: Part }) {
       role="link"
       tabIndex={0}
       aria-label={`عرض تفاصيل ${part.name}`}
-      className="w-full max-w-sm overflow-hidden cursor-pointer hover:shadow-md transition group h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="market-card w-full overflow-hidden cursor-pointer transition group h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => setView({ name: 'part', partId: part.id })}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -226,7 +231,7 @@ function PartCard({ part }: { part: Part }) {
         }
       }}
     >
-      <div className="relative h-28 overflow-hidden bg-muted/30">
+      <div className="relative h-32 overflow-hidden bg-muted/35">
         {part.store.image ? (
           <Image
             src={part.store.image}
@@ -240,11 +245,11 @@ function PartCard({ part }: { part: Part }) {
             <StoreIcon className="size-10" />
           </div>
         )}
-        <span className="absolute bottom-2 right-2 rounded-full bg-card/90 px-2.5 py-1 text-xs font-semibold text-primary shadow-sm backdrop-blur">
+        <span className="absolute bottom-3 right-3 rounded-full border border-card/30 bg-card/90 px-2.5 py-1 text-xs font-bold text-primary shadow-sm backdrop-blur">
           {part.store.name}
         </span>
       </div>
-      <div className="aspect-square bg-muted/30 flex items-center justify-center relative overflow-hidden">
+      <div className="relative flex aspect-[1.15/1] items-center justify-center overflow-hidden bg-muted/25">
         {part.image ? (
            
           <Image
@@ -268,15 +273,15 @@ function PartCard({ part }: { part: Part }) {
           </span>
         )}
       </div>
-      <CardContent className="p-4 space-y-2">
+      <CardContent className="space-y-3 p-4">
         <button
-          className="flex w-full items-center gap-3 rounded-xl border border-border/60 bg-muted/20 p-3 text-right transition hover:border-primary/40 hover:bg-primary/5"
+          className="flex w-full items-center gap-3 rounded-2xl border border-border/70 bg-muted/25 p-3 text-right transition hover:border-primary/40 hover:bg-primary/5"
           onClick={(event) => {
             event.stopPropagation()
             setView({ name: 'store', storeId: part.store.id })
           }}
         >
-          <div className="relative size-12 shrink-0 overflow-hidden rounded-full border-2 border-primary/20 bg-primary/10 text-primary">
+          <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/10 text-primary">
             {part.store.owner.avatar ? (
               <Image src={part.store.owner.avatar} alt={part.store.owner.name} fill sizes="48px" className="object-cover" />
             ) : (
@@ -319,7 +324,7 @@ function StoreCard({ store }: { store: Store }) {
       role="link"
       tabIndex={0}
       aria-label={`زيارة ${store.name}`}
-      className="w-full max-w-sm cursor-pointer hover:shadow-md transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="market-card w-full cursor-pointer transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       onClick={() => setView({ name: 'store', storeId: store.id })}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -330,7 +335,7 @@ function StoreCard({ store }: { store: Store }) {
     >
       <CardHeader className="pb-3">
         <div className="flex items-start gap-3">
-          <div className="relative size-16 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="relative size-20 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
             {store.image ? <Image src={store.image} alt={store.name} fill sizes="64px" className="object-cover" /> : <StoreIcon className="size-8" />}
             <div className="absolute -bottom-1 -left-1 size-7 rounded-full border-2 border-card bg-muted overflow-hidden" title={`صاحب المحل: ${store.owner.name}`}>
               {store.owner.avatar ? <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="28px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center text-[10px] font-bold">{store.owner.name.charAt(0)}</span>}

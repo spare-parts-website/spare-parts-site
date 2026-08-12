@@ -48,10 +48,13 @@ export function InboxView() {
   }, [])
 
   return (
-    <div className="container mx-auto px-4 py-8 max-w-3xl space-y-5">
-      <div>
-        <h1 className="text-2xl md:text-3xl font-bold">الرسائل</h1>
+    <div className="content-container max-w-3xl space-y-6 py-10">
+      <div className="page-heading mb-0">
+        <div>
+          <p className="page-kicker">التواصل</p>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الرسائل</h1>
         <p className="text-muted-foreground mt-1">كل محادثاتك مع العملاء والمتاجر في مكان واحد</p>
+        </div>
       </div>
       {loading ? (
         <Card><CardContent className="py-14 text-center text-muted-foreground">جاري تحميل الرسائل...</CardContent></Card>
@@ -64,8 +67,8 @@ export function InboxView() {
       ) : (
         <div className="space-y-3">
           {threads.map((thread) => (
-            <Card key={`${thread.kind}:${thread.orderId || thread.partId}:${thread.otherUser.id}`} className={thread.unreadCount ? 'border-primary/50 bg-primary/5' : ''}>
-              <CardContent className="p-4 flex items-center gap-3">
+            <Card key={`${thread.kind}:${thread.orderId || thread.partId}:${thread.otherUser.id}`} className={`market-card ${thread.unreadCount ? 'border-primary/50 bg-primary/5' : ''}`}>
+              <CardContent className="flex items-center gap-3 p-4">
                 <div className="size-12 rounded-lg bg-muted/40 flex items-center justify-center shrink-0 overflow-hidden">
                   {thread.part.image ? <img src={thread.part.image} alt="" loading="lazy" decoding="async" className="w-full h-full object-contain" /> : <Package className="size-6 text-muted-foreground/50" />}
                 </div>
