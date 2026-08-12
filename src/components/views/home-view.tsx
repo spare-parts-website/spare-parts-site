@@ -231,6 +231,16 @@ function PartCard({ part }: { part: Part }) {
         }
       }}
     >
+      <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative block h-28 w-full overflow-hidden bg-primary/10 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
+        {part.store.image ? (
+          <Image src={part.store.image} alt={part.store.name} fill sizes="(max-width: 640px) 100vw, 420px" quality={100} className="object-cover transition duration-300 hover:scale-105" />
+        ) : (
+          <StoreIcon className="absolute inset-0 m-auto size-10 text-primary/40" />
+        )}
+        <span className="absolute bottom-3 right-3 rounded-full border border-card/30 bg-card/90 px-3 py-1 text-xs font-bold text-primary shadow-sm backdrop-blur">
+          {part.store.name}
+        </span>
+      </button>
       <div className="relative flex aspect-[1.15/1] items-center justify-center overflow-hidden bg-muted/25">
         {part.image ? (
            
@@ -276,22 +286,6 @@ function PartCard({ part }: { part: Part }) {
         <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'part', partId: part.id }) }}>
           عرض التفاصيل
         </Button>
-        </div>
-        <div className="flex items-center gap-2 border-t border-border/60 pt-2">
-          <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
-            {part.store.image ? (
-              <Image src={part.store.image} alt={part.store.name} fill sizes="160px" quality={100} className="object-cover transition duration-300 hover:scale-105" />
-            ) : (
-              <StoreIcon className="absolute inset-0 m-auto size-7 text-primary/40" />
-            )}
-          </button>
-          <div className="min-w-0 flex-1 space-y-1 text-right">
-            <button type="button" className="flex w-full items-center justify-end gap-1 text-sm font-bold text-primary hover:underline" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
-              <StoreIcon className="size-4 shrink-0" />
-              <span className="truncate">{part.store.name}</span>
-            </button>
-            <p className="truncate text-xs text-muted-foreground">البائع: {part.store.owner.name}</p>
-          </div>
         </div>
       </CardContent>
     </Card>
