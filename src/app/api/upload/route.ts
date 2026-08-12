@@ -34,10 +34,10 @@ export async function POST(req: NextRequest) {
     }
 
     const input = Buffer.from(await file.arrayBuffer())
-    const output = await sharp(input)
+    const output = await sharp(input, { limitInputPixels: 40_000_000 })
       .rotate()
-      .resize({ width: 1280, height: 1280, fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 78, effort: 4 })
+      .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: 92, effort: 5, smartSubsample: true })
       .toBuffer()
 
     const filename = `${Date.now()}-${randomUUID()}.webp`

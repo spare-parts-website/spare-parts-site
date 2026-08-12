@@ -267,7 +267,7 @@ export function PartsView() {
                 <div className="flex items-center gap-2 border-t border-border/60 pt-2">
                   <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
                     {part.store.image ? (
-                      <Image src={part.store.image} alt={part.store.name} fill sizes="80px" quality={90} className="object-cover transition duration-300 hover:scale-105" />
+                      <Image src={part.store.image} alt={part.store.name} fill sizes="160px" quality={100} className="object-cover transition duration-300 hover:scale-105" />
                     ) : (
                       <StoreIcon className="absolute inset-0 m-auto size-7 text-primary/40" />
                     )}
