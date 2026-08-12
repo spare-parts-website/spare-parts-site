@@ -353,7 +353,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                             </Select>
                           </td>
                           <td className="p-3 text-muted-foreground text-xs whitespace-nowrap">
-                            {new Date(u.createdAt).toLocaleDateString('ar-SA')}
+                            {new Date(u.createdAt).toLocaleDateString('ar-EG')}
                           </td>
                           <td className="p-3 whitespace-nowrap">
                             <Button
@@ -394,7 +394,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                           <Badge variant="secondary">{report.targetType === 'part' ? 'قطعة' : report.targetType === 'store' ? 'متجر' : 'مستخدم'}</Badge>
                           <span className="font-semibold break-words">{report.target?.name || report.targetId}</span>
                         </div>
-                        <p className="text-xs text-muted-foreground mt-1 break-words">من: {report.reporter?.name} ({report.reporter?.email}) • {new Date(report.createdAt).toLocaleString('ar-SA')}</p>
+                        <p className="text-xs text-muted-foreground mt-1 break-words">من: {report.reporter?.name} ({report.reporter?.email}) • {new Date(report.createdAt).toLocaleString('ar-EG')}</p>
                       </div>
                       <Flag className="size-5 text-amber-500 shrink-0 self-end sm:self-start" />
                     </div>
@@ -575,7 +575,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                           <td className="p-3 whitespace-nowrap"><StatusBadge status={o.status} /></td>
                           <td className="p-3 whitespace-nowrap"><StatusBadge status={o.paymentStatus} /></td>
                           <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                            {new Date(o.createdAt).toLocaleDateString('ar-SA')}
+                            {new Date(o.createdAt).toLocaleDateString('ar-EG')}
                           </td>
                         </tr>
                       ))}
@@ -616,7 +616,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                               {r.blocked && <Badge variant="destructive" className="text-xs">محجوب</Badge>}
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5 break-words">
-                              على: {r.part.name} • {new Date(r.createdAt).toLocaleDateString('ar-SA')}
+                              على: {r.part.name} • {new Date(r.createdAt).toLocaleDateString('ar-EG')}
                             </p>
                           </div>
                           <div className="flex gap-1 shrink-0 self-end sm:self-start">
@@ -673,7 +673,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                               {r.blocked && <Badge variant="destructive" className="text-xs">محجوب</Badge>}
                             </div>
                             <p className="text-xs text-muted-foreground mt-0.5 break-words">
-                              على: {r.store.name} • {new Date(r.createdAt).toLocaleDateString('ar-SA')}
+                              على: {r.store.name} • {new Date(r.createdAt).toLocaleDateString('ar-EG')}
                             </p>
                           </div>
                           <div className="flex gap-1 shrink-0 self-end sm:self-start">

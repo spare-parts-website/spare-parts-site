@@ -382,7 +382,7 @@ export function StoreView({ storeId }: { storeId: string }) {
                       <div>
                         <p className="text-sm font-medium">{review.user.name}</p>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(review.createdAt).toLocaleDateString('ar-SA')}
+                          {new Date(review.createdAt).toLocaleDateString('ar-EG')}
                         </p>
                       </div>
                     </div>

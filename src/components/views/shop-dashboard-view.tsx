@@ -517,7 +517,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                       <div>
                         <h3 className="font-semibold">{order.part.name}</h3>
                         <p className="text-xs text-muted-foreground mt-0.5">
-                          {new Date(order.createdAt).toLocaleString('ar-SA')}
+                          {new Date(order.createdAt).toLocaleString('ar-EG')}
                         </p>
                       </div>
                       <StatusBadge status={order.status} />

@@ -192,7 +192,7 @@ export function OrdersView() {
                       </div>
                       <div>
                         <span className="block text-foreground font-medium">التاريخ</span>
-                        {new Date(order.createdAt).toLocaleDateString('ar-SA')}
+                        {new Date(order.createdAt).toLocaleDateString('ar-EG')}
                       </div>
                       <div>
                         <span className="block text-foreground font-medium">الدفع</span>
