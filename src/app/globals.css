@@ -261,14 +261,23 @@
   }
 
   .dashboard-shell [data-slot="tabs-list"] {
+    height: auto;
+    min-height: 3.25rem;
+    align-items: stretch;
     gap: 0.25rem;
   }
 
   .dashboard-shell [data-slot="tabs-trigger"] {
+    height: auto;
+    min-height: 2.75rem;
     min-width: 0;
     padding-inline: 0.35rem;
     white-space: normal;
     line-height: 1.25;
+  }
+
+  .dashboard-shell [data-slot="tabs-content"] {
+    margin-top: 0.75rem;
   }
 
   .dashboard-shell [data-slot="tabs-trigger"] svg {
