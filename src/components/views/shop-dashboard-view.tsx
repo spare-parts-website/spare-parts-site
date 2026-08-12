@@ -280,7 +280,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   }
 
   return (
-    <div className="content-container space-y-7 py-10">
+    <div className="content-container dashboard-shell min-w-0 space-y-7 py-10">
       <div className="page-heading mb-0">
         <div>
           <p className="page-kicker">إدارة المتجر</p>
@@ -292,30 +292,30 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-        <TabsList className="grid w-full max-w-4xl grid-cols-3 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
-          <TabsTrigger value="parts" className="gap-1.5 text-xs sm:text-sm">
+        <TabsList className="grid w-full max-w-4xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
+          <TabsTrigger value="parts" className="gap-1.5 text-[11px] sm:text-sm">
             <Package className="size-4" />
-            <span className="hidden sm:inline">القطع</span>
+            <span>القطع</span>
           </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="orders" className="gap-1.5 text-[11px] sm:text-sm">
             <ShoppingBag className="size-4" />
-            <span className="hidden sm:inline">الطلبات</span>
+            <span>الطلبات</span>
           </TabsTrigger>
-          <TabsTrigger value="analytics" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="analytics" className="gap-1.5 text-[11px] sm:text-sm">
             <TrendingUp className="size-4" />
-            <span className="hidden sm:inline">تحليلات</span>
+            <span>تحليلات</span>
           </TabsTrigger>
-          <TabsTrigger value="coupons" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="coupons" className="gap-1.5 text-[11px] sm:text-sm">
             <Ticket className="size-4" />
-            <span className="hidden sm:inline">كوبونات</span>
+            <span>كوبونات</span>
           </TabsTrigger>
-          <TabsTrigger value="messages" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="messages" className="gap-1.5 text-[11px] sm:text-sm">
             <MessageSquare className="size-4" />
-            <span className="hidden sm:inline">الرسائل</span>
+            <span>الرسائل</span>
           </TabsTrigger>
-          <TabsTrigger value="store" className="gap-1.5 text-xs sm:text-sm">
+          <TabsTrigger value="store" className="gap-1.5 text-[11px] sm:text-sm">
             <StoreIcon className="size-4" />
-            <span className="hidden sm:inline">المتجر</span>
+            <span>المتجر</span>
           </TabsTrigger>
         </TabsList>
 

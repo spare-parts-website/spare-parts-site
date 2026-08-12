@@ -245,7 +245,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
   }
 
   return (
-    <div className="content-container space-y-7 py-10">
+    <div className="content-container dashboard-shell min-w-0 space-y-7 py-10">
       <div className="page-heading mb-0">
         <div>
           <p className="page-kicker">إدارة المنصة</p>
@@ -279,30 +279,30 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
       </div>
 
       <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
-        <TabsList className="grid w-full max-w-4xl grid-cols-3 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
-          <TabsTrigger value="users" className="gap-1 text-xs sm:text-sm">
+        <TabsList className="grid w-full max-w-4xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
+          <TabsTrigger value="users" className="gap-1 text-[11px] sm:text-sm">
             <Users className="size-4" />
-            <span className="hidden sm:inline">المستخدمون</span>
+            <span>المستخدمون</span>
           </TabsTrigger>
-          <TabsTrigger value="stores" className="gap-1 text-xs sm:text-sm">
+          <TabsTrigger value="stores" className="gap-1 text-[11px] sm:text-sm">
             <StoreIcon className="size-4" />
-            <span className="hidden sm:inline">المتاجر</span>
+            <span>المتاجر</span>
           </TabsTrigger>
-          <TabsTrigger value="parts" className="gap-1 text-xs sm:text-sm">
+          <TabsTrigger value="parts" className="gap-1 text-[11px] sm:text-sm">
             <Package className="size-4" />
-            <span className="hidden sm:inline">القطع</span>
+            <span>القطع</span>
           </TabsTrigger>
-          <TabsTrigger value="orders" className="gap-1 text-xs sm:text-sm">
+          <TabsTrigger value="orders" className="gap-1 text-[11px] sm:text-sm">
             <ShoppingBag className="size-4" />
-            <span className="hidden sm:inline">الطلبات</span>
+            <span>الطلبات</span>
           </TabsTrigger>
-          <TabsTrigger value="reviews" className="gap-1 text-xs sm:text-sm">
+          <TabsTrigger value="reviews" className="gap-1 text-[11px] sm:text-sm">
             <Star className="size-4" />
-            <span className="hidden sm:inline">التقييمات</span>
+            <span>التقييمات</span>
           </TabsTrigger>
-          <TabsTrigger value="reports" className="gap-1 text-xs sm:text-sm">
+          <TabsTrigger value="reports" className="gap-1 text-[11px] sm:text-sm">
             <Flag className="size-4" />
-            <span className="hidden sm:inline">البلاغات</span>
+            <span>البلاغات</span>
           </TabsTrigger>
         </TabsList>
 
@@ -314,7 +314,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           ) : (
             <Card className="market-card overflow-hidden">
               <CardContent className="p-0">
-                <div className="overflow-x-auto scrollbar-thin">
+                <div className="dashboard-table-scroll overflow-x-auto scrollbar-thin">
                   <table dir="rtl" className="w-full min-w-[920px] table-auto text-sm [&_th]:text-right [&_th]:align-middle [&_td]:text-right [&_td]:align-middle">
                     <thead className="bg-muted/50 border-b">
                       <tr>
@@ -487,7 +487,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           ) : (
             <Card className="market-card overflow-hidden">
               <CardContent className="p-0">
-                <div className="overflow-x-auto scrollbar-thin">
+                <div className="dashboard-table-scroll overflow-x-auto scrollbar-thin">
                   <table dir="rtl" className="w-full min-w-[720px] text-sm [&_th]:text-right [&_td]:text-right">
                     <thead className="bg-muted/50 border-b">
                       <tr>
@@ -555,7 +555,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           ) : (
             <Card className="market-card overflow-hidden">
               <CardContent className="p-0">
-                <div className="overflow-x-auto scrollbar-thin">
+                <div className="dashboard-table-scroll overflow-x-auto scrollbar-thin">
                   <table dir="rtl" className="w-full min-w-[920px] text-sm [&_th]:text-right [&_td]:text-right">
                     <thead className="bg-muted/50 border-b">
                       <tr>

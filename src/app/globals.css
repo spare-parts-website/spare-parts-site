@@ -233,6 +233,16 @@
   .safe-area-bottom {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+
+  .dashboard-shell {
+    overflow-x: hidden;
+  }
+
+  .dashboard-table-scroll {
+    max-width: 100%;
+    overscroll-behavior-inline: contain;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 @media (max-width: 640px) {
@@ -248,6 +258,21 @@
 
   [data-slot="button"] {
     min-height: 2.75rem;
+  }
+
+  .dashboard-shell [data-slot="tabs-list"] {
+    gap: 0.25rem;
+  }
+
+  .dashboard-shell [data-slot="tabs-trigger"] {
+    min-width: 0;
+    padding-inline: 0.35rem;
+    white-space: normal;
+    line-height: 1.25;
+  }
+
+  .dashboard-shell [data-slot="tabs-trigger"] svg {
+    flex: 0 0 auto;
   }
 }
 
