@@ -187,9 +187,9 @@ export function Header({ user }: { user: AuthUser | null }) {
           className="group flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-primary/5"
         >
           <img
-            src="/ghyar-market-logo.svg"
+            src="/ghyar-market-logo.png"
             alt="غيار ماركت"
-            className="h-10 w-10 rounded-xl object-contain drop-shadow-sm transition group-hover:scale-105 sm:h-11 sm:w-11"
+            className="h-10 w-10 object-contain drop-shadow-sm transition group-hover:scale-105 sm:h-11 sm:w-11"
           />
           <span className="hidden text-lg font-extrabold tracking-tight text-foreground sm:inline">
             غيار ماركت

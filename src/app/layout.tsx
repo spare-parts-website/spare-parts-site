@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   description: "منصة متكاملة لبيع وشراء قطع غيار السيارات الأصلية من المتاجر المعتمدة",
   keywords: ["غيار ماركت", "قطع غيار", "سيارات", "متاجر", "ميكانيكا"],
   icons: {
-    icon: "/ghyar-market-logo.svg",
-    apple: "/ghyar-market-logo.svg",
+    icon: "/ghyar-market-logo.png",
+    apple: "/ghyar-market-logo.png",
   },
 };
 
