@@ -22,62 +22,77 @@ model User {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  store         Store?
-  orders        Order[]
-  productReviews ProductReview[]
-  storeReviews  StoreReview[]
-  notifications Notification[]
-  wishlist      Wishlist[]
-  storeWishlist StoreWishlist[]
-  userCars      UserCar[]
-  sentMessages  ChatMessage[]  @relation("ChatMessageSender")
-  receivedMessages ChatMessage[] @relation("ChatMessageReceiver")
-  sentProductMessages ProductMessage[] @relation("ProductMessageSender")
-  receivedProductMessages ProductMessage[] @relation("ProductMessageReceiver")
-  reportsGiven Report[] @relation("ReportReporter")
-  reportsReviewed Report[] @relation("ReportReviewer")
+  store                   Store?
+  orders                  Order[]
+  productReviews          ProductReview[]
+  storeReviews            StoreReview[]
+  notifications           Notification[]
+  wishlist                Wishlist[]
+  storeWishlist           StoreWishlist[]
+  userCars                UserCar[]
+  sentMessages            ChatMessage[]       @relation("ChatMessageSender")
+  receivedMessages        ChatMessage[]       @relation("ChatMessageReceiver")
+  sentProductMessages     ProductMessage[]    @relation("ProductMessageSender")
+  receivedProductMessages ProductMessage[]    @relation("ProductMessageReceiver")
+  reportsGiven            Report[]            @relation("ReportReporter")
+  reportsReviewed         Report[]            @relation("ReportReviewer")
+  loginVerifications      LoginVerification[]
+}
+
+model LoginVerification {
+  id         String    @id
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  verifiedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
 
 model Store {
-  id          String   @id @default(cuid())
+  id          String          @id @default(cuid())
   name        String
   description String?
   address     String?
   phone       String?
   image       String?
-  verified    Boolean  @default(false)
-  ownerId     String   @unique
-  owner       User     @relation(fields: [ownerId], references: [id])
+  verified    Boolean         @default(false)
+  ownerId     String          @unique
+  owner       User            @relation(fields: [ownerId], references: [id])
   parts       Part[]
   orders      Order[]
   reviews     StoreReview[]
   coupons     Coupon[]
   wishlist    StoreWishlist[]
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 }
 
 model Part {
-  id          String   @id @default(cuid())
-  name        String
-  description String?
-  price       Float
-  stock       Int      @default(0)
-  category    String?
-  brand       String?
-  image       String?
+  id              String           @id @default(cuid())
+  name            String
+  description     String?
+  price           Float
+  stock           Int              @default(0)
+  category        String?
+  brand           String?
+  image           String?
   // Car compatibility - stored as JSON string: e.g. '["Toyota Camry 2018-2023", "Honda Accord 2019-2022"]'
-  carModels   String?
-  storeId     String
-  store       Store    @relation(fields: [storeId], references: [id])
-  orders      Order[]
-  reviews     ProductReview[]
-  images      PartImage[]
+  carModels       String?
+  storeId         String
+  store           Store            @relation(fields: [storeId], references: [id])
+  orders          Order[]
+  reviews         ProductReview[]
+  images          PartImage[]
   productMessages ProductMessage[]
-  wishlist    Wishlist[]
-  blocked     Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  wishlist        Wishlist[]
+  blocked         Boolean          @default(false)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
 }
 
 // Multiple images for a part
@@ -90,27 +105,27 @@ model PartImage {
 }
 
 model Order {
-  id              String   @id @default(cuid())
+  id              String          @id @default(cuid())
   partId          String
-  part            Part     @relation(fields: [partId], references: [id])
+  part            Part            @relation(fields: [partId], references: [id])
   storeId         String
-  store           Store    @relation(fields: [storeId], references: [id])
+  store           Store           @relation(fields: [storeId], references: [id])
   buyerId         String
-  buyer           User     @relation(fields: [buyerId], references: [id])
-  quantity        Int      @default(1)
+  buyer           User            @relation(fields: [buyerId], references: [id])
+  quantity        Int             @default(1)
   totalPrice      Float
-  status          String   @default("PENDING") // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
-  paymentStatus   String   @default("UNPAID") // UNPAID, PAID, REFUNDED
+  status          String          @default("PENDING") // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
+  paymentStatus   String          @default("UNPAID") // UNPAID, PAID, REFUNDED
   paymentMethod   String?
   deliveryAddress String
   notes           String?
   couponCode      String?
-  discount        Float    @default(0)
-  clientOrderId   String?  @unique
+  discount        Float           @default(0)
+  clientOrderId   String?         @unique
   timeline        OrderTimeline[]
   chatMessages    ChatMessage[]
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
 
   @@index([buyerId, createdAt])
   @@index([storeId, createdAt])
@@ -121,7 +136,7 @@ model OrderTimeline {
   id        String   @id @default(cuid())
   orderId   String
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  status    String   // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
+  status    String // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
   note      String?
   createdAt DateTime @default(now())
 }
@@ -156,7 +171,7 @@ model Notification {
   user      User     @relation(fields: [userId], references: [id])
   title     String
   message   String
-  type      String   // ORDER_STATUS, NEW_ORDER, PAYMENT, REVIEW, SYSTEM, CHAT
+  type      String // ORDER_STATUS, NEW_ORDER, PAYMENT, REVIEW, SYSTEM, CHAT
   read      Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
@@ -193,40 +208,40 @@ model UserCar {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand     String   // Toyota, Honda, etc.
-  model     String   // Camry, Civic, etc.
+  brand     String // Toyota, Honda, etc.
+  model     String // Camry, Civic, etc.
   year      Int?
-  nickname  String?  // "سيارة العمل", "سيارة العائلة"
+  nickname  String? // "سيارة العمل", "سيارة العائلة"
   createdAt DateTime @default(now())
 }
 
 // Discount coupons
 model Coupon {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  storeId   String
-  store     Store    @relation(fields: [storeId], references: [id])
+  id              String    @id @default(cuid())
+  code            String    @unique
+  storeId         String
+  store           Store     @relation(fields: [storeId], references: [id])
   discountPercent Float // e.g. 10 = 10% off
-  maxUses   Int      @default(100)
-  usedCount Int      @default(0)
-  active    Boolean  @default(true)
-  expiresAt DateTime?
-  createdAt DateTime @default(now())
+  maxUses         Int       @default(100)
+  usedCount       Int       @default(0)
+  active          Boolean   @default(true)
+  expiresAt       DateTime?
+  createdAt       DateTime  @default(now())
 }
 
 // Chat messages between buyer and store owner
 model ChatMessage {
-  id        String   @id @default(cuid())
-  orderId   String
-  order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  orderId    String
+  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
   senderId   String
-  sender    User     @relation("ChatMessageSender", fields: [senderId], references: [id])
+  sender     User     @relation("ChatMessageSender", fields: [senderId], references: [id])
   receiverId String
-  receiver  User     @relation("ChatMessageReceiver", fields: [receiverId], references: [id])
-  message   String
-  imageUrl  String?
-  read      Boolean  @default(false)
-  createdAt DateTime @default(now())
+  receiver   User     @relation("ChatMessageReceiver", fields: [receiverId], references: [id])
+  message    String
+  imageUrl   String?
+  read       Boolean  @default(false)
+  createdAt  DateTime @default(now())
 
   @@index([senderId, receiverId])
   @@index([receiverId, read])
@@ -255,7 +270,7 @@ model Report {
   id           String   @id @default(cuid())
   reporterId   String
   reporter     User     @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  targetType   String   // part, store, user
+  targetType   String // part, store, user
   targetId     String
   reason       String
   details      String?

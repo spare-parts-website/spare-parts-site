@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { verifyPassword, createSession } from '@/lib/auth'
+import { verifyPassword } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import { issueLoginVerification } from '@/lib/login-verification'
 
 export async function POST(req: NextRequest) {
   try {
@@ -32,25 +33,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 400 })
     }
 
-    await createSession({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
-      phone: user.phone,
-      avatar: user.avatar,
-    })
-
-    return NextResponse.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      avatar: user.avatar,
-    })
+    const verification = await issueLoginVerification(user)
+    return NextResponse.json({ verificationRequired: true, ...verification })
   } catch (e) {
     console.error(e)
-    return NextResponse.json({ error: 'حدث خطأ أثناء تسجيل الدخول' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر إرسال رمز التحقق. حاول مرة أخرى لاحقاً.' }, { status: 500 })
   }
 }

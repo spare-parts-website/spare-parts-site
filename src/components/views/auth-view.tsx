@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
-import { Mail, Lock, User, Phone, Store } from 'lucide-react'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
+import { Mail, Lock, User, Phone, Store, ShieldCheck } from 'lucide-react'
+import { REGEXP_ONLY_DIGITS } from 'input-otp'
 import { useToast } from '@/hooks/use-toast'
 import { ProfileAvatarPicker } from '@/components/profile-avatar-picker'
 
@@ -14,6 +16,8 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
   const { setView, setUser, pendingView } = useAppStore()
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
+  const [verification, setVerification] = useState<{ challengeId: string; emailHint: string } | null>(null)
+  const [verificationCode, setVerificationCode] = useState('')
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -42,12 +46,70 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
         toast({ title: 'خطأ', description: data.error || 'حدث خطأ', variant: 'destructive' })
         return
       }
+      if (mode === 'login' && data.verificationRequired) {
+        setVerification({ challengeId: data.challengeId, emailHint: data.emailHint })
+        setVerificationCode('')
+        toast({ title: 'تحقق من بريدك', description: 'أرسلنا رمزاً من 4 أرقام إلى بريدك الإلكتروني.' })
+        return
+      }
       setUser(data)
       toast({
         title: mode === 'login' ? 'مرحباً بعودتك' : 'تم التسجيل بنجاح',
         description: `أهلاً ${data.name}`,
       })
       setView(pendingView || { name: 'home' })
+    } catch {
+      toast({ title: 'تعذر الاتصال', description: 'تحقق من اتصالك وحاول مرة أخرى.', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!verification || verificationCode.length !== 4) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/verify-login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: verification.challengeId, code: verificationCode }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setVerificationCode('')
+        toast({ title: 'تعذر التحقق', description: data.error || 'الرمز غير صحيح', variant: 'destructive' })
+        return
+      }
+      setUser(data)
+      toast({ title: 'تم التحقق', description: `أهلاً ${data.name}` })
+      setView(pendingView || { name: 'home' })
+    } catch {
+      toast({ title: 'تعذر الاتصال', description: 'تحقق من اتصالك وحاول مرة أخرى.', variant: 'destructive' })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    if (!verification || loading) return
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/resend-login-code', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ challengeId: verification.challengeId }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        toast({ title: 'تعذر الإرسال', description: data.error || 'حاول مرة أخرى لاحقاً.', variant: 'destructive' })
+        return
+      }
+      setVerification({ challengeId: data.challengeId, emailHint: data.emailHint })
+      setVerificationCode('')
+      toast({ title: 'تم إرسال رمز جديد', description: 'راجع صندوق الوارد والرسائل غير المرغوب فيها.' })
+    } catch {
+      toast({ title: 'تعذر الاتصال', description: 'تحقق من اتصالك وحاول مرة أخرى.', variant: 'destructive' })
     } finally {
       setLoading(false)
     }
@@ -62,15 +124,61 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
               <img src="/ghyar-market-logo.png" alt="غيار ماركت" className="size-16 object-contain drop-shadow-sm" />
             </div>
             <CardTitle className="text-2xl">
-              {mode === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
+              {verification ? 'تأكيد بريدك الإلكتروني' : mode === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
             </CardTitle>
             <CardDescription>
-              {mode === 'login'
+              {verification
+                ? `أدخل الرمز المرسل إلى ${verification.emailHint}`
+                : mode === 'login'
                 ? 'ادخل بياناتك للوصول إلى حسابك'
                 : 'انضم إلى غيار ماركت'}
             </CardDescription>
           </CardHeader>
           <CardContent>
+            {verification ? (
+              <form onSubmit={handleVerify} className="space-y-5">
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4 text-center">
+                  <div className="mx-auto mb-3 flex size-11 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <ShieldCheck className="size-6" />
+                  </div>
+                  <p className="text-sm font-semibold">رمز التحقق مكوّن من 4 أرقام</p>
+                  <p className="mt-1 text-xs leading-6 text-muted-foreground">ينتهي خلال 10 دقائق. لا تشارك الرمز مع أي شخص.</p>
+                </div>
+
+                <div className="space-y-2 text-center">
+                  <Label htmlFor="login-code">رمز التحقق</Label>
+                  <InputOTP
+                    id="login-code"
+                    maxLength={4}
+                    pattern={REGEXP_ONLY_DIGITS}
+                    value={verificationCode}
+                    onChange={setVerificationCode}
+                    autoFocus
+                    containerClassName="justify-center"
+                    disabled={loading}
+                  >
+                    <InputOTPGroup dir="ltr">
+                      {[0, 1, 2, 3].map((index) => (
+                        <InputOTPSlot key={index} index={index} className="h-12 w-12 text-xl font-bold" />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+
+                <Button type="submit" className="w-full" size="lg" disabled={loading || verificationCode.length !== 4}>
+                  {loading ? 'جاري التحقق...' : 'تأكيد وتسجيل الدخول'}
+                </Button>
+
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
+                  <button type="button" onClick={handleResend} disabled={loading} className="font-medium text-primary hover:underline disabled:opacity-50">
+                    إرسال رمز جديد
+                  </button>
+                  <button type="button" onClick={() => { setVerification(null); setVerificationCode('') }} disabled={loading} className="text-muted-foreground hover:text-foreground disabled:opacity-50">
+                    العودة لتسجيل الدخول
+                  </button>
+                </div>
+              </form>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {mode === 'register' && (
                 <>
@@ -184,8 +292,9 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                     : 'تسجيل'}
               </Button>
             </form>
+            )}
 
-            <div className="text-center text-sm text-muted-foreground mt-4">
+            {!verification && <div className="text-center text-sm text-muted-foreground mt-4">
               {mode === 'login' ? (
                 <>
                   ليس لديك حساب؟{' '}
@@ -207,7 +316,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                   </button>
                 </>
               )}
-            </div>
+            </div>}
 
           </CardContent>
         </Card>
