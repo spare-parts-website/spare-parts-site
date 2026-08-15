@@ -101,7 +101,10 @@ model PartImage {
   partId    String
   part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
   url       String
+  position  Int      @default(0)
   createdAt DateTime @default(now())
+
+  @@index([partId, position])
 }
 
 model Order {

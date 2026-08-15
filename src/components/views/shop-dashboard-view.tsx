@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
-import { ImageUpload, isAnyUploadInProgress } from '@/components/image-upload'
+import { ImageUpload, MultiImageUpload, isAnyUploadInProgress } from '@/components/image-upload'
 import {
   Tabs,
   TabsContent,
@@ -63,6 +63,7 @@ interface Part {
   category?: string | null
   brand?: string | null
   image?: string | null
+  images?: { id: string; url: string; position: number }[]
   carModels?: string | null
   blocked: boolean
   store: { id: string; name: string }
@@ -97,7 +98,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     stock: '',
     category: '',
     brand: '',
-    image: '',
+    images: [] as string[],
     carModels: '',
   })
   const [storeForm, setStoreForm] = useState({
@@ -200,7 +201,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         description: 'تم حفظ قطعة الغيار بنجاح',
       })
       setEditPart(null)
-      setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', image: '', carModels: '' })
+      setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', images: [], carModels: '' })
       loadAllParts()
     } finally {
       setSubmitting(false)
@@ -225,7 +226,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       stock: part.stock.toString(),
       category: part.category || '',
       brand: part.brand || '',
-      image: part.image || '',
+      images: [part.image, ...(part.images || []).slice().sort((a, b) => a.position - b.position).map((item) => item.url)].filter(Boolean) as string[],
       carModels: part.carModels || '',
     })
   }
@@ -326,7 +327,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
             <Button
               onClick={() => {
                 setEditPart(null)
-                setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', image: '', carModels: '' })
+                setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', images: [], carModels: '' })
               }}
             >
               <Plus className="size-4 ml-1" />
@@ -384,10 +385,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                   />
                 </div>
                 <div className="space-y-2 md:col-span-2">
-                  <Label>صورة القطعة</Label>
-                  <ImageUpload
-                    value={partForm.image}
-                    onChange={(url) => setPartForm((prev) => ({ ...prev, image: url }))}
+                  <Label>صور القطعة</Label>
+                  <MultiImageUpload
+                    value={partForm.images}
+                    onChange={(urls) => setPartForm((prev) => ({ ...prev, images: urls }))}
                     onUploadingChange={setImageUploading}
                   />
                 </div>
@@ -426,7 +427,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                         : 'إضافة القطعة'}
                 </Button>
                 {editPart && (
-                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', image: '', carModels: '' }) }}>
+                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', images: [], carModels: '' }) }}>
                     إلغاء
                   </Button>
                 )}

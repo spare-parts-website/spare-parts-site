@@ -6,6 +6,12 @@ import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
 
+const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
+
+function validGallery(value: unknown) {
+  return Array.isArray(value) && value.length <= 4 && new Set(value).size === value.length && value.every((url) => typeof url === 'string' && UPLOAD_URL.test(url))
+}
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
@@ -41,7 +47,7 @@ export async function GET(req: NextRequest) {
           include: { user: { select: { name: true } } },
           orderBy: { createdAt: 'desc' },
         },
-        images: { orderBy: { createdAt: 'asc' } },
+        images: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
       },
     })
     if (!part || part.blocked || isBlockedStoreName(part.store.name)) {
@@ -93,6 +99,7 @@ export async function GET(req: NextRequest) {
         id: true, name: true, description: true, price: true, stock: true,
         category: true, brand: true, image: true, carModels: true,
         createdAt: true,
+        images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         store: {
           select: {
             id: true,
@@ -142,7 +149,7 @@ export async function POST(req: NextRequest) {
     const limit = rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
-    const { name, description, price, stock, category, brand, image, carModels } = body
+    const { name, description, price, stock, category, brand, image, images, carModels } = body
 
     if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160 || price == null) {
       return NextResponse.json({ error: 'الاسم والسعر مطلوبان' }, { status: 400 })
@@ -152,12 +159,15 @@ export async function POST(req: NextRequest) {
     if (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000 || !Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000) {
       return NextResponse.json({ error: 'السعر أو المخزون غير صالح' }, { status: 400 })
     }
+    if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
+    if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
 
     const store = await db.store.findUnique({ where: { ownerId: session.id } })
     if (!store) {
       return NextResponse.json({ error: 'ليس لديك متجر' }, { status: 400 })
     }
 
+    const gallery = Array.isArray(images) ? images : image ? [image] : []
     const part = await db.part.create({
       data: {
         name: name.trim(),
@@ -166,9 +176,10 @@ export async function POST(req: NextRequest) {
         stock: numericStock,
         category: category || null,
         brand: brand || null,
-        image: image || null,
+        image: gallery[0] || null,
         carModels: carModels || null,
         storeId: store.id,
+        images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
       },
     })
 
@@ -190,9 +201,9 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { id, name, description, price, stock, category, brand, image, carModels } = body
+    const { id, name, description, price, stock, category, brand, image, images, carModels } = body
 
-    const part = await db.part.findUnique({ where: { id }, include: { store: true } })
+    const part = await db.part.findUnique({ where: { id }, include: { store: true, images: true } })
     if (!part) {
       return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
     }
@@ -202,6 +213,8 @@ export async function PUT(req: NextRequest) {
     if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160)) return NextResponse.json({ error: 'اسم القطعة غير صالح' }, { status: 400 })
     if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000)) return NextResponse.json({ error: 'السعر غير صالح' }, { status: 400 })
     if (numericStock !== undefined && (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000)) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
+    if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
+    if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
 
     // Only shop owner of this part's store OR admin can edit
     const isOwner = session.role === 'SHOP_OWNER' && part.store.ownerId === session.id
@@ -210,21 +223,31 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
 
-    const updated = await db.part.update({
-      where: { id },
-      data: {
-        name: typeof name === 'string' ? name.trim() : undefined,
-        description: description !== undefined ? (description || null) : undefined,
-        price: numericPrice,
-        stock: numericStock,
-        category: category !== undefined ? (category || null) : undefined,
-        brand: brand !== undefined ? (brand || null) : undefined,
-        image: image !== undefined ? (image || null) : undefined,
-        carModels: carModels !== undefined ? (carModels || null) : undefined,
-      },
+    const gallery = Array.isArray(images) ? images : undefined
+    const updated = await db.$transaction(async (tx) => {
+      if (gallery) await tx.partImage.deleteMany({ where: { partId: id } })
+      return tx.part.update({
+        where: { id },
+        data: {
+          name: typeof name === 'string' ? name.trim() : undefined,
+          description: description !== undefined ? (description || null) : undefined,
+          price: numericPrice,
+          stock: numericStock,
+          category: category !== undefined ? (category || null) : undefined,
+          brand: brand !== undefined ? (brand || null) : undefined,
+          image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,
+          carModels: carModels !== undefined ? carModels || null : undefined,
+          images: gallery && gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
+        },
+      })
     })
 
-    if (image !== undefined && image !== part.image) await deleteUploadedFiles([part.image])
+    if (gallery) {
+      const oldUrls = [part.image, ...part.images.map((partImage) => partImage.url)].filter(Boolean) as string[]
+      await deleteUploadedFiles(oldUrls.filter((url) => !gallery.includes(url)))
+    } else if (image !== undefined && image !== part.image) {
+      await deleteUploadedFiles([part.image])
+    }
 
     return NextResponse.json({ part: updated })
   } catch (e) {

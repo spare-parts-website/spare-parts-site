@@ -26,7 +26,9 @@ export async function POST(req: NextRequest) {
     const isAdmin = session.role === 'ADMIN'
     if (!isOwner && !isAdmin) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
 
-    const image = await db.partImage.create({ data: { partId, url } })
+    const count = await db.partImage.count({ where: { partId } })
+    if (count >= 3) return NextResponse.json({ error: 'يمكن إضافة 4 صور إجمالاً للقطعة.' }, { status: 400 })
+    const image = await db.partImage.create({ data: { partId, url, position: count + 1 } })
     return NextResponse.json({ image })
   } catch (e) {
     console.error(e)

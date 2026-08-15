@@ -47,6 +47,7 @@ interface Review {
 interface PartImage {
   id: string
   url: string
+  position: number
 }
 
 interface Part {
@@ -91,6 +92,7 @@ export function PartView({ partId }: { partId: string }) {
       .then((data) => {
         setPart(data.part || null)
         setCanReview(Boolean(data.canReview))
+        setSelectedImage(0)
       })
       .finally(() => setLoading(false))
   }
@@ -245,7 +247,7 @@ export function PartView({ partId }: { partId: string }) {
           {(() => {
             const allImages: string[] = []
             if (part.image) allImages.push(part.image)
-            if (part.images) allImages.push(...part.images.map((img) => img.url))
+            if (part.images) allImages.push(...part.images.slice().sort((a, b) => a.position - b.position).map((img) => img.url))
 
             return (
               <>
