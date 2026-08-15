@@ -80,6 +80,7 @@ model Part {
   stock           Int              @default(0)
   category        String?
   brand           String?
+  condition       String?
   image           String?
   // Car compatibility - stored as JSON string: e.g. '["Toyota Camry 2018-2023", "Honda Accord 2019-2022"]'
   carModels       String?

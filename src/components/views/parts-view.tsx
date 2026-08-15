@@ -26,6 +26,7 @@ interface Part {
   stock: number
   category?: string | null
   brand?: string | null
+  condition?: string | null
   image?: string | null
   carModels?: string | null
   store: { id: string; name: string; image?: string | null; owner: { name: string; avatar?: string | null } }
@@ -40,6 +41,8 @@ export function PartsView() {
   const [search, setSearch] = useState(searchQuery)
   const [category, setCategory] = useState('')
   const [brand, setBrand] = useState('')
+  const [condition, setCondition] = useState('')
+  const [conditions, setConditions] = useState<string[]>([])
   const [sort, setSort] = useState('newest')
   const [page, setPage] = useState(1)
   const [totalPages, setTotalPages] = useState(1)
@@ -55,10 +58,11 @@ export function PartsView() {
     if (search) params.set('search', search)
     if (category) params.set('category', category)
     if (brand) params.set('brand', brand)
+    if (condition) params.set('condition', condition)
     params.set('sort', sort)
     params.set('page', String(page))
     return params.toString()
-  }, [search, category, brand, sort, page])
+  }, [search, category, brand, condition, sort, page])
 
   useEffect(() => {
     setLoading(true)
@@ -68,13 +72,14 @@ export function PartsView() {
         setParts(data.parts || [])
         setCategories(data.categories || [])
         setBrands(data.brands || [])
+        setConditions(data.conditions || [])
         setTotal(data.pagination?.total || 0)
         setTotalPages(data.pagination?.totalPages || 1)
       })
       .finally(() => setLoading(false))
   }, [buildUrl])
 
-  const hasFilters = category || brand || search
+  const hasFilters = category || brand || condition || search
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -125,6 +130,16 @@ export function PartsView() {
             </SelectContent>
           </Select>
 
+          <Select value={condition || 'all'} onValueChange={(v) => { setCondition(v === 'all' ? '' : v); setPage(1) }}>
+            <SelectTrigger className="w-48 h-9">
+              <SelectValue placeholder="حالة المنتج" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">كل الحالات</SelectItem>
+              {conditions.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
           <Select value={brand || 'all'} onValueChange={(v) => { setBrand(v === 'all' ? '' : v); setPage(1) }}>
             <SelectTrigger className="w-40 h-9">
               <SelectValue placeholder="الماركة" />
@@ -159,6 +174,7 @@ export function PartsView() {
                 setSearch('')
                 setCategory('')
                 setBrand('')
+                setCondition('')
                 setPage(1)
                 useAppStore.setState({ searchQuery: '' })
               }}
@@ -260,6 +276,7 @@ export function PartsView() {
                     {part.category}
                   </Badge>
                 )}
+                {part.condition && <Badge variant="secondary" className="text-xs">{part.condition}</Badge>}
                 <div className="pt-1 flex items-center justify-between">
                   <span className="text-lg font-bold text-primary">
                     {formatPrice(part.price)}

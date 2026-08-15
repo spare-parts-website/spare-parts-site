@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
   const search = searchParams.get('search') || ''
   const category = searchParams.get('category') || ''
   const brand = searchParams.get('brand') || ''
+  const condition = searchParams.get('condition') || ''
   const storeId = searchParams.get('storeId') || ''
   const id = searchParams.get('id')
   const minPrice = searchParams.get('minPrice')
@@ -72,10 +73,12 @@ export async function GET(req: NextRequest) {
       { name: { contains: search } },
       { description: { contains: search } },
       { brand: { contains: search } },
+      { condition: { contains: search } },
     ]
   }
   if (category) where.category = category
   if (brand) where.brand = brand
+  if (condition) where.condition = condition
   if (storeId) where.storeId = storeId
   if (minPrice) where.price = { ...where.price, gte: parseFloat(minPrice) }
   if (maxPrice) where.price = { ...where.price, lte: parseFloat(maxPrice) }
@@ -92,12 +95,12 @@ export async function GET(req: NextRequest) {
         ? { name: 'asc' as const }
         : { createdAt: 'desc' as const }
 
-  const [parts, total, categories, brands] = await Promise.all([
+  const [parts, total, categories, brands, conditions] = await Promise.all([
     db.part.findMany({
       where,
       select: {
         id: true, name: true, description: true, price: true, stock: true,
-        category: true, brand: true, image: true, carModels: true,
+        category: true, brand: true, condition: true, image: true, carModels: true,
         createdAt: true,
         images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         store: {
@@ -124,6 +127,12 @@ export async function GET(req: NextRequest) {
       distinct: ['brand'],
       select: { brand: true },
     }),
+    db.part.findMany({
+      where: { blocked: false, condition: { not: null } },
+      distinct: ['condition'],
+      select: { condition: true },
+      orderBy: { condition: 'asc' },
+    }),
   ])
 
   const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name))
@@ -134,6 +143,7 @@ export async function GET(req: NextRequest) {
         pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
         categories: categories.map((c) => c.category).filter(Boolean),
         brands: brands.map((b) => b.brand).filter(Boolean),
+        conditions: conditions.map((item) => item.condition).filter(Boolean),
       },
       { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' } }
     )
@@ -149,11 +159,12 @@ export async function POST(req: NextRequest) {
     const limit = rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
-    const { name, description, price, stock, category, brand, image, images, carModels } = body
+    const { name, description, price, stock, category, brand, condition, image, images, carModels } = body
 
     if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160 || price == null) {
       return NextResponse.json({ error: 'الاسم والسعر مطلوبان' }, { status: 400 })
     }
+    if (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
     const numericPrice = Number(price)
     const numericStock = Number(stock ?? 0)
     if (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000 || !Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000) {
@@ -176,6 +187,7 @@ export async function POST(req: NextRequest) {
         stock: numericStock,
         category: category || null,
         brand: brand || null,
+        condition: condition.trim(),
         image: gallery[0] || null,
         carModels: carModels || null,
         storeId: store.id,
@@ -201,7 +213,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { id, name, description, price, stock, category, brand, image, images, carModels } = body
+    const { id, name, description, price, stock, category, brand, condition, image, images, carModels } = body
 
     const part = await db.part.findUnique({ where: { id }, include: { store: true, images: true } })
     if (!part) {
@@ -213,6 +225,7 @@ export async function PUT(req: NextRequest) {
     if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160)) return NextResponse.json({ error: 'اسم القطعة غير صالح' }, { status: 400 })
     if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000)) return NextResponse.json({ error: 'السعر غير صالح' }, { status: 400 })
     if (numericStock !== undefined && (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000)) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
+    if (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
     if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
 
@@ -235,6 +248,7 @@ export async function PUT(req: NextRequest) {
           stock: numericStock,
           category: category !== undefined ? (category || null) : undefined,
           brand: brand !== undefined ? (brand || null) : undefined,
+          condition: condition.trim(),
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,
           carModels: carModels !== undefined ? carModels || null : undefined,
           images: gallery && gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,

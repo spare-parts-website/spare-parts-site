@@ -62,6 +62,7 @@ interface Part {
   stock: number
   category?: string | null
   brand?: string | null
+  condition?: string | null
   image?: string | null
   images?: { id: string; url: string; position: number }[]
   carModels?: string | null
@@ -98,6 +99,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     stock: '',
     category: '',
     brand: '',
+    condition: '',
     images: [] as string[],
     carModels: '',
   })
@@ -178,8 +180,8 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       toast({ title: 'جاري رفع الصورة', description: 'انتظر اكتمال رفع الصورة قبل الحفظ', variant: 'destructive' })
       return
     }
-    if (!partForm.name || !partForm.price) {
-      toast({ title: 'خطأ', description: 'الاسم والسعر مطلوبان', variant: 'destructive' })
+    if (!partForm.name || !partForm.price || !partForm.condition.trim()) {
+      toast({ title: 'خطأ', description: 'الاسم والسعر وحالة المنتج مطلوبة', variant: 'destructive' })
       return
     }
     setSubmitting(true)
@@ -201,7 +203,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         description: 'تم حفظ قطعة الغيار بنجاح',
       })
       setEditPart(null)
-      setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', images: [], carModels: '' })
+      setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '' })
       loadAllParts()
     } finally {
       setSubmitting(false)
@@ -226,6 +228,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       stock: part.stock.toString(),
       category: part.category || '',
       brand: part.brand || '',
+      condition: part.condition || '',
       images: [part.image, ...(part.images || []).slice().sort((a, b) => a.position - b.position).map((item) => item.url)].filter(Boolean) as string[],
       carModels: part.carModels || '',
     })
@@ -327,7 +330,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
             <Button
               onClick={() => {
                 setEditPart(null)
-                setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', images: [], carModels: '' })
+                setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '' })
               }}
             >
               <Plus className="size-4 ml-1" />
@@ -364,6 +367,15 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                     value={partForm.category}
                     onChange={(e) => setPartForm({ ...partForm, category: e.target.value })}
                     placeholder="مثال: فلاتر، بطاريات"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>حالة المنتج *</Label>
+                  <Input
+                    value={partForm.condition}
+                    onChange={(e) => setPartForm({ ...partForm, condition: e.target.value })}
+                    placeholder="مثال: استيراد جديد، استيراد مستعمل"
+                    maxLength={120}
                   />
                 </div>
                 <div className="space-y-2">
@@ -427,7 +439,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                         : 'إضافة القطعة'}
                 </Button>
                 {editPart && (
-                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', images: [], carModels: '' }) }}>
+                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '' }) }}>
                     إلغاء
                   </Button>
                 )}

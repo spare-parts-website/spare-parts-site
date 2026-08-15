@@ -58,6 +58,7 @@ interface Part {
   stock: number
   category?: string | null
   brand?: string | null
+  condition?: string | null
   image?: string | null
   carModels?: string | null
   store: { id: string; name: string; address?: string | null; phone?: string | null; ownerId: string; owner: { name: string; avatar?: string | null } }
@@ -323,6 +324,7 @@ export function PartView({ partId }: { partId: string }) {
                 <Badge variant="outline">{part.category}</Badge>
               )}
               {part.brand && <Badge variant="secondary">{part.brand}</Badge>}
+              {part.condition && <Badge variant="secondary">{part.condition}</Badge>}
             </div>
             <h1 className="text-3xl font-extrabold leading-tight md:text-4xl">
               {part.name}
@@ -389,6 +391,13 @@ export function PartView({ partId }: { partId: string }) {
               <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
                 {part.description}
               </p>
+            </div>
+          )}
+
+          {part.condition && (
+            <div>
+              <h3 className="mb-2 font-semibold">حالة المنتج</h3>
+              <p className="text-muted-foreground">{part.condition}</p>
             </div>
           )}
 
