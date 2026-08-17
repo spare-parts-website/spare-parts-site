@@ -1,7 +1,21 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { db } from '@/lib/db'
 
-export async function GET() {
+function secretsMatch(actual: string | null, expected: string) {
+  if (!actual) return false
+  const actualBuffer = Buffer.from(actual)
+  const expectedBuffer = Buffer.from(expected)
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
+}
+
+export async function GET(req: NextRequest) {
+  const expectedSecret = process.env.HEALTHCHECK_SECRET
+  const authorization = req.headers.get('authorization')
+  if (!expectedSecret || !secretsMatch(authorization, `Bearer ${expectedSecret}`)) {
+    return new NextResponse(null, { status: 404 })
+  }
+
   try {
     await db.$queryRaw`SELECT 1`
     return NextResponse.json(

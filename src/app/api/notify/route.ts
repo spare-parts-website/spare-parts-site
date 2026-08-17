@@ -1,12 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { timingSafeEqual } from 'node:crypto'
 import { createNotification } from '@/lib/notifications'
+
+function secretsMatch(actual: string | null, expected: string) {
+  if (!actual) return false
+  const actualBuffer = Buffer.from(actual)
+  const expectedBuffer = Buffer.from(expected)
+  return actualBuffer.length === expectedBuffer.length && timingSafeEqual(actualBuffer, expectedBuffer)
+}
 
 // Internal helper to push a notification via WebSocket and persist in DB
 // Can be called from other API routes
 export async function POST(req: NextRequest) {
   try {
-    const expectedSecret = process.env.AUTH_SECRET || 'local-development-only-change-me'
-    if (req.headers.get('x-internal-notify-secret') !== expectedSecret) {
+    const expectedSecret = process.env.INTERNAL_NOTIFY_SECRET
+    if (!expectedSecret) {
+      console.error('INTERNAL_NOTIFY_SECRET is not configured')
+      return NextResponse.json({ error: 'الخدمة غير مهيأة' }, { status: 503 })
+    }
+    if (!secretsMatch(req.headers.get('x-internal-notify-secret'), expectedSecret)) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
 

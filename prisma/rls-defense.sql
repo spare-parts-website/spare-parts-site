@@ -25,6 +25,8 @@ alter table if exists public."ChatMessage" enable row level security;
 alter table if exists public."ProductMessage" enable row level security;
 alter table if exists public."Report" enable row level security;
 alter table if exists public."LoginVerification" enable row level security;
+alter table if exists public."Payment" enable row level security;
+alter table if exists public."PaymentEvent" enable row level security;
 
 -- Storage is intentionally public-read because product and chat images are
 -- displayed on the marketplace. Uploads are performed only by the server with
