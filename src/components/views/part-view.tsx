@@ -61,6 +61,7 @@ interface Part {
   condition?: string | null
   image?: string | null
   carModels?: string | null
+  compatibilities?: { id: string; make: string; model: string; yearFrom?: number | null; yearTo?: number | null }[]
   store: { id: string; name: string; address?: string | null; phone?: string | null; ownerId: string; owner: { name: string; avatar?: string | null } }
   reviews: Review[]
   images?: PartImage[]
@@ -72,6 +73,7 @@ export function PartView({ partId }: { partId: string }) {
   const [part, setPart] = useState<Part | null>(null)
   const [canReview, setCanReview] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
   const [reviewOpen, setReviewOpen] = useState(false)
@@ -86,16 +88,21 @@ export function PartView({ partId }: { partId: string }) {
   const [reportForm, setReportForm] = useState({ reason: '', details: '' })
   const [submitting, setSubmitting] = useState(false)
 
-  const load = () => {
+  const load = async () => {
     setLoading(true)
-    fetch(`/api/parts?id=${partId}`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        setPart(data.part || null)
-        setCanReview(Boolean(data.canReview))
-        setSelectedImage(0)
-      })
-      .finally(() => setLoading(false))
+    setLoadError(false)
+    try {
+      const response = await fetch(`/api/parts?id=${partId}`, { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok && response.status !== 404) throw new Error(data.error || 'PART_LOAD_FAILED')
+      setPart(data.part || null)
+      setCanReview(Boolean(data.canReview))
+      setSelectedImage(0)
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -218,6 +225,16 @@ export function PartView({ partId }: { partId: string }) {
   }
 
   if (!part) {
+    if (loadError) {
+      return (
+        <div className="content-container py-20 text-center" role="alert">
+          <Package className="mx-auto mb-3 size-16 text-destructive/60" />
+          <h2 className="text-xl font-semibold">تعذر تحميل بيانات قطعة الغيار</h2>
+          <p className="mt-2 text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p>
+          <Button className="mt-4" onClick={load}>إعادة المحاولة</Button>
+        </div>
+      )
+    }
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <Package className="size-16 mx-auto mb-3 text-muted-foreground/50" />
@@ -401,14 +418,16 @@ export function PartView({ partId }: { partId: string }) {
             </div>
           )}
 
-          {part.carModels && (
+          {(part.compatibilities?.length || part.carModels) && (
             <div>
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <Car className="size-4 text-primary" />
                 السيارات المتوافقة
               </h3>
               <div className="flex flex-wrap gap-2">
-                {part.carModels.split(',').map((car, idx) => {
+                {(part.compatibilities?.length
+                  ? part.compatibilities.map((item) => `${item.make} ${item.model}${item.yearFrom ? ` ${item.yearFrom}${item.yearTo ? `–${item.yearTo}` : ''}` : ''}`)
+                  : (part.carModels || '').split(',')).map((car, idx) => {
                   const trimmed = car.trim()
                   if (!trimmed) return null
                   return (

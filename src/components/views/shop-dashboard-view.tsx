@@ -91,6 +91,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [parts, setParts] = useState<Part[]>([])
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [editPart, setEditPart] = useState<Part | null>(null)
   const [partForm, setPartForm] = useState({
     name: '',
@@ -114,50 +115,45 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [imageUploading, setImageUploading] = useState(false)
   const [storeImageUploading, setStoreImageUploading] = useState(false)
 
-  const loadStore = () => {
-    fetch('/api/auth/me')
-      .then((r) => r.json())
-      .then(async (data) => {
-        if (!data.user) return
-        const storeData = await fetch('/api/shop/store', { cache: 'no-store' }).then((r) => r.json())
-        const myStore = storeData.store
-        if (myStore) {
-          setStore(myStore)
-          setStoreForm({
-            name: myStore.name || '',
-            description: myStore.description || '',
-            address: myStore.address || '',
-            phone: myStore.phone || '',
-            image: myStore.image || '',
-          })
-        }
+  const loadStore = async () => {
+    setLoadError(false)
+    try {
+      const response = await fetch('/api/shop/store', { cache: 'no-store' })
+      const storeData = await response.json()
+      if (!response.ok) throw new Error(storeData.error || 'STORE_LOAD_FAILED')
+      const myStore = storeData.store
+      if (!myStore) {
+        setLoading(false)
+        return
+      }
+      setStore(myStore)
+      setStoreForm({
+        name: myStore.name || '',
+        description: myStore.description || '',
+        address: myStore.address || '',
+        phone: myStore.phone || '',
+        image: myStore.image || '',
       })
-  }
-
-  const loadParts = () => {
-    fetch('/api/parts?storeId=all')
-      .then((r) => r.json())
-      .then(async (data) => {
-        // Need to fetch owner's parts - use admin endpoint or filter
-        if (store) {
-          const all = data.parts || []
-          setParts(all.filter((p: any) => p.store.id === store.id))
-        }
-      })
+    } catch {
+      setLoadError(true)
+      setLoading(false)
+    }
   }
 
   // Better: fetch all parts and filter by store
   const loadAllParts = async () => {
     if (!store) return
-    const res = await fetch('/api/parts', { cache: 'no-store' })
+    const res = await fetch('/api/parts?scope=mine', { cache: 'no-store' })
     const data = await res.json()
-    setParts((data.parts || []).filter((p: Part) => p.store.id === store.id))
+    if (!res.ok) throw new Error(data.error || 'PARTS_LOAD_FAILED')
+    setParts(data.parts || [])
   }
 
-  const loadOrders = () => {
-    fetch('/api/orders?scope=shop', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => setOrders(data.orders || []))
+  const loadOrders = async () => {
+    const res = await fetch('/api/orders?scope=shop', { cache: 'no-store' })
+    const data = await res.json()
+    if (!res.ok) throw new Error(data.error || 'ORDERS_LOAD_FAILED')
+    setOrders(data.orders || [])
   }
 
   useEffect(() => {
@@ -171,7 +167,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
   useEffect(() => {
     if (store) {
-      Promise.all([loadAllParts(), loadOrders()]).finally(() => setLoading(false))
+      setLoadError(false)
+      Promise.all([loadAllParts(), loadOrders()])
+        .catch(() => setLoadError(true))
+        .finally(() => setLoading(false))
     }
   }, [store])
 
@@ -295,7 +294,14 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         </div>
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+      {loadError && (
+        <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-center" role="alert">
+          <p className="font-semibold">تعذر تحميل بيانات لوحة المحل</p>
+          <Button className="mt-3" variant="outline" onClick={() => { setLoading(true); loadStore() }}>إعادة المحاولة</Button>
+        </div>
+      )}
+
+      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); window.history.pushState({}, '', `/seller/${v}`) }}>
         <TabsList className="grid w-full max-w-4xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
           <TabsTrigger value="parts" className="gap-1.5 text-[11px] sm:text-sm">
             <Package className="size-4" />

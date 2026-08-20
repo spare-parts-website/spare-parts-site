@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Store as StoreIcon, Package, Search, MapPin, Phone, ShieldCheck } from 'lucide-react'
+import { Store as StoreIcon, Package, Search, MapPin, Phone, ShieldCheck, RefreshCw } from 'lucide-react'
 import { Stars } from '@/components/common'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
 
@@ -31,20 +31,32 @@ export function StoresView() {
   const { setView } = useAppStore()
   const [stores, setStores] = useState<Store[]>([])
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
   const [search, setSearch] = useState('')
 
   const load = (q: string) => {
     setLoading(true)
-    fetch(`/api/stores?search=${encodeURIComponent(q)}`)
-      .then((r) => r.json())
+    setFailed(false)
+    window.history.replaceState(window.history.state, '', q ? `/stores?search=${encodeURIComponent(q)}` : '/stores')
+    fetch(`/api/stores?search=${encodeURIComponent(q)}`, { cache: 'no-store' })
+      .then((r) => {
+        if (!r.ok) throw new Error('stores-api-failed')
+        return r.json()
+      })
       .then((data) => setStores(data.stores || []))
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
     let cancelled = false
-    fetch('/api/stores')
-      .then((r) => r.json())
+    const initialSearch = new URLSearchParams(window.location.search).get('search') || ''
+    setSearch(initialSearch)
+    fetch(`/api/stores?search=${encodeURIComponent(initialSearch)}`, { cache: 'no-store' })
+      .then((r) => {
+        if (!r.ok) throw new Error('stores-api-failed')
+        return r.json()
+      })
       .then((data) => {
         if (!cancelled) {
           setStores(data.stores || [])
@@ -52,7 +64,10 @@ export function StoresView() {
         }
       })
       .catch(() => {
-        if (!cancelled) setLoading(false)
+        if (!cancelled) {
+          setFailed(true)
+          setLoading(false)
+        }
       })
     return () => {
       cancelled = true
@@ -93,6 +108,8 @@ export function StoresView() {
             <Skeleton key={i} className="h-48 rounded-xl" />
           ))}
         </div>
+      ) : failed ? (
+        <Card className="border-destructive/20"><CardContent className="py-16 text-center"><RefreshCw className="mx-auto size-10 text-destructive" /><h2 className="mt-4 text-lg font-black">تعذر تحميل المتاجر</h2><p className="mt-2 text-sm text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p><Button variant="outline" className="mt-5" onClick={() => load(search)}><RefreshCw className="ml-2 size-4" />إعادة المحاولة</Button></CardContent></Card>
       ) : stores.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">

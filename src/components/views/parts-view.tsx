@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 
 interface Part {
@@ -34,17 +35,20 @@ interface Part {
 
 export function PartsView() {
   const { setView, searchQuery } = useAppStore()
+  const routeParams = useSearchParams()
   const [parts, setParts] = useState<Part[]>([])
   const [categories, setCategories] = useState<string[]>([])
   const [brands, setBrands] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
-  const [search, setSearch] = useState(searchQuery)
-  const [category, setCategory] = useState('')
-  const [brand, setBrand] = useState('')
-  const [condition, setCondition] = useState('')
+  const [failed, setFailed] = useState(false)
+  const [retryKey, setRetryKey] = useState(0)
+  const [search, setSearch] = useState(routeParams.get('search') || searchQuery)
+  const [category, setCategory] = useState(routeParams.get('category') || '')
+  const [brand, setBrand] = useState(routeParams.get('brand') || '')
+  const [condition, setCondition] = useState(routeParams.get('condition') || '')
   const [conditions, setConditions] = useState<string[]>([])
-  const [sort, setSort] = useState('newest')
-  const [page, setPage] = useState(1)
+  const [sort, setSort] = useState(routeParams.get('sort') || 'newest')
+  const [page, setPage] = useState(Math.max(1, Number(routeParams.get('page')) || 1))
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
 
@@ -66,8 +70,13 @@ export function PartsView() {
 
   useEffect(() => {
     setLoading(true)
-    fetch(`/api/parts?${buildUrl}`)
-      .then((r) => r.json())
+    setFailed(false)
+    window.history.replaceState(window.history.state, '', `/parts?${buildUrl}`)
+    fetch(`/api/parts?${buildUrl}`, { cache: 'no-store' })
+      .then((r) => {
+        if (!r.ok) throw new Error('parts-api-failed')
+        return r.json()
+      })
       .then((data) => {
         setParts(data.parts || [])
         setCategories(data.categories || [])
@@ -76,8 +85,9 @@ export function PartsView() {
         setTotal(data.pagination?.total || 0)
         setTotalPages(data.pagination?.totalPages || 1)
       })
+      .catch(() => setFailed(true))
       .finally(() => setLoading(false))
-  }, [buildUrl])
+  }, [buildUrl, retryKey])
 
   const hasFilters = category || brand || condition || search
 
@@ -194,6 +204,8 @@ export function PartsView() {
             <Skeleton key={i} className="h-64 rounded-xl" />
           ))}
         </div>
+      ) : failed ? (
+        <Card className="border-destructive/20"><CardContent className="py-16 text-center"><RefreshCw className="mx-auto size-10 text-destructive" /><h2 className="mt-4 text-lg font-black">تعذر تحميل قطع الغيار</h2><p className="mt-2 text-sm text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p><Button variant="outline" className="mt-5" onClick={() => setRetryKey((value) => value + 1)}><RefreshCw className="ml-2 size-4" />إعادة المحاولة</Button></CardContent></Card>
       ) : parts.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">

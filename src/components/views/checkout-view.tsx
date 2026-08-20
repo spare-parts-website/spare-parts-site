@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ export function CheckoutView() {
   const { cart, user, setView, clearCart, setCartOpen } = useAppStore()
   const { toast } = useToast()
   const [submitting, setSubmitting] = useState(false)
+  const checkoutId = useRef<string | null>(null)
   const [form, setForm] = useState({
     deliveryAddress: '',
     notes: '',
@@ -72,48 +73,39 @@ export function CheckoutView() {
       toast({ title: 'خطأ', description: 'عنوان التوصيل مطلوب', variant: 'destructive' })
       return
     }
-    if (form.couponCode.trim()) {
-      const couponCheck = await fetch(`/api/coupons?code=${encodeURIComponent(form.couponCode.trim())}`, { cache: 'no-store' }).then((r) => r.json())
-      if (!couponCheck.valid) {
-        toast({ title: 'كوبون غير صالح', description: couponCheck.error || 'تحقق من الكود', variant: 'destructive' })
-        return
-      }
-    }
     setSubmitting(true)
     try {
-      // Create one order per item (since each order is for a single part)
-      const orderPromises = cart.map((item) =>
-        fetch('/api/orders', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            partId: item.partId,
-            quantity: item.quantity,
-            deliveryAddress: form.deliveryAddress,
-            notes: form.notes,
-            paymentMethod: 'cod',
-            couponCode: form.couponCode.trim() || undefined,
-            clientOrderId: crypto.randomUUID(),
-          }),
-        }).then((r) => r.json())
-      )
-      const results = await Promise.all(orderPromises)
-      const failed = results.filter((r) => r.error)
-      if (failed.length > 0) {
+      checkoutId.current ||= crypto.randomUUID()
+      const response = await fetch('/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checkoutId: checkoutId.current,
+          items: cart.map((item) => ({ partId: item.partId, quantity: item.quantity })),
+          deliveryAddress: form.deliveryAddress,
+          notes: form.notes,
+          couponCode: form.couponCode.trim() || undefined,
+        }),
+      })
+      const result = await response.json()
+      if (!response.ok || result.error) {
         toast({
-          title: 'بعض الطلبات فشلت',
-          description: `${failed.length} من ${results.length} طلب فشل: ${failed[0].error}`,
+          title: 'لم يتم إنشاء الطلبات',
+          description: result.error || 'تعذر إتمام الطلب. حاول مرة أخرى.',
           variant: 'destructive',
         })
       } else {
-        const discount = results.reduce((sum, result) => sum + Number(result.order?.discount || 0), 0)
+        const discount = (result.orders || []).reduce((sum: number, order: { discount?: number }) => sum + Number(order.discount || 0), 0)
         toast({
           title: 'تم إرسال الطلبات بنجاح',
-          description: `تم إنشاء ${results.length} طلب لـ ${Object.keys(storeGroups).length} متجر${discount ? `، الخصم ${formatPrice(discount)}` : ''}`,
+          description: `تم إنشاء ${(result.orders || []).length} طلب لـ ${Object.keys(storeGroups).length} متجر${discount ? `، الخصم ${formatPrice(discount)}` : ''}`,
         })
+        checkoutId.current = null
         clearCart()
         setView({ name: 'orders' })
       }
+    } catch {
+      toast({ title: 'تعذر الاتصال', description: 'لم نتمكن من إرسال الطلب. حاول مرة أخرى دون تحديث الصفحة.', variant: 'destructive' })
     } finally {
       setSubmitting(false)
     }

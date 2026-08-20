@@ -52,19 +52,25 @@ export function StoreView({ storeId }: { storeId: string }) {
   const [store, setStore] = useState<Store | null>(null)
   const [canReview, setCanReview] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' })
   const [submitting, setSubmitting] = useState(false)
 
-  const load = () => {
+  const load = async () => {
     setLoading(true)
-    fetch(`/api/stores?id=${storeId}`, { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        setStore(data.store || null)
-        setCanReview(Boolean(data.canReview))
-      })
-      .finally(() => setLoading(false))
+    setLoadError(false)
+    try {
+      const response = await fetch(`/api/stores?id=${storeId}`, { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok && response.status !== 404) throw new Error(data.error || 'STORE_LOAD_FAILED')
+      setStore(data.store || null)
+      setCanReview(Boolean(data.canReview))
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -118,6 +124,16 @@ export function StoreView({ storeId }: { storeId: string }) {
   }
 
   if (!store) {
+    if (loadError) {
+      return (
+        <div className="content-container py-20 text-center" role="alert">
+          <StoreIcon className="mx-auto mb-3 size-16 text-destructive/60" />
+          <h2 className="text-xl font-semibold">تعذر تحميل بيانات المتجر</h2>
+          <p className="mt-2 text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p>
+          <Button className="mt-4" onClick={load}>إعادة المحاولة</Button>
+        </div>
+      )
+    }
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <StoreIcon className="size-16 mx-auto mb-3 text-muted-foreground/50" />

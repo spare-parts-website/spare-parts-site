@@ -57,26 +57,36 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
   const [storeReviews, setStoreReviews] = useState<any[]>([])
   const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   const loadAll = async () => {
     setLoading(true)
-    const [u, p, s, o, r, b] = await Promise.all([
-      fetch('/api/admin/users', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/admin/parts', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/admin/stores', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/orders?scope=admin', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/admin/reviews', { cache: 'no-store' }).then((r) => r.json()),
-      fetch('/api/reports', { cache: 'no-store' }).then((r) => r.json()),
-    ])
-    setUsers(u.users || [])
-    setParts(p.parts || [])
-    setStores(s.stores || [])
-    setOrders(o.orders || [])
-    setProductReviews(r.productReviews || [])
-    setStoreReviews(r.storeReviews || [])
-    setReports(b.reports || [])
-    setLoading(false)
+    setLoadError(false)
+    try {
+      const responses = await Promise.all([
+        fetch('/api/admin/users', { cache: 'no-store' }),
+        fetch('/api/admin/parts', { cache: 'no-store' }),
+        fetch('/api/admin/stores', { cache: 'no-store' }),
+        fetch('/api/orders?scope=admin', { cache: 'no-store' }),
+        fetch('/api/admin/reviews', { cache: 'no-store' }),
+        fetch('/api/reports', { cache: 'no-store' }),
+      ])
+      const payloads = await Promise.all(responses.map((response) => response.json()))
+      if (responses.some((response) => !response.ok)) throw new Error('ADMIN_LOAD_FAILED')
+      const [u, p, s, o, r, b] = payloads
+      setUsers(u.users || [])
+      setParts(p.parts || [])
+      setStores(s.stores || [])
+      setOrders(o.orders || [])
+      setProductReviews(r.productReviews || [])
+      setStoreReviews(r.storeReviews || [])
+      setReports(b.reports || [])
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -254,6 +264,13 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
         </div>
       </div>
 
+      {loadError && (
+        <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-center" role="alert">
+          <p className="font-semibold">تعذر تحميل بيانات لوحة الإدارة</p>
+          <Button className="mt-3" variant="outline" onClick={loadAll}>إعادة المحاولة</Button>
+        </div>
+      )}
+
       {/* Stats */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
         {[
@@ -278,7 +295,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
         ))}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => setTab(v as any)}>
+      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); window.history.pushState({}, '', `/admin/${v}`) }}>
         <TabsList className="grid w-full max-w-4xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
           <TabsTrigger value="users" className="gap-1 text-[11px] sm:text-sm">
             <Users className="size-4" />
