@@ -9,6 +9,7 @@ export interface AuthUser {
   role: UserRole
   phone?: string | null
   avatar?: string | null
+  emailNotifications?: boolean
 }
 
 export type View =
@@ -31,19 +32,44 @@ export type View =
   | { name: 'chat'; orderId: string }
   | { name: 'chat'; partId: string; participantId?: string }
 
-const VIEW_HISTORY_KEY = '__sparePartsView'
-
-function pushViewToBrowserHistory(view: View) {
-  if (typeof window === 'undefined') return
-
-  const currentView = window.history.state?.[VIEW_HISTORY_KEY] as View | undefined
-  if (JSON.stringify(currentView) === JSON.stringify(view)) return
-
-  window.history.pushState(
-    { ...window.history.state, [VIEW_HISTORY_KEY]: view },
-    '',
-    window.location.href,
-  )
+export function viewToPath(view: View, searchQuery = ''): string {
+  switch (view.name) {
+    case 'home':
+      return '/'
+    case 'stores':
+      return '/stores'
+    case 'store':
+      return `/stores/${encodeURIComponent(view.storeId)}`
+    case 'parts':
+      return searchQuery ? `/parts?search=${encodeURIComponent(searchQuery)}` : '/parts'
+    case 'part':
+      return `/parts/${encodeURIComponent(view.partId)}`
+    case 'login':
+      return '/login'
+    case 'register':
+      return '/register'
+    case 'orders':
+      return '/account/orders'
+    case 'profile':
+      return '/account/profile'
+    case 'inbox':
+      return '/account/messages'
+    case 'legal':
+      return `/${view.page}`
+    case 'shop-dashboard':
+      return `/seller/${view.tab || 'parts'}`
+    case 'admin-dashboard':
+      return `/admin/${view.tab || 'users'}`
+    case 'cart':
+      return '/cart'
+    case 'checkout':
+      return '/checkout'
+    case 'wishlist':
+      return '/account/wishlist'
+    case 'chat':
+      if ('orderId' in view) return `/messages/order/${encodeURIComponent(view.orderId)}`
+      return `/messages/part/${encodeURIComponent(view.partId)}${view.participantId ? `?participant=${encodeURIComponent(view.participantId)}` : ''}`
+  }
 }
 
 export interface CartItem {
@@ -97,7 +123,14 @@ export const useAppStore = create<AppState>((set) => ({
 
   view: { name: 'home' },
   setView: (v) => {
-    pushViewToBrowserHistory(v)
+    if (typeof window !== 'undefined') {
+      const target = viewToPath(v, useAppStore.getState().searchQuery)
+      const current = `${window.location.pathname}${window.location.search}`
+      if (target !== current) {
+        window.location.assign(target)
+        return
+      }
+    }
     set({ view: v })
   },
 

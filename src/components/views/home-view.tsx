@@ -1,24 +1,18 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
-import { useAppStore } from '@/lib/store'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Skeleton } from '@/components/ui/skeleton'
+import Link from 'next/link'
 import {
-  Store as StoreIcon,
-  Package,
-  Search,
-  ShieldCheck,
-  Truck,
-  Banknote,
-  Star,
-  ArrowLeft,
-  Wrench,
-  TrendingUp,
+  ArrowLeft, BadgeCheck, Banknote, BatteryCharging, CarFront, CircleGauge,
+  Disc3, Headphones, Package, RefreshCw, Search, ShieldCheck, ShoppingCart,
+  Sparkles, Store as StoreIcon, Truck, Wrench,
 } from 'lucide-react'
+import { useAppStore } from '@/lib/store'
+import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent } from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
 import { Stars, formatPrice } from '@/components/common'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
 
@@ -27,332 +21,224 @@ interface Store {
   name: string
   description?: string | null
   address?: string | null
-  phone?: string | null
+  image?: string | null
+  verified?: boolean
   _count: { parts: number }
-  parts: { id: string; name: string; price: number; image?: string | null }[]
   avgRating: number
   reviewCount: number
-  image?: string | null
   owner: { name: string; avatar?: string | null }
 }
 
 interface Part {
   id: string
   name: string
-  description?: string | null
   price: number
   stock: number
   category?: string | null
   brand?: string | null
+  condition?: string | null
   image?: string | null
-  carModels?: string | null
-  store: { id: string; name: string; image?: string | null; owner: { name: string; avatar?: string | null } }
+  store: { id: string; name: string; image?: string | null }
 }
+
+const categories = [
+  { label: 'المحرك', icon: Wrench },
+  { label: 'الفرامل', icon: Disc3 },
+  { label: 'الكهرباء', icon: BatteryCharging },
+  { label: 'العفشة', icon: CarFront },
+  { label: 'العدادات', icon: CircleGauge },
+  { label: 'الإكسسوارات', icon: Sparkles },
+]
 
 export function HomeView() {
   const { setView, setSearchQuery } = useAppStore()
   const [stores, setStores] = useState<Store[]>([])
   const [parts, setParts] = useState<Part[]>([])
   const [loading, setLoading] = useState(true)
+  const [failed, setFailed] = useState(false)
 
-  useEffect(() => {
-    Promise.all([
-      fetch('/api/stores').then((r) => r.json()),
-      fetch('/api/parts').then((r) => r.json()),
-    ])
-      .then(([s, p]) => {
-        setStores(s.stores || [])
-        setParts((p.parts || []).slice(0, 8))
-      })
-      .finally(() => setLoading(false))
+  const loadMarketplace = useCallback(async () => {
+    setLoading(true)
+    setFailed(false)
+    try {
+      const [storesResponse, partsResponse] = await Promise.all([
+        fetch('/api/stores', { cache: 'no-store' }),
+        fetch('/api/parts?sort=newest', { cache: 'no-store' }),
+      ])
+      if (!storesResponse.ok || !partsResponse.ok) throw new Error('marketplace-api-failed')
+      const [storesData, partsData] = await Promise.all([storesResponse.json(), partsResponse.json()])
+      setStores(storesData.stores || [])
+      setParts((partsData.parts || []).slice(0, 8))
+    } catch {
+      setFailed(true)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
+  useEffect(() => {
+    void loadMarketplace()
+  }, [loadMarketplace])
+
+  const runSearch = (query: string) => {
+    setSearchQuery(query.trim())
+    setView({ name: 'parts' })
+  }
+
   return (
-    <div className="space-y-16 pb-8">
-      {/* Hero */}
-      <section className="hero-shell">
-        <div className="content-container py-14 md:py-24">
-          <div className="mx-auto max-w-4xl space-y-6 text-center">
-            <Badge variant="secondary" className="rounded-full border border-primary/15 bg-primary/10 px-4 py-1.5 text-sm text-primary">
-              <Wrench className="size-3.5 ml-1" />
-              غيار ماركت | قطع غيار موثوقة
-            </Badge>
-            <h1 className="text-2xl font-semibold leading-tight tracking-tight text-balance sm:text-3xl md:text-4xl">
-              قطع غيار موثوقة،{' '}
-              <span className="text-primary">في مكان واحد</span>
-              <br className="hidden md:block" />
-              اطلبها بسهولة من متاجر موثوقة
+    <div className="overflow-hidden pb-8">
+      <section className="relative isolate min-h-[38rem] overflow-hidden bg-[#07111f] text-white sm:min-h-[42rem]">
+        <Image src="/ghyar-market-hero.png" alt="سيارة وقطع غيار داخل مركز خدمة حديث" fill priority sizes="100vw" className="-z-20 object-cover object-[42%_center] opacity-75" />
+        <div className="absolute inset-0 -z-10 bg-gradient-to-l from-[#07111f] via-[#07111f]/90 to-[#07111f]/15" />
+        <div className="absolute inset-0 -z-10 premium-grid opacity-30" />
+        <div className="content-container flex min-h-[38rem] items-center py-16 sm:min-h-[42rem]">
+          <div className="max-w-2xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-primary backdrop-blur">
+              <ShieldCheck className="size-4" /> منصة مصرية لقطع غيار السيارات
+            </span>
+            <h1 className="mt-6 text-4xl font-black leading-[1.2] tracking-[-0.045em] text-balance sm:text-5xl lg:text-6xl">
+              القطعة الصح لسيارتك،
+              <span className="block text-primary">من متجر تثق فيه.</span>
             </h1>
-            <p className="mx-auto max-w-xl text-sm leading-7 text-muted-foreground md:text-base">
-              ابحث عن القطعة المناسبة، قارن الأسعار، واطلبها من متجر تثق به.
-              توصيل مريح ودفع عند الاستلام.
+            <p className="mt-5 max-w-xl text-base leading-8 text-white/70 sm:text-lg">
+              ابحث وقارن واختر من متاجر متخصصة. معلومات واضحة، تقييمات حقيقية، ودفع آمن عند الاستلام.
             </p>
-            <div className="flex flex-col justify-center gap-3 pt-2 sm:flex-row">
-              <Button size="lg" className="h-12 px-7" onClick={() => setView({ name: 'parts' })}>
-                <Search className="size-4 ml-2" />
-                تصفح القطع
-              </Button>
-              <Button size="lg" variant="outline" className="h-12 bg-card/60 px-7" onClick={() => setView({ name: 'stores' })}>
-                <StoreIcon className="size-4 ml-2" />
-                تصفح المتاجر
-              </Button>
-            </div>
-
-            {/* Quick search */}
             <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                const fd = new FormData(e.currentTarget)
-                setSearchQuery((fd.get('q') as string) || '')
-                setView({ name: 'parts' })
+              className="mt-8 rounded-2xl border border-white/15 bg-white p-2 shadow-2xl shadow-black/30 sm:flex"
+              onSubmit={(event) => {
+                event.preventDefault()
+                runSearch(String(new FormData(event.currentTarget).get('q') || ''))
               }}
-              className="mx-auto max-w-2xl pt-3"
             >
-              <div className="relative">
-                <Search className="absolute right-4 top-1/2 -translate-y-1/2 size-5 text-muted-foreground" />
-                <input
-                  name="q"
-                  type="search"
-                  placeholder="ابحث عن قطعة غيار، ماركة، أو نوع..."
-                  className="h-14 w-full rounded-2xl border border-border/80 bg-card/90 px-4 pl-4 pr-12 text-base shadow-lg shadow-primary/5 outline-none transition placeholder:text-muted-foreground/75 focus:border-primary focus:ring-4 focus:ring-primary/15"
-                />
-              </div>
+              <label className="relative block min-w-0 flex-1">
+                <Search className="absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
+                <span className="sr-only">ابحث عن قطعة غيار</span>
+                <input name="q" type="search" className="h-14 w-full rounded-xl bg-transparent pr-12 pl-4 text-base text-slate-950 outline-none placeholder:text-slate-500" placeholder="مثال: تيل فرامل تويوتا كورولا 2020" />
+              </label>
+              <Button type="submit" size="lg" className="h-14 w-full rounded-xl px-7 sm:w-auto">ابحث الآن</Button>
             </form>
-          </div>
-        </div>
-      </section>
-
-      {/* Featured Parts */}
-      <section className="content-container">
-        <div className="page-heading">
-          <div>
-            <p className="page-kicker">اختيارات اليوم</p>
-            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl">قطع غيار مميزة</h2>
-            <p className="text-muted-foreground mt-1">أحدث القطع المضافة من المتاجر</p>
-          </div>
-          <Button variant="ghost" className="shrink-0" onClick={() => setView({ name: 'parts' })}>
-            عرض الكل
-            <ArrowLeft className="size-4 mr-1" />
-          </Button>
-        </div>
-
-        {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            {Array.from({ length: 8 }).map((_, i) => (
-              <Skeleton key={i} className="h-64 rounded-xl" />
-            ))}
-          </div>
-        ) : parts.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد قطع مميزة حالياً</CardContent></Card>
-          ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
-              {parts.map((part) => (
-                <PartCard key={part.id} part={part} />
-              ))}
+            <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/65">
+              <span className="flex items-center gap-1.5"><BadgeCheck className="size-4 text-primary" /> متاجر موثقة</span>
+              <span className="flex items-center gap-1.5"><Banknote className="size-4 text-primary" /> دفع عند الاستلام</span>
+              <span className="flex items-center gap-1.5"><Headphones className="size-4 text-primary" /> تواصل مباشر</span>
             </div>
-          )}
+          </div>
+        </div>
       </section>
 
-      {/* Featured Stores */}
-      <section className="content-container">
-        <div className="page-heading">
-          <div>
-            <p className="page-kicker">اعرف البائع</p>
-            <h2 className="mt-1 text-2xl font-extrabold md:text-3xl">متاجر مميزة</h2>
-            <p className="text-muted-foreground mt-1">تعرّف على أفضل المتاجر المعتمدة</p>
-          </div>
-          <Button variant="ghost" onClick={() => setView({ name: 'stores' })}>
-            عرض الكل
-            <ArrowLeft className="size-4 mr-1" />
-          </Button>
-        </div>
-
-        {loading ? (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <Skeleton key={i} className="h-48 rounded-xl" />
-            ))}
-          </div>
-        ) : stores.length === 0 ? (
-            <Card><CardContent className="py-12 text-center text-muted-foreground">لا توجد متاجر مميزة حالياً</CardContent></Card>
-          ) : (
-            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-              {stores.slice(0, 6).map((store) => (
-                <StoreCard key={store.id} store={store} />
-              ))}
-            </div>
-          )}
-      </section>
-
-      {/* Features */}
-      <section className="content-container pb-8">
-        <div className="mb-6 text-center">
-          <p className="page-kicker">تجربة أوضح</p>
-          <h2 className="mt-1 text-2xl font-extrabold md:text-3xl">مميزات الموقع</h2>
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="border-b bg-card">
+        <div className="content-container grid divide-y sm:grid-cols-3 sm:divide-x sm:divide-x-reverse sm:divide-y-0">
           {[
-            { icon: ShieldCheck, title: 'متاجر موثوقة', desc: 'جميع المتاجر معتمدة وموثقة' },
-            { icon: Truck, title: 'توصيل سريع', desc: 'اطلب التوصيل لموقعك بضغطة' },
-            { icon: Banknote, title: 'الدفع عند الاستلام', desc: 'ادفع بعد استلام القطعة' },
-            { icon: TrendingUp, title: 'تقييمات حقيقية', desc: 'اطلع على تجارب العملاء' },
-          ].map((f) => (
-            <Card key={f.title} className="market-card border-border/60">
-              <CardContent className="p-5 flex items-start gap-3">
-                <div className="size-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center shrink-0">
-                  <f.icon className="size-5" />
-                </div>
-                <div>
-                  <h3 className="font-semibold mb-1">{f.title}</h3>
-                  <p className="text-sm text-muted-foreground">{f.desc}</p>
-                </div>
-              </CardContent>
-            </Card>
+            { value: 'اختيار أوضح', label: 'تفاصيل وتوافق القطعة قبل الطلب' },
+            { value: 'متاجر متخصصة', label: 'تعرف على البائع وتقييماته' },
+            { value: 'طلب مطمئن', label: 'تابع حالة الطلب من حسابك' },
+          ].map((item) => <div key={item.value} className="px-4 py-6 text-center"><strong className="block text-lg font-black">{item.value}</strong><span className="mt-1 block text-sm text-muted-foreground">{item.label}</span></div>)}
+        </div>
+      </section>
+
+      <section className="content-container section-space">
+        <div className="page-heading">
+          <div><span className="eyebrow"><CarFront className="size-4" /> ابدأ من نوع القطعة</span><h2 className="mt-2 text-3xl font-black sm:text-4xl">ماذا تحتاج لسيارتك؟</h2></div>
+          <Link href="/parts" className="inline-flex items-center gap-1 text-sm font-bold text-primary hover:underline">كل الأقسام <ArrowLeft className="size-4" /></Link>
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {categories.map(({ label, icon: Icon }) => (
+            <button key={label} onClick={() => runSearch(label)} className="group rounded-2xl border bg-card p-5 text-right shadow-sm transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
+              <span className="grid size-12 place-items-center rounded-2xl bg-slate-950 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground dark:bg-slate-800"><Icon className="size-6" /></span>
+              <span className="mt-5 block font-black">{label}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">استكشف القطع</span>
+            </button>
           ))}
+        </div>
+      </section>
+
+      <section className="bg-slate-100/70 dark:bg-slate-950/35">
+        <div className="content-container section-space">
+          <SectionHeading eyebrow="وصل حديثاً" title="قطع تستحق المشاهدة" description="أحدث عروض المتاجر على غيار ماركت" href="/parts" />
+          {loading ? <PartsSkeleton /> : failed ? <LoadError onRetry={loadMarketplace} /> : parts.length === 0 ? <EmptyState text="لا توجد قطع معروضة حالياً" /> : (
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{parts.map((part) => <PartCard key={part.id} part={part} />)}</div>
+          )}
+        </div>
+      </section>
+
+      <section className="content-container section-space">
+        <SectionHeading eyebrow="البائع يصنع الفرق" title="متاجر يثق بها العملاء" description="قارن التقييمات وتصفح مخزون كل متجر" href="/stores" />
+        {loading ? <div className="grid gap-4 md:grid-cols-3">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-64 rounded-3xl" />)}</div> : failed ? <LoadError onRetry={loadMarketplace} /> : stores.length === 0 ? <EmptyState text="لا توجد متاجر معروضة حالياً" /> : (
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{stores.slice(0, 6).map((store) => <StoreCard key={store.id} store={store} />)}</div>
+        )}
+      </section>
+
+      <section className="content-container pb-20">
+        <div className="overflow-hidden rounded-[2rem] bg-[#07111f] text-white shadow-2xl">
+          <div className="grid lg:grid-cols-[1.15fr_.85fr]">
+            <div className="p-8 sm:p-12 lg:p-16">
+              <span className="eyebrow"><StoreIcon className="size-4" /> لأصحاب محلات قطع الغيار</span>
+              <h2 className="mt-4 text-3xl font-black sm:text-4xl">حوّل مخزونك إلى متجر يصل لعملاء أكثر.</h2>
+              <p className="mt-4 max-w-xl leading-8 text-white/65">اعرض قطعك، استقبل الطلبات، وتابع رسائل العملاء من لوحة واحدة واضحة.</p>
+              <Button asChild size="lg" className="mt-7"><Link href="/register">ابدأ بيع قطعك</Link></Button>
+            </div>
+            <div className="grid grid-cols-2 gap-px bg-white/10 p-px">
+              {[
+                { icon: Package, title: 'إدارة المخزون' }, { icon: ShoppingCart, title: 'متابعة الطلبات' },
+                { icon: Headphones, title: 'رسائل العملاء' }, { icon: CircleGauge, title: 'ملخص الأداء' },
+              ].map(({ icon: Icon, title }) => <div key={title} className="flex min-h-36 flex-col justify-end bg-white/[.035] p-6"><Icon className="size-7 text-primary" /><strong className="mt-4">{title}</strong></div>)}
+            </div>
+          </div>
         </div>
       </section>
     </div>
   )
 }
 
+function SectionHeading({ eyebrow, title, description, href }: { eyebrow: string; title: string; description: string; href: string }) {
+  return <div className="page-heading"><div><span className="eyebrow">{eyebrow}</span><h2 className="mt-2 text-3xl font-black sm:text-4xl">{title}</h2><p className="mt-2 text-muted-foreground">{description}</p></div><Button asChild variant="ghost"><Link href={href}>عرض الكل <ArrowLeft className="mr-1 size-4" /></Link></Button></div>
+}
+
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return <Card className="border-destructive/20"><CardContent className="flex flex-col items-center py-12 text-center"><RefreshCw className="size-9 text-destructive" /><h3 className="mt-4 font-black">تعذر تحميل المحتوى</h3><p className="mt-2 text-sm text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p><Button variant="outline" className="mt-5" onClick={onRetry}><RefreshCw className="ml-2 size-4" />إعادة المحاولة</Button></CardContent></Card>
+}
+
+function EmptyState({ text }: { text: string }) {
+  return <Card><CardContent className="py-12 text-center text-muted-foreground">{text}</CardContent></Card>
+}
+
+function PartsSkeleton() {
+  return <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{Array.from({ length: 8 }).map((_, index) => <Skeleton key={index} className="h-[23rem] rounded-3xl" />)}</div>
+}
+
 function PartCard({ part }: { part: Part }) {
-  const { setView } = useAppStore()
   return (
-    <Card
-      role="link"
-      tabIndex={0}
-      aria-label={`عرض تفاصيل ${part.name}`}
-      className="market-card w-full overflow-hidden cursor-pointer transition group h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => setView({ name: 'part', partId: part.id })}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          setView({ name: 'part', partId: part.id })
-        }
-      }}
-    >
-      <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative block h-28 w-full overflow-hidden bg-primary/10 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
-        {part.store.image ? (
-          <Image src={part.store.image} alt={part.store.name} fill sizes="(max-width: 640px) 100vw, 420px" quality={100} className="object-cover transition duration-300 hover:scale-105" />
-        ) : (
-          <StoreIcon className="absolute inset-0 m-auto size-10 text-primary/40" />
-        )}
-        <span className="absolute bottom-3 right-3 rounded-full border border-card/30 bg-card/90 px-3 py-1 text-xs font-bold text-primary shadow-sm backdrop-blur">
-          {part.store.name}
-        </span>
-      </button>
-      <div className="relative flex aspect-[1.15/1] items-center justify-center overflow-hidden bg-muted/25">
-        {part.image ? (
-           
-          <Image
-            src={part.image}
-            alt={part.name}
-            fill
-            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
-            className="object-contain group-hover:scale-105 transition"
-          />
-        ) : (
-          <Package className="size-16 text-muted-foreground/40" />
-        )}
-        {part.stock === 0 && (
-          <span className="absolute top-2 right-2 bg-red-500 text-white text-xs px-2 py-0.5 rounded-full">
-            نفد
-          </span>
-        )}
-        {part.brand && (
-          <span className="absolute top-2 left-2 bg-card/90 backdrop-blur text-xs px-2 py-0.5 rounded-full font-medium">
-            {part.brand}
-          </span>
-        )}
+    <Link href={`/parts/${part.id}`} className="group overflow-hidden rounded-3xl border bg-card shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
+      <div className="relative aspect-[4/3] overflow-hidden bg-white dark:bg-slate-900">
+        {part.image ? <Image src={part.image} alt={part.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="object-contain p-4 transition duration-300 group-hover:scale-105" /> : <Package className="absolute inset-0 m-auto size-14 text-muted-foreground/30" />}
+        <div className="absolute inset-x-3 top-3 flex justify-between gap-2">
+          {part.condition && <Badge className="bg-slate-950/80 text-white">{part.condition}</Badge>}
+          <Badge variant={part.stock > 0 ? 'secondary' : 'destructive'} className="mr-auto">{part.stock > 0 ? 'متوفر' : 'نفد'}</Badge>
+        </div>
       </div>
-      <CardContent className="space-y-3 p-4">
-        <div className="space-y-2">
-        <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10">
-          {part.name}
-        </h3>
-        {part.category && (
-          <Badge variant="outline" className="text-xs">
-            {part.category}
-          </Badge>
-        )}
-        <div className="pt-1">
-          <span className="text-lg font-bold text-primary">
-            {formatPrice(part.price)}
-          </span>
-          <span className={`mr-2 text-xs font-semibold ${part.stock > 0 ? 'text-emerald-600' : 'text-red-500'}`}>
-            {part.stock > 0 ? `متوفر · ${part.stock} قطعة` : 'غير متوفر'}
-          </span>
-        </div>
-        <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'part', partId: part.id }) }}>
-          عرض التفاصيل
-        </Button>
-        </div>
-      </CardContent>
-    </Card>
+      <div className="p-5">
+        <div className="flex items-center gap-2 text-xs text-muted-foreground"><StoreIcon className="size-3.5" />{part.store.name}</div>
+        <h3 className="mt-3 line-clamp-2 min-h-12 font-black leading-6 transition group-hover:text-primary">{part.name}</h3>
+        <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-xl text-primary">{formatPrice(part.price)}</strong>{part.brand && <span className="text-xs text-muted-foreground">{part.brand}</span>}</div>
+      </div>
+    </Link>
   )
 }
 
 function StoreCard({ store }: { store: Store }) {
-  const { setView } = useAppStore()
   return (
-    <Card
-      role="link"
-      tabIndex={0}
-      aria-label={`زيارة ${store.name}`}
-      className="market-card w-full cursor-pointer transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      onClick={() => setView({ name: 'store', storeId: store.id })}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          setView({ name: 'store', storeId: store.id })
-        }
-      }}
-    >
-      <CardHeader className="pb-3">
-        <div className="flex items-start gap-3">
-          <div className="relative size-20 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-            {store.image ? <Image src={store.image} alt={store.name} fill sizes="160px" quality={100} className="object-cover" /> : <StoreIcon className="size-8" />}
-            <div className="absolute -bottom-1 -left-1 size-7 rounded-full border-2 border-card bg-muted overflow-hidden" title={`صاحب المحل: ${store.owner.name}`}>
-              {store.owner.avatar ? <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="28px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center text-[10px] font-bold">{store.owner.name.charAt(0)}</span>}
-            </div>
+    <div className="group relative overflow-hidden rounded-3xl border bg-card p-5 shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
+      <div className="absolute left-4 top-4 z-10"><FavoriteStoreButton storeId={store.id} /></div>
+      <Link href={`/stores/${store.id}`} className="block">
+        <div className="flex items-center gap-4">
+          <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-primary">
+            {store.image ? <Image src={store.image} alt={store.name} fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-8" />}
           </div>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
-              <div className="mr-auto" onClick={(event) => event.stopPropagation()}>
-                <FavoriteStoreButton storeId={store.id} />
-              </div>
-            </div>
-            <div className="flex items-center gap-2 mt-1">
-              <Stars value={store.avgRating} />
-              <span className="text-xs text-muted-foreground">
-                ({store.reviewCount})
-              </span>
-            </div>
-          </div>
+          <div className="min-w-0"><div className="flex items-center gap-1.5"><h3 className="truncate text-lg font-black group-hover:text-primary">{store.name}</h3>{store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" />}</div><div className="mt-2 flex items-center gap-2"><Stars value={store.avgRating} /><span className="text-xs text-muted-foreground">({store.reviewCount})</span></div></div>
         </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        {store.description && (
-          <p className="text-sm text-muted-foreground line-clamp-2 leading-relaxed">
-            {store.description}
-          </p>
-        )}
-        <div className="flex items-center justify-between pt-2">
-          <Badge variant="secondary" className="text-xs">
-            <Package className="size-3 ml-1" />
-            {store._count.parts} قطعة
-          </Badge>
-          {store.address && (
-            <span className="text-xs text-muted-foreground line-clamp-1">
-              {store.address.split('-')[0]}
-            </span>
-          )}
-        </div>
-        <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: store.id }) }}>
-          زيارة المتجر
-        </Button>
-      </CardContent>
-    </Card>
+        <p className="mt-5 line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">{store.description || 'متجر متخصص في بيع قطع غيار السيارات.'}</p>
+        <div className="mt-5 flex items-center justify-between border-t pt-4 text-sm"><span className="flex items-center gap-1.5 text-muted-foreground"><Package className="size-4" /> {store._count.parts} قطعة</span><span className="font-bold text-primary">زيارة المتجر <ArrowLeft className="mr-1 inline size-4" /></span></div>
+      </Link>
+    </div>
   )
 }

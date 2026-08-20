@@ -1,25 +1,8 @@
 'use client'
 
-import { useEffect } from 'react'
-import { Button } from '@/components/ui/button'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 
-export default function Error({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
-  useEffect(() => {
-    console.error('Unhandled page error', error)
-  }, [error])
-
-  return (
-    <main className="container mx-auto flex min-h-[60vh] items-center justify-center px-4 py-16 text-center">
-      <div className="max-w-md space-y-4">
-        <AlertTriangle className="mx-auto size-14 text-amber-500" />
-        <h1 className="text-2xl font-bold">حدث خطأ غير متوقع</h1>
-        <p className="text-muted-foreground">لم نتمكن من تحميل هذه الصفحة. حاول مرة أخرى.</p>
-        <Button onClick={() => reset()}>
-          <RefreshCw className="size-4 ml-2" />
-          إعادة المحاولة
-        </Button>
-      </div>
-    </main>
-  )
+export default function ErrorPage({ reset }: { error: Error & { digest?: string }; reset: () => void }) {
+  return <main className="content-container grid min-h-[60vh] place-items-center py-16" dir="rtl"><div className="max-w-lg text-center"><span className="mx-auto grid size-20 place-items-center rounded-3xl bg-destructive/10 text-destructive"><AlertTriangle className="size-9" /></span><h1 className="mt-6 text-3xl font-black">حدث خطأ غير متوقع</h1><p className="mt-3 leading-7 text-muted-foreground">لم نتمكن من عرض هذه الصفحة الآن. بياناتك لم تتأثر، ويمكنك المحاولة مرة أخرى.</p><Button className="mt-7" onClick={reset}><RefreshCw className="ml-2 size-4" />إعادة المحاولة</Button></div></main>
 }
