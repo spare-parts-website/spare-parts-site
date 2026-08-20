@@ -10,6 +10,7 @@ export interface SessionUser {
   role: 'BUYER' | 'ADMIN' | 'SHOP_OWNER'
   phone?: string | null
   avatar?: string | null
+  emailNotifications?: boolean
 }
 
 const SESSION_COOKIE = 'spare_parts_session'
@@ -80,6 +81,7 @@ export async function getSession(): Promise<SessionUser | null> {
       role: user.role as SessionUser['role'],
       phone: user.phone,
       avatar: user.avatar,
+      emailNotifications: user.emailNotifications,
     }
   } catch {
     return null

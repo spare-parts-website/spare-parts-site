@@ -13,6 +13,7 @@ export async function PUT(req: NextRequest) {
     const phone = typeof body.phone === 'string' ? body.phone.trim() || null : session.phone || null
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : ''
+    const emailNotifications = typeof body.emailNotifications === 'boolean' ? body.emailNotifications : session.emailNotifications ?? true
     const avatar = body.avatar === null
       ? null
       : isProfileAvatar(body.avatar)
@@ -32,11 +33,11 @@ export async function PUT(req: NextRequest) {
 
     const updated = await db.user.update({
       where: { id: session.id },
-      data: { name, phone, avatar, ...(newPassword ? { password: await hashPassword(newPassword) } : {}) },
+      data: { name, phone, avatar, emailNotifications, ...(newPassword ? { password: await hashPassword(newPassword) } : {}) },
     })
     if (avatar !== user.avatar) await deleteUploadedFiles([user.avatar])
-    await createSession({ id: updated.id, name: updated.name, email: updated.email, role: updated.role as any, phone: updated.phone, avatar: updated.avatar })
-    return NextResponse.json({ user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, phone: updated.phone, avatar: updated.avatar } })
+    await createSession({ id: updated.id, name: updated.name, email: updated.email, role: updated.role as any, phone: updated.phone, avatar: updated.avatar, emailNotifications: updated.emailNotifications })
+    return NextResponse.json({ user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, phone: updated.phone, avatar: updated.avatar, emailNotifications: updated.emailNotifications } })
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'تعذر تحديث الحساب' }, { status: 500 })

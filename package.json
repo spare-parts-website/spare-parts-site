@@ -7,6 +7,7 @@
     "build": "prisma generate && next build",
     "start": "node scripts/start-production.cjs",
     "lint": "eslint .",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.ts",
     "test:smoke": "node scripts/smoke-test.mjs",
     "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",

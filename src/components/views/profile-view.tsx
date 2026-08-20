@@ -1,17 +1,18 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
-import { Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock } from 'lucide-react'
+import { BellRing, Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { ImageUpload } from '@/components/image-upload'
 import { ProfileAvatarPicker } from '@/components/profile-avatar-picker'
+import { Switch } from '@/components/ui/switch'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -22,9 +23,15 @@ const ROLE_LABELS: Record<string, string> = {
 export function ProfileView() {
   const { user, setUser, setView } = useAppStore()
   const { toast } = useToast()
-  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '', currentPassword: '', newPassword: '' })
+  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '', currentPassword: '', newPassword: '', emailNotifications: user?.emailNotifications ?? true })
   const [saving, setSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      setForm((current) => ({ ...current, name: user.name, phone: user.phone || '', avatar: user.avatar || '', emailNotifications: user.emailNotifications ?? true }))
+    }
+  }, [user])
 
   if (!user) {
     return (
@@ -111,6 +118,10 @@ export function ProfileView() {
             <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
             <div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></div>
             <div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div>
+          </div>
+          <div className="flex items-center justify-between gap-4 rounded-2xl border bg-muted/35 p-4">
+            <div className="flex items-start gap-3"><BellRing className="mt-0.5 size-5 text-primary" /><div><p className="font-bold">إشعارات البريد الإلكتروني</p><p className="mt-1 text-xs leading-5 text-muted-foreground">استلم تحديثات الطلبات والرسائل المهمة بالبريد. إشعارات الموقع تظل مفعلة دائماً.</p></div></div>
+            <Switch checked={form.emailNotifications} onCheckedChange={(checked) => setForm({ ...form, emailNotifications: checked })} aria-label="تفعيل إشعارات البريد الإلكتروني" />
           </div>
           <Button onClick={save} disabled={saving || avatarUploading}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button>
           <p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> لا نطلب كلمة المرور الحالية إلا عند تغيير كلمة المرور.</p>

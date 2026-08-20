@@ -1,6 +1,7 @@
 import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto'
 import { Resend } from 'resend'
 import { db } from '@/lib/db'
+import { loginCodeEmailHtml } from '@/lib/email-templates'
 
 export const LOGIN_CODE_TTL_MS = 10 * 60 * 1000
 export const LOGIN_CODE_MAX_ATTEMPTS = 5
@@ -20,15 +21,6 @@ function hashCode(challengeId: string, code: string) {
     .digest('hex')
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
-}
-
 export function maskEmail(email: string) {
   const [local, domain] = email.split('@')
   if (!local || !domain) return email
@@ -42,16 +34,15 @@ async function sendCodeEmail(input: { email: string; name: string; code: string;
   if (!apiKey || !from) throw new Error('Email verification is not configured')
 
   const resend = new Resend(apiKey)
-  const safeName = escapeHtml(input.name)
   const { error } = await resend.emails.send(
     {
       from: `غيار ماركت <${from}>`,
       to: input.email,
       subject: 'رمز التحقق لتسجيل الدخول إلى غيار ماركت',
       text: `مرحباً ${input.name}\n\nرمز التحقق الخاص بك هو: ${input.code}\n\nينتهي الرمز خلال 10 دقائق. إذا لم تحاول تسجيل الدخول، تجاهل هذه الرسالة.`,
-      html: `<!doctype html><html lang="ar" dir="rtl"><body style="margin:0;background:#f3f6f8;padding:24px;font-family:Arial,sans-serif;color:#0b1f33"><div style="max-width:560px;margin:0 auto;background:#ffffff;border:1px solid #dce5eb;border-radius:18px;overflow:hidden"><div style="background:#06243d;padding:24px;text-align:center"><div style="font-size:24px;font-weight:800;color:#ffffff">غيار ماركت</div><div style="margin-top:6px;color:#46e6a8;font-size:14px">تأكيد تسجيل الدخول</div></div><div style="padding:30px;text-align:right"><h1 style="font-size:22px;margin:0 0 12px">مرحباً ${safeName}</h1><p style="font-size:15px;line-height:1.8;color:#526373;margin:0">استخدم الرمز التالي لإكمال تسجيل الدخول إلى حسابك:</p><div dir="ltr" style="margin:24px 0;text-align:center;font-size:38px;font-weight:900;letter-spacing:14px;color:#06243d;background:#eefbf6;border:1px solid #9ee8cb;border-radius:14px;padding:18px 10px">${input.code}</div><p style="font-size:14px;line-height:1.8;color:#526373;margin:0">ينتهي هذا الرمز خلال 10 دقائق ويمكن استخدامه مرة واحدة فقط.</p><p style="font-size:13px;line-height:1.7;color:#7b8792;margin:20px 0 0">إذا لم تحاول تسجيل الدخول، تجاهل هذه الرسالة ولا تشارك الرمز مع أي شخص.</p></div></div></body></html>`,
+      html: loginCodeEmailHtml({ name: input.name, code: input.code }),
     },
-    { headers: { 'Idempotency-Key': `login-code-${input.challengeId}` } },
+    { idempotencyKey: `login-code/${input.challengeId}` },
   )
 
   if (error) throw new Error(`Resend error: ${error.message}`)
