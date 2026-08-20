@@ -3,11 +3,17 @@ import { db } from '@/lib/db'
 
 export async function GET() {
   try {
-    // Fetch all parts' carModels field and extract unique models
-    const parts = await db.part.findMany({
-    where: { blocked: false, carModels: { not: null } },
-    select: { carModels: true },
-  })
+    const [parts, compatibilities] = await Promise.all([
+      db.part.findMany({
+        where: { blocked: false, carModels: { not: null } },
+        select: { carModels: true },
+      }),
+      db.vehicleCompatibility.findMany({
+        where: { part: { blocked: false } },
+        select: { make: true, model: true, yearFrom: true, yearTo: true },
+        orderBy: [{ make: 'asc' }, { model: 'asc' }],
+      }),
+    ])
 
   const modelsSet = new Set<string>()
   parts.forEach((p) => {
@@ -17,6 +23,9 @@ export async function GET() {
         if (trimmed) modelsSet.add(trimmed)
       })
     }
+  })
+  compatibilities.forEach((item) => {
+    modelsSet.add(`${item.make} ${item.model}${item.yearFrom ? ` ${item.yearFrom}${item.yearTo ? `-${item.yearTo}` : ''}` : ''}`)
   })
 
   // Group by brand

@@ -19,6 +19,7 @@ export async function GET(req: NextRequest) {
           { description: { contains: q } },
           { brand: { contains: q } },
           { carModels: { contains: q } },
+          { compatibilities: { some: { OR: [{ make: { contains: q } }, { model: { contains: q } }] } } },
         ],
       },
       take: 8,
@@ -35,8 +36,14 @@ export async function GET(req: NextRequest) {
       select: { id: true, name: true, description: true },
     }),
     db.part.findMany({
-      where: { blocked: false, carModels: { contains: q } },
-      select: { carModels: true },
+      where: {
+        blocked: false,
+        OR: [
+          { carModels: { contains: q } },
+          { compatibilities: { some: { OR: [{ make: { contains: q } }, { model: { contains: q } }] } } },
+        ],
+      },
+      select: { carModels: true, compatibilities: { select: { make: true, model: true, yearFrom: true, yearTo: true } } },
       take: 50,
     }),
   ])
@@ -50,6 +57,10 @@ export async function GET(req: NextRequest) {
         if (t.toLowerCase().includes(q.toLowerCase())) carModelsSet.add(t)
       })
     }
+    p.compatibilities.forEach((item) => {
+      const value = `${item.make} ${item.model}${item.yearFrom ? ` ${item.yearFrom}${item.yearTo ? `-${item.yearTo}` : ''}` : ''}`
+      if (value.toLowerCase().includes(q.toLowerCase())) carModelsSet.add(value)
+    })
   })
 
   return NextResponse.json(

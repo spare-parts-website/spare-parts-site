@@ -19,6 +19,7 @@ model User {
   role      String   @default("BUYER") // BUYER, ADMIN, SHOP_OWNER
   phone     String?
   avatar    String?
+  emailNotifications Boolean @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -91,9 +92,39 @@ model Part {
   images          PartImage[]
   productMessages ProductMessage[]
   wishlist        Wishlist[]
+  compatibilities VehicleCompatibility[]
   blocked         Boolean          @default(false)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
+
+  @@index([storeId, createdAt])
+  @@index([blocked, createdAt])
+  @@index([category])
+  @@index([brand])
+  @@index([condition])
+}
+
+model VehicleCompatibility {
+  id        String   @id @default(cuid())
+  partId    String
+  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  make      String
+  model     String
+  yearFrom  Int?
+  yearTo    Int?
+  createdAt DateTime @default(now())
+
+  @@index([make, model, yearFrom, yearTo])
+  @@index([partId])
+}
+
+model RateLimitBucket {
+  key       String   @id
+  count     Int      @default(1)
+  resetAt   DateTime
+  updatedAt DateTime @updatedAt
+
+  @@index([resetAt])
 }
 
 // Multiple images for a part
@@ -143,6 +174,8 @@ model OrderTimeline {
   status    String // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
   note      String?
   createdAt DateTime @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 model ProductReview {
@@ -155,6 +188,9 @@ model ProductReview {
   comment   String?
   blocked   Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([partId, createdAt])
+  @@index([userId])
 }
 
 model StoreReview {
@@ -167,6 +203,9 @@ model StoreReview {
   comment   String?
   blocked   Boolean  @default(false)
   createdAt DateTime @default(now())
+
+  @@index([storeId, createdAt])
+  @@index([userId])
 }
 
 model Notification {
@@ -179,6 +218,22 @@ model Notification {
   read      Boolean  @default(false)
   link      String?
   createdAt DateTime @default(now())
+  emailDelivery EmailDeliveryAttempt?
+
+  @@index([userId, read, createdAt])
+}
+
+model EmailDeliveryAttempt {
+  id             String       @id @default(cuid())
+  notificationId String       @unique
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  providerId     String?
+  status         String
+  error          String?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([status, createdAt])
 }
 
 // Wishlist - users save favorite parts
@@ -217,6 +272,8 @@ model UserCar {
   year      Int?
   nickname  String? // "سيارة العمل", "سيارة العائلة"
   createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // Discount coupons
@@ -231,6 +288,8 @@ model Coupon {
   active          Boolean   @default(true)
   expiresAt       DateTime?
   createdAt       DateTime  @default(now())
+
+  @@index([storeId, active])
 }
 
 // Chat messages between buyer and store owner
@@ -249,6 +308,7 @@ model ChatMessage {
 
   @@index([senderId, receiverId])
   @@index([receiverId, read])
+  @@index([orderId, createdAt])
 }
 
 // Messages about a product before an order exists

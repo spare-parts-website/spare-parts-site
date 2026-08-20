@@ -7,7 +7,7 @@ import { issueLoginVerification } from '@/lib/login-verification'
 export async function POST(req: NextRequest) {
   try {
     const address = requestAddress(req)
-    const addressLimit = rateLimit(`login:address:${address}`, 20, 10 * 60 * 1000)
+    const addressLimit = await rateLimit(`login:address:${address}`, 20, 10 * 60 * 1000)
     if (!addressLimit.allowed) {
       return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(addressLimit.retryAfter) } })
     }
@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
     if (!email || !password) {
       return NextResponse.json({ error: 'البريد الإلكتروني وكلمة المرور مطلوبة' }, { status: 400 })
     }
-    const emailLimit = rateLimit(`login:email:${email}`, 8, 10 * 60 * 1000)
+    const emailLimit = await rateLimit(`login:email:${email}`, 8, 10 * 60 * 1000)
     if (!emailLimit.allowed) {
       return NextResponse.json({ error: 'محاولات كثيرة لهذا الحساب. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(emailLimit.retryAfter) } })
     }

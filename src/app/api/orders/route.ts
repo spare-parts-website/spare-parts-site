@@ -3,6 +3,98 @@ import { db } from '@/lib/db'
 import { getSession, requireAuth } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import type { Order } from '@prisma/client'
+import { calculateOrderLine, InvalidOrderTransition, isOrderAction, resolveOrderTransition } from '@/lib/order-state'
+
+type CheckoutItem = { partId: string; quantity: number }
+
+async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>, body: Record<string, unknown>) {
+  const checkoutId = typeof body.checkoutId === 'string' ? body.checkoutId.trim() : ''
+  const deliveryAddress = typeof body.deliveryAddress === 'string' ? body.deliveryAddress.trim() : ''
+  const notes = typeof body.notes === 'string' ? body.notes.trim() : ''
+  const couponCode = typeof body.couponCode === 'string' ? body.couponCode.trim().toUpperCase() : ''
+  if (!/^[a-zA-Z0-9-]{16,64}$/.test(checkoutId)) throw new Error('INVALID_CHECKOUT')
+  if (!deliveryAddress || deliveryAddress.length > 500 || notes.length > 1000) throw new Error('INVALID_CHECKOUT')
+  if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 50) throw new Error('INVALID_CHECKOUT')
+
+  const items: CheckoutItem[] = body.items.map((value) => {
+    const item = value as Partial<CheckoutItem>
+    const quantity = Math.floor(Number(item.quantity))
+    if (typeof item.partId !== 'string' || !item.partId || !Number.isFinite(quantity) || quantity < 1 || quantity > 100) {
+      throw new Error('INVALID_CHECKOUT')
+    }
+    return { partId: item.partId, quantity }
+  })
+  if (new Set(items.map((item) => item.partId)).size !== items.length) throw new Error('INVALID_CHECKOUT')
+
+  const clientOrderIds = items.map((item, index) => `${checkoutId}:${index}:${item.partId}`)
+  return db.$transaction(async (tx) => {
+    const existingOrders = await tx.order.findMany({ where: { clientOrderId: { in: clientOrderIds } } })
+    if (existingOrders.length) {
+      if (existingOrders.length !== items.length) throw new Error('CHECKOUT_CONFLICT')
+      return { orders: existingOrders, duplicate: true, summaries: [] as Array<{ ownerId: string; storeName: string; partName: string; quantity: number }> }
+    }
+
+    const parts = await tx.part.findMany({
+      where: { id: { in: items.map((item) => item.partId) }, blocked: false },
+      include: { store: true },
+    })
+    if (parts.length !== items.length) throw new Error('PART_UNAVAILABLE')
+    const partById = new Map(parts.map((part) => [part.id, part]))
+    for (const item of items) {
+      const part = partById.get(item.partId)!
+      if (session.role === 'SHOP_OWNER' && part.store.ownerId === session.id) throw new Error('OWN_STORE')
+    }
+
+    const coupon = couponCode ? await tx.coupon.findUnique({ where: { code: couponCode } }) : null
+    if (couponCode && (!coupon || !coupon.active || coupon.usedCount >= coupon.maxUses || (coupon.expiresAt && coupon.expiresAt < new Date()))) {
+      throw new Error('INVALID_COUPON')
+    }
+    if (coupon) {
+      const appliesToCart = parts.some((part) => part.storeId === coupon.storeId)
+      if (!appliesToCart) throw new Error('INVALID_COUPON')
+      const claimedCoupon = await tx.coupon.updateMany({
+        where: { id: coupon.id, active: true, usedCount: { lt: coupon.maxUses } },
+        data: { usedCount: { increment: 1 } },
+      })
+      if (claimedCoupon.count !== 1) throw new Error('COUPON_EXHAUSTED')
+    }
+
+    const orders: Order[] = []
+    const summaries: Array<{ ownerId: string; storeName: string; partName: string; quantity: number }> = []
+    for (const [index, item] of items.entries()) {
+      const part = partById.get(item.partId)!
+      const reserved = await tx.part.updateMany({
+        where: { id: part.id, blocked: false, stock: { gte: item.quantity } },
+        data: { stock: { decrement: item.quantity } },
+      })
+      if (reserved.count !== 1) throw new Error('OUT_OF_STOCK')
+
+      const appliesCoupon = coupon?.storeId === part.storeId ? coupon : null
+      const pricing = calculateOrderLine(part.price, item.quantity, appliesCoupon?.discountPercent || 0)
+      orders.push(await tx.order.create({
+        data: {
+          partId: part.id,
+          storeId: part.storeId,
+          buyerId: session.id,
+          quantity: item.quantity,
+          totalPrice: pricing.total,
+          deliveryAddress,
+          notes: notes || null,
+          paymentMethod: 'cod',
+          status: 'PENDING',
+          paymentStatus: 'UNPAID',
+          couponCode: appliesCoupon?.code || null,
+          discount: pricing.discount,
+          clientOrderId: clientOrderIds[index],
+          timeline: { create: { status: 'PENDING', note: 'تم إنشاء الطلب والدفع عند الاستلام' } },
+        },
+      }))
+      summaries.push({ ownerId: part.store.ownerId, storeName: part.store.name, partName: part.name, quantity: item.quantity })
+    }
+    return { orders, duplicate: false, summaries }
+  })
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -54,9 +146,25 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
-    const limit = rateLimit(`orders:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
+    const limit = await rateLimit(`orders:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'طلبات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
+    if (Array.isArray(body.items)) {
+      if (!['BUYER', 'SHOP_OWNER'].includes(session.role)) {
+        return NextResponse.json({ error: 'يجب تسجيل الدخول لإنشاء الطلبات' }, { status: 403 })
+      }
+      const result = await createCartOrders(session, body)
+      if (!result.duplicate) {
+        await Promise.allSettled(result.summaries.map((summary) => createNotification({
+          userId: summary.ownerId,
+          title: 'طلب جديد',
+          message: `طلب جديد من ${session.name} على "${summary.partName}" بكمية ${summary.quantity}.`,
+          type: 'NEW_ORDER',
+          link: 'shop-dashboard',
+        })))
+      }
+      return NextResponse.json({ orders: result.orders, duplicate: result.duplicate })
+    }
     const { partId, quantity, deliveryAddress, notes } = body
     const clientOrderId = typeof body.clientOrderId === 'string' && body.clientOrderId.length <= 100 ? body.clientOrderId : null
     const couponCode = typeof body.couponCode === 'string' ? body.couponCode.trim().toUpperCase() : null
@@ -163,6 +271,10 @@ export async function POST(req: NextRequest) {
     if (e.message === 'OUT_OF_STOCK') {
       return NextResponse.json({ error: 'الكمية المطلوبة غير متوفرة' }, { status: 400 })
     }
+    if (e.message === 'INVALID_CHECKOUT') return NextResponse.json({ error: 'بيانات السلة أو عنوان التوصيل غير صالحة' }, { status: 400 })
+    if (e.message === 'PART_UNAVAILABLE') return NextResponse.json({ error: 'إحدى القطع لم تعد متوفرة' }, { status: 409 })
+    if (e.message === 'OWN_STORE') return NextResponse.json({ error: 'لا يمكنك طلب قطعة من متجرك' }, { status: 400 })
+    if (e.message === 'CHECKOUT_CONFLICT') return NextResponse.json({ error: 'تعارض في محاولة الطلب. حدّث السلة وحاول مجدداً.' }, { status: 409 })
     if (e.message === 'INVALID_COUPON') return NextResponse.json({ error: 'الكوبون غير صالح أو منتهي' }, { status: 400 })
     if (e.message === 'COUPON_EXHAUSTED') return NextResponse.json({ error: 'انتهت استخدامات الكوبون' }, { status: 400 })
     if (e.message === 'UNAUTHORIZED') {
@@ -176,11 +288,11 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const session = await requireAuth()
-    const limit = rateLimit(`order-action:${session.id}:${requestAddress(req)}`, 60, 10 * 60 * 1000)
+    const limit = await rateLimit(`order-action:${session.id}:${requestAddress(req)}`, 60, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { id, action } = body
-    if (typeof id !== 'string' || !['approve', 'reject', 'pay', 'deliver', 'return', 'cancel'].includes(action)) {
+    if (typeof id !== 'string' || !isOrderAction(action)) {
       return NextResponse.json({ error: 'بيانات الإجراء غير صالحة' }, { status: 400 })
     }
 
@@ -193,70 +305,23 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
     }
 
-    let newStatus = order.status
-    let newPaymentStatus = order.paymentStatus
-
-    if (action === 'approve') {
-      // Shop owner approves the order
+    if (action === 'approve' || action === 'reject') {
       if (session.role !== 'SHOP_OWNER' || order.store.ownerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
-      if (order.status !== 'PENDING') {
-        return NextResponse.json({ error: 'لا يمكن تعديل هذا الطلب الآن' }, { status: 400 })
-      }
-      newStatus = 'APPROVED'
-    } else if (action === 'reject') {
-      if (session.role !== 'SHOP_OWNER' || order.store.ownerId !== session.id) {
-        return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-      }
-      if (order.status !== 'PENDING') {
-        return NextResponse.json({ error: 'لا يمكن تعديل هذا الطلب الآن' }, { status: 400 })
-      }
-      newStatus = 'REJECTED'
-    } else if (action === 'pay') {
-      // Buyer pays
+    } else if (action === 'pay' || action === 'deliver' || action === 'return') {
       if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
-      if (order.status !== 'APPROVED') {
-        return NextResponse.json({ error: 'لا يمكن الدفع قبل موافقة المحل' }, { status: 400 })
-      }
-      if (order.paymentMethod === 'cod') {
-        return NextResponse.json({ error: 'هذا الطلب يُدفع عند الاستلام' }, { status: 400 })
-      }
-      newPaymentStatus = 'PAID'
-      newStatus = 'PAID'
-    } else if (action === 'deliver') {
-      // The buyer confirms receipt and cash-on-delivery collection after receiving the order.
-      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
-        return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-      }
-      const canDeliver = order.status === 'PAID' || (order.status === 'APPROVED' && order.paymentMethod === 'cod')
-      if (!canDeliver) {
-        return NextResponse.json({ error: 'لا يمكن تأكيد الاستلام قبل الموافقة على الطلب' }, { status: 400 })
-      }
-      newStatus = 'DELIVERED'
-      if (order.paymentMethod === 'cod') newPaymentStatus = 'PAID'
-    } else if (action === 'return') {
-      if (!['BUYER', 'SHOP_OWNER'].includes(session.role) || order.buyerId !== session.id) {
-        return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-      }
-      if (order.status !== 'DELIVERED') {
-        return NextResponse.json({ error: 'لا يمكن الاسترجاع قبل التوصيل' }, { status: 400 })
-      }
-      newStatus = 'RETURNED'
-      newPaymentStatus = 'REFUNDED'
     } else if (action === 'cancel') {
       if (order.buyerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
-      if (!['PENDING', 'APPROVED'].includes(order.status) || order.paymentStatus !== 'UNPAID') {
-        return NextResponse.json({ error: 'لا يمكن إلغاء هذا الطلب الآن' }, { status: 400 })
-      }
-      newStatus = 'CANCELLED'
-    } else {
-      return NextResponse.json({ error: 'إجراء غير معروف' }, { status: 400 })
     }
+
+    const transition = resolveOrderTransition({ action, status: order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod })
+    const newStatus = transition.status
+    const newPaymentStatus = transition.paymentStatus
 
     // Timeline notes for each action
     const timelineNotes: Record<string, string> = {
@@ -277,7 +342,7 @@ export async function PUT(req: NextRequest) {
       })
       if (claimed.count !== 1) throw new Error('ORDER_CHANGED')
       await tx.orderTimeline.create({ data: { orderId: id, status: newStatus, note: timelineNotes[action] || newStatus } })
-      if (action === 'reject' || action === 'return' || action === 'cancel') {
+      if (transition.restoreStock) {
         await tx.part.update({ where: { id: order.partId }, data: { stock: { increment: order.quantity } } })
       }
       return tx.order.findUnique({ where: { id }, include: { part: true, store: true, timeline: { orderBy: { createdAt: 'asc' } } } })
@@ -293,7 +358,7 @@ export async function PUT(req: NextRequest) {
     }
 
     if (action === 'approve') {
-      await notify(order.buyerId, 'تمت الموافقة على طلبك', `وافق ${order.store.name} على طلب "${order.part.name}". يمكنك الدفع الآن.`, 'ORDER_STATUS', 'orders')
+      await notify(order.buyerId, 'تمت الموافقة على طلبك', `وافق ${order.store.name} على طلب "${order.part.name}" ويجري الآن تجهيزه للدفع عند الاستلام.`, 'ORDER_STATUS', 'orders')
     } else if (action === 'reject') {
       await notify(order.buyerId, 'تم رفض طلبك', `اعتذر ${order.store.name} عن تنفيذ طلب "${order.part.name}".`, 'ORDER_STATUS', 'orders')
     } else if (action === 'pay') {
@@ -324,6 +389,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     }
     if (e.message === 'ORDER_CHANGED') return NextResponse.json({ error: 'تم تحديث الطلب من مستخدم آخر. أعد تحميل الصفحة.' }, { status: 409 })
+    if (e instanceof InvalidOrderTransition) return NextResponse.json({ error: e.userMessage }, { status: 400 })
     console.error(e)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }

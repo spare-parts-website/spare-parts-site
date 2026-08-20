@@ -193,7 +193,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
-    const limit = rateLimit(`chat:${session.id}`, 60, 60 * 1000)
+    const limit = await rateLimit(`chat:${session.id}`, 60, 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'رسائل كثيرة. حاول مرة أخرى بعد قليل.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const orderId = typeof body.orderId === 'string' ? body.orderId : null

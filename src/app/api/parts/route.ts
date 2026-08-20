@@ -5,6 +5,7 @@ import { isBlockedStoreName } from '@/lib/store-moderation'
 import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
+import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
 
 const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
 
@@ -26,7 +27,8 @@ export async function GET(req: NextRequest) {
   const carModel = searchParams.get('carModel') || ''
   const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1
-  const pageSize = 24
+  const mine = searchParams.get('scope') === 'mine'
+  const pageSize = mine ? 100 : 24
   const sort = searchParams.get('sort') || 'newest'
 
   if (id) {
@@ -49,6 +51,7 @@ export async function GET(req: NextRequest) {
           orderBy: { createdAt: 'desc' },
         },
         images: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+        compatibilities: { orderBy: [{ make: 'asc' }, { model: 'asc' }] },
       },
     })
     if (!part || part.blocked || isBlockedStoreName(part.store.name)) {
@@ -67,7 +70,14 @@ export async function GET(req: NextRequest) {
     )
   }
 
-  const where: any = { blocked: false }
+  const where: any = mine ? {} : { blocked: false }
+  if (mine) {
+    const session = await getSession()
+    if (!session || session.role !== 'SHOP_OWNER') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const store = await db.store.findUnique({ where: { ownerId: session.id }, select: { id: true } })
+    if (!store) return NextResponse.json({ parts: [], pagination: { page: 1, pageSize, total: 0, totalPages: 1 }, categories: [], brands: [], conditions: [] })
+    where.storeId = store.id
+  }
   if (search) {
     where.OR = [
       { name: { contains: search } },
@@ -83,8 +93,13 @@ export async function GET(req: NextRequest) {
   if (minPrice) where.price = { ...where.price, gte: parseFloat(minPrice) }
   if (maxPrice) where.price = { ...where.price, lte: parseFloat(maxPrice) }
   if (carModel) {
-    // Search in carModels field (case-insensitive contains)
-    where.carModels = { contains: carModel }
+    where.AND = [
+      ...(where.AND || []),
+      { OR: [
+        { carModels: { contains: carModel } },
+        { compatibilities: { some: { OR: [{ make: { contains: carModel } }, { model: { contains: carModel } }] } } },
+      ] },
+    ]
   }
 
   const orderBy = sort === 'price-asc'
@@ -101,8 +116,9 @@ export async function GET(req: NextRequest) {
       select: {
         id: true, name: true, description: true, price: true, stock: true,
         category: true, brand: true, condition: true, image: true, carModels: true,
-        createdAt: true,
+        createdAt: true, blocked: true,
         images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
+        compatibilities: { select: { id: true, make: true, model: true, yearFrom: true, yearTo: true } },
         store: {
           select: {
             id: true,
@@ -145,7 +161,7 @@ export async function GET(req: NextRequest) {
         brands: brands.map((b) => b.brand).filter(Boolean),
         conditions: conditions.map((item) => item.condition).filter(Boolean),
       },
-      { headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' } }
+      { headers: { 'Cache-Control': mine ? 'no-store, max-age=0' : 'public, s-maxage=30, stale-while-revalidate=120' } }
     )
   } catch (e) {
     console.error(e)
@@ -156,7 +172,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('SHOP_OWNER')
-    const limit = rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
+    const limit = await rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { name, description, price, stock, category, brand, condition, image, images, carModels } = body
@@ -179,6 +195,8 @@ export async function POST(req: NextRequest) {
     }
 
     const gallery = Array.isArray(images) ? images : image ? [image] : []
+    const compatibilities = parseVehicleCompatibility(carModels)
+    const legacyCarModels = serializeLegacyCompatibility(carModels)
     const part = await db.part.create({
       data: {
         name: name.trim(),
@@ -189,9 +207,10 @@ export async function POST(req: NextRequest) {
         brand: brand || null,
         condition: condition.trim(),
         image: gallery[0] || null,
-        carModels: carModels || null,
+        carModels: legacyCarModels,
         storeId: store.id,
         images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
+        compatibilities: compatibilities.length ? { create: compatibilities } : undefined,
       },
     })
 
@@ -237,8 +256,11 @@ export async function PUT(req: NextRequest) {
     }
 
     const gallery = Array.isArray(images) ? images : undefined
+    const compatibilities = carModels !== undefined ? parseVehicleCompatibility(carModels) : null
+    const legacyCarModels = carModels !== undefined ? serializeLegacyCompatibility(carModels) : undefined
     const updated = await db.$transaction(async (tx) => {
       if (gallery) await tx.partImage.deleteMany({ where: { partId: id } })
+      if (compatibilities) await tx.vehicleCompatibility.deleteMany({ where: { partId: id } })
       return tx.part.update({
         where: { id },
         data: {
@@ -250,8 +272,9 @@ export async function PUT(req: NextRequest) {
           brand: brand !== undefined ? (brand || null) : undefined,
           condition: condition.trim(),
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,
-          carModels: carModels !== undefined ? carModels || null : undefined,
+          carModels: legacyCarModels,
           images: gallery && gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
+          compatibilities: compatibilities?.length ? { create: compatibilities } : undefined,
         },
       })
     })

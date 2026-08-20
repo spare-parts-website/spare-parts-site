@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const challengeId = typeof body.challengeId === 'string' ? body.challengeId : ''
     if (!challengeId) return NextResponse.json({ error: 'طلب غير صالح' }, { status: 400 })
 
-    const limit = rateLimit(`login-resend:${challengeId}:${requestAddress(req)}`, 3, 10 * 60 * 1000)
+    const limit = await rateLimit(`login-resend:${challengeId}:${requestAddress(req)}`, 3, 10 * 60 * 1000)
     if (!limit.allowed) {
       return NextResponse.json({ error: 'طلبت رموزاً كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     }

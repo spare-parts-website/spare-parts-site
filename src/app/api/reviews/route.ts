@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     if (!['BUYER', 'SHOP_OWNER'].includes(session.role)) {
       return NextResponse.json({ error: 'التقييم متاح للمشترين وأصحاب المحلات فقط' }, { status: 403 })
     }
-    const limit = rateLimit(`reviews:${session.id}:${requestAddress(req)}`, 20, 60 * 60 * 1000)
+    const limit = await rateLimit(`reviews:${session.id}:${requestAddress(req)}`, 20, 60 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'تقييمات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const { type, targetId, rating, comment } = body

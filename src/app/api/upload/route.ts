@@ -11,7 +11,7 @@ const BUCKET = 'uploads'
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRoles(['BUYER', 'SHOP_OWNER', 'ADMIN'])
-    const limit = rateLimit(`upload:${session.id}:${requestAddress(req)}`, 20, 10 * 60 * 1000)
+    const limit = await rateLimit(`upload:${session.id}:${requestAddress(req)}`, 20, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'رفعت صوراً كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
 
     const supabaseUrl = process.env.SUPABASE_URL

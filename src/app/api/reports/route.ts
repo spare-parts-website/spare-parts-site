@@ -9,7 +9,7 @@ const STATUSES = new Set(['REVIEWED', 'DISMISSED', 'BLOCKED'])
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
-    const limit = rateLimit(`reports:${session.id}:${requestAddress(req)}`, 10, 24 * 60 * 60 * 1000)
+    const limit = await rateLimit(`reports:${session.id}:${requestAddress(req)}`, 10, 24 * 60 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'بلاغات كثيرة. حاول مرة أخرى غداً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
     const targetType = typeof body.targetType === 'string' ? body.targetType : ''

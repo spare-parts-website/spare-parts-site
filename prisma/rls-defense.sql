@@ -19,12 +19,17 @@ alter table if exists public."ProductReview" enable row level security;
 alter table if exists public."StoreReview" enable row level security;
 alter table if exists public."Notification" enable row level security;
 alter table if exists public."Wishlist" enable row level security;
+alter table if exists public."StoreWishlist" enable row level security;
 alter table if exists public."UserCar" enable row level security;
 alter table if exists public."Coupon" enable row level security;
 alter table if exists public."ChatMessage" enable row level security;
 alter table if exists public."ProductMessage" enable row level security;
 alter table if exists public."Report" enable row level security;
 alter table if exists public."LoginVerification" enable row level security;
+alter table if exists public."PasswordReset" enable row level security;
+alter table if exists public."VehicleCompatibility" enable row level security;
+alter table if exists public."RateLimitBucket" enable row level security;
+alter table if exists public."EmailDeliveryAttempt" enable row level security;
 
 -- Storage is intentionally public-read because product and chat images are
 -- displayed on the marketplace. Uploads are performed only by the server with
