@@ -39,7 +39,7 @@ export function StoresView() {
     setLoading(true)
     setFailed(false)
     window.history.replaceState(window.history.state, '', q ? `/stores?search=${encodeURIComponent(q)}` : '/stores')
-    fetch(`/api/stores?search=${encodeURIComponent(q)}`, { cache: 'no-store' })
+    fetch(`/api/stores?search=${encodeURIComponent(q)}`)
       .then((r) => {
         if (!r.ok) throw new Error('stores-api-failed')
         return r.json()
@@ -53,7 +53,7 @@ export function StoresView() {
     let cancelled = false
     const initialSearch = new URLSearchParams(window.location.search).get('search') || ''
     setSearch(initialSearch)
-    fetch(`/api/stores?search=${encodeURIComponent(initialSearch)}`, { cache: 'no-store' })
+    fetch(`/api/stores?search=${encodeURIComponent(initialSearch)}`)
       .then((r) => {
         if (!r.ok) throw new Error('stores-api-failed')
         return r.json()

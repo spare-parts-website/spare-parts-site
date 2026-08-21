@@ -63,8 +63,8 @@ export function HomeView() {
     setFailed(false)
     try {
       const [storesResponse, partsResponse] = await Promise.all([
-        fetch('/api/stores', { cache: 'no-store' }),
-        fetch('/api/parts?sort=newest', { cache: 'no-store' }),
+        fetch('/api/stores'),
+        fetch('/api/parts?sort=newest'),
       ])
       if (!storesResponse.ok || !partsResponse.ok) throw new Error('marketplace-api-failed')
       const [storesData, partsData] = await Promise.all([storesResponse.json(), partsResponse.json()])

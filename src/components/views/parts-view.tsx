@@ -73,7 +73,7 @@ export function PartsView() {
     setLoading(true)
     setFailed(false)
     window.history.replaceState(window.history.state, '', `/parts?${buildUrl}`)
-    fetch(`/api/parts?${buildUrl}`, { cache: 'no-store' })
+    fetch(`/api/parts?${buildUrl}`)
       .then((r) => {
         if (!r.ok) throw new Error('parts-api-failed')
         return r.json()

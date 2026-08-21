@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -114,6 +114,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [submitting, setSubmitting] = useState(false)
   const [imageUploading, setImageUploading] = useState(false)
   const [storeImageUploading, setStoreImageUploading] = useState(false)
+  const partFormRef = useRef<HTMLDivElement>(null)
 
   const loadStore = async () => {
     setLoadError(false)
@@ -142,7 +143,6 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
   // Better: fetch all parts and filter by store
   const loadAllParts = async () => {
-    if (!store) return
     const res = await fetch('/api/parts?scope=mine', { cache: 'no-store' })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'PARTS_LOAD_FAILED')
@@ -156,23 +156,53 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     setOrders(data.orders || [])
   }
 
+  const loadDashboard = async () => {
+    setLoadError(false)
+    setLoading(true)
+    try {
+      // These endpoints all authenticate independently, so starting them together
+      // removes a full network round trip from opening the seller dashboard.
+      const [storeResponse, partsResponse, ordersResponse] = await Promise.all([
+        fetch('/api/shop/store', { cache: 'no-store' }),
+        fetch('/api/parts?scope=mine', { cache: 'no-store' }),
+        fetch('/api/orders?scope=shop', { cache: 'no-store' }),
+      ])
+      const [storeData, partsData, ordersData] = await Promise.all([
+        storeResponse.json(),
+        partsResponse.json(),
+        ordersResponse.json(),
+      ])
+      if (!storeResponse.ok || !partsResponse.ok || !ordersResponse.ok) {
+        throw new Error('SHOP_DASHBOARD_LOAD_FAILED')
+      }
+
+      const myStore = storeData.store
+      if (myStore) {
+        setStore(myStore)
+        setStoreForm({
+          name: myStore.name || '',
+          description: myStore.description || '',
+          address: myStore.address || '',
+          phone: myStore.phone || '',
+          image: myStore.image || '',
+        })
+      }
+      setParts(partsData.parts || [])
+      setOrders(ordersData.orders || [])
+    } catch {
+      setLoadError(true)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (user?.role !== 'SHOP_OWNER') {
       setLoading(false)
       return
     }
-    setLoading(true)
-    loadStore()
+    void loadDashboard()
   }, [user])
-
-  useEffect(() => {
-    if (store) {
-      setLoadError(false)
-      Promise.all([loadAllParts(), loadOrders()])
-        .catch(() => setLoadError(true))
-        .finally(() => setLoading(false))
-    }
-  }, [store])
 
   const handleSavePart = async () => {
     if (imageUploading || isAnyUploadInProgress()) {
@@ -230,6 +260,9 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       condition: part.condition || '',
       images: [part.image, ...(part.images || []).slice().sort((a, b) => a.position - b.position).map((item) => item.url)].filter(Boolean) as string[],
       carModels: part.carModels || '',
+    })
+    requestAnimationFrame(() => {
+      partFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
     })
   }
 
@@ -297,7 +330,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       {loadError && (
         <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-center" role="alert">
           <p className="font-semibold">تعذر تحميل بيانات لوحة المحل</p>
-          <Button className="mt-3" variant="outline" onClick={() => { setLoading(true); loadStore() }}>إعادة المحاولة</Button>
+          <Button className="mt-3" variant="outline" onClick={() => void loadDashboard()}>إعادة المحاولة</Button>
         </div>
       )}
 
@@ -345,7 +378,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
           </div>
 
           {/* Add/Edit form */}
-          <Card className="market-card">
+          <Card ref={partFormRef} className="market-card scroll-mt-28">
             <CardContent className="p-5 space-y-4">
               <h3 className="font-semibold">
                 {editPart ? 'تعديل قطعة الغيار' : 'إضافة قطعة غيار جديدة'}
