@@ -16,3 +16,7 @@ create unique index if not exists "Report_reporterId_targetType_targetId_status_
   on public."Report" ("reporterId", "targetType", "targetId", "status");
 create index if not exists "Report_status_createdAt_idx" on public."Report" ("status", "createdAt");
 create index if not exists "Report_targetType_targetId_idx" on public."Report" ("targetType", "targetId");
+create index if not exists "Report_reviewedById_idx" on public."Report" ("reviewedById");
+
+-- This table is accessed through server-side Prisma, not the public Data API.
+alter table public."Report" enable row level security;
