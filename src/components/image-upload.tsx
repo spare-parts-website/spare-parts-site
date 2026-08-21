@@ -5,6 +5,7 @@ import { flushSync } from 'react-dom'
 import { Upload, X, Image as ImageIcon, Loader2 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { cn } from '@/lib/utils'
+import { IMAGE_UPLOAD_ACCEPT, IMAGE_UPLOAD_MAX_INPUT_BYTES, IMAGE_UPLOAD_TYPES, type ImagePurpose } from '@/lib/image-policy'
 
 interface ImageUploadProps {
   value?: string
@@ -13,6 +14,7 @@ interface ImageUploadProps {
   className?: string
   cropPreview?: boolean
   compact?: boolean
+  purpose: Exclude<ImagePurpose, 'part' | 'chat'>
 }
 
 interface MultiImageUploadProps {
@@ -29,7 +31,7 @@ export function isAnyUploadInProgress() {
   return anyUploadInProgress
 }
 
-export function ImageUpload({ value, onChange, onUploadingChange, className, cropPreview = false, compact = false }: ImageUploadProps) {
+export function ImageUpload({ value, onChange, onUploadingChange, className, cropPreview = false, compact = false, purpose }: ImageUploadProps) {
   const { toast } = useToast()
   const [uploading, setUploading] = useState(false)
   const [dragActive, setDragActive] = useState(false)
@@ -45,17 +47,17 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
 
   const handleFile = async (file: File) => {
     // Validate type
-    if (!file.type.startsWith('image/')) {
+    if (!(IMAGE_UPLOAD_TYPES as readonly string[]).includes(file.type)) {
       toast({
         title: 'نوع الملف غير مدعوم',
-        description: 'يرجى اختيار صورة (JPG, PNG, WebP, GIF)',
+        description: 'يرجى اختيار صورة JPG أو PNG أو WebP',
         variant: 'destructive',
       })
       return
     }
 
     // Validate size (4MB max)
-    if (file.size > 4 * 1024 * 1024) {
+    if (file.size > IMAGE_UPLOAD_MAX_INPUT_BYTES) {
       toast({
         title: 'حجم الصورة كبير',
         description: 'الحد الأقصى للحجم 4 ميجا',
@@ -68,6 +70,7 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('purpose', purpose)
 
       const res = await fetch('/api/upload', {
         method: 'POST',
@@ -157,7 +160,7 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={IMAGE_UPLOAD_ACCEPT}
           onChange={handleInputChange}
           className="hidden"
         />
@@ -208,7 +211,7 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept={IMAGE_UPLOAD_ACCEPT}
           onChange={handleInputChange}
           className="hidden"
         />
@@ -240,11 +243,11 @@ export function MultiImageUpload({ value, onChange, onUploadingChange, maxImages
       toast({ title: 'صور كثيرة', description: `اختر ${available} صورة إضافية كحد أقصى.`, variant: 'destructive' })
       return
     }
-    if (files.some((file) => !file.type.startsWith('image/'))) {
+    if (files.some((file) => !(IMAGE_UPLOAD_TYPES as readonly string[]).includes(file.type))) {
       toast({ title: 'نوع الملف غير مدعوم', description: 'يرجى اختيار صور فقط.', variant: 'destructive' })
       return
     }
-    if (files.some((file) => file.size > 4 * 1024 * 1024)) {
+    if (files.some((file) => file.size > IMAGE_UPLOAD_MAX_INPUT_BYTES)) {
       toast({ title: 'حجم الصورة كبير', description: 'الحد الأقصى لكل صورة 4 ميجا.', variant: 'destructive' })
       return
     }
@@ -255,6 +258,7 @@ export function MultiImageUpload({ value, onChange, onUploadingChange, maxImages
       for (const file of files) {
         const formData = new FormData()
         formData.append('file', file)
+        formData.append('purpose', 'part')
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'حدث خطأ أثناء رفع الصورة')
@@ -294,7 +298,7 @@ export function MultiImageUpload({ value, onChange, onUploadingChange, maxImages
         <span className="text-sm font-medium">{uploading ? 'جاري رفع الصور...' : `إضافة صور (${value.length}/${maxImages})`}</span>
         <span className="text-xs text-muted-foreground">أول صورة هي الصورة الرئيسية</span>
       </button>
-      <input ref={inputRef} type="file" accept="image/*" multiple onChange={(event) => uploadFiles(Array.from(event.target.files || []))} className="hidden" />
+      <input ref={inputRef} type="file" accept={IMAGE_UPLOAD_ACCEPT} multiple onChange={(event) => uploadFiles(Array.from(event.target.files || []))} className="hidden" />
     </div>
   )
 }

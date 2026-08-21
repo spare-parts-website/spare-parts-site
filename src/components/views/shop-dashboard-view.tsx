@@ -711,6 +711,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
               <div className="space-y-2">
                 <Label>شعار المتجر</Label>
                 <ImageUpload
+                  purpose="store"
                   value={storeForm.image}
                   onChange={(url) => setStoreForm((prev) => ({ ...prev, image: url }))}
                   onUploadingChange={setStoreImageUploading}

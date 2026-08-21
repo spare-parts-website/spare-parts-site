@@ -9,6 +9,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowRight, Send, MessageSquare, Paperclip, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/hooks/use-toast'
+import { IMAGE_UPLOAD_ACCEPT, IMAGE_UPLOAD_MAX_INPUT_BYTES, IMAGE_UPLOAD_TYPES } from '@/lib/image-policy'
 
 interface Message {
   id: string
@@ -83,11 +84,11 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
   }
 
   const handleAttachment = async (file: File) => {
-    if (!file.type.startsWith('image/')) {
+    if (!(IMAGE_UPLOAD_TYPES as readonly string[]).includes(file.type)) {
       toast({ title: 'نوع الملف غير مدعوم', description: 'اختر صورة JPG أو PNG أو WebP', variant: 'destructive' })
       return
     }
-    if (file.size > 4 * 1024 * 1024) {
+    if (file.size > IMAGE_UPLOAD_MAX_INPUT_BYTES) {
       toast({ title: 'الصورة كبيرة جداً', description: 'الحد الأقصى 4 ميجا', variant: 'destructive' })
       return
     }
@@ -95,6 +96,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
     try {
       const formData = new FormData()
       formData.append('file', file)
+      formData.append('purpose', 'chat')
       const res = await fetch('/api/upload', { method: 'POST', body: formData })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'فشل رفع الصورة')
@@ -196,7 +198,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
             {user.role !== 'BUYER' && (
               <label className="inline-flex size-10 shrink-0 cursor-pointer items-center justify-center rounded-md border hover:bg-muted disabled:opacity-50" title="إرفاق صورة">
                 {uploading ? <Loader2 className="size-4 animate-spin" /> : <Paperclip className="size-4" />}
-                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" disabled={uploading || sending} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleAttachment(file); e.currentTarget.value = '' }} />
+                <input type="file" accept={IMAGE_UPLOAD_ACCEPT} className="hidden" disabled={uploading || sending} onChange={(e) => { const file = e.target.files?.[0]; if (file) handleAttachment(file); e.currentTarget.value = '' }} />
               </label>
             )}
             <Input

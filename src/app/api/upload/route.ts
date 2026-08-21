@@ -3,9 +3,9 @@ import { randomUUID } from 'crypto'
 import sharp from 'sharp'
 import { requireRoles } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import { IMAGE_PURPOSES, IMAGE_UPLOAD_MAX_INPUT_BYTES, IMAGE_UPLOAD_MAX_OUTPUT_BYTES, IMAGE_UPLOAD_TYPES, isImagePurpose } from '@/lib/image-policy'
 
-const MAX_UPLOAD_BYTES = 4 * 1024 * 1024
-const ALLOWED_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/gif'])
+const ALLOWED_TYPES = new Set<string>(IMAGE_UPLOAD_TYPES)
 const BUCKET = 'uploads'
 
 export async function POST(req: NextRequest) {
@@ -22,25 +22,41 @@ export async function POST(req: NextRequest) {
 
     const formData = await req.formData()
     const file = formData.get('file')
+    const purpose = formData.get('purpose')
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'ملف الصورة مطلوب' }, { status: 400 })
     }
+    if (!isImagePurpose(purpose)) {
+      return NextResponse.json({ error: 'استخدام الصورة غير صالح' }, { status: 400 })
+    }
     if (!ALLOWED_TYPES.has(file.type)) {
       return NextResponse.json({ error: 'صيغة الصورة غير مدعومة' }, { status: 400 })
     }
-    if (file.size <= 0 || file.size > MAX_UPLOAD_BYTES) {
-      return NextResponse.json({ error: 'حجم الصورة يجب أن يكون أقل من 5 ميجا' }, { status: 400 })
+    if (file.size <= 0 || file.size > IMAGE_UPLOAD_MAX_INPUT_BYTES) {
+      return NextResponse.json({ error: 'حجم الصورة يجب ألا يتجاوز 4 ميجا' }, { status: 400 })
     }
 
     const input = Buffer.from(await file.arrayBuffer())
-    const output = await sharp(input, { limitInputPixels: 40_000_000 })
+    const policy = IMAGE_PURPOSES[purpose]
+    let output = await sharp(input, { limitInputPixels: 25_000_000, failOn: 'error' })
       .rotate()
-      .resize({ width: 2048, height: 2048, fit: 'inside', withoutEnlargement: true })
-      .webp({ quality: 92, effort: 5, smartSubsample: true })
+      .resize({ width: policy.width, height: policy.height, fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: policy.quality, effort: 5, smartSubsample: true })
       .toBuffer()
 
-    const filename = `${Date.now()}-${randomUUID()}.webp`
+    if (output.length > IMAGE_UPLOAD_MAX_OUTPUT_BYTES) {
+      output = await sharp(input, { limitInputPixels: 25_000_000, failOn: 'error' })
+        .rotate()
+        .resize({ width: Math.min(policy.width, 1280), height: Math.min(policy.height, 1280), fit: 'inside', withoutEnlargement: true })
+        .webp({ quality: 70, effort: 6, smartSubsample: true })
+        .toBuffer()
+    }
+    if (output.length > IMAGE_UPLOAD_MAX_OUTPUT_BYTES) {
+      return NextResponse.json({ error: 'تعذر ضغط الصورة إلى حجم آمن. اختر صورة أبسط.' }, { status: 400 })
+    }
+
+    const filename = `${purpose}-${session.id}-${Date.now()}-${randomUUID()}.webp`
     const uploadUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/${BUCKET}/${filename}`
     const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
@@ -48,6 +64,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${serviceRoleKey}`,
         apikey: serviceRoleKey,
         'Content-Type': 'image/webp',
+        'Cache-Control': 'public, max-age=31536000, immutable',
         'x-upsert': 'false',
       },
       body: new Uint8Array(output),
@@ -59,7 +76,7 @@ export async function POST(req: NextRequest) {
     }
 
     const publicUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${BUCKET}/${filename}`
-    return NextResponse.json({ url: publicUrl })
+    return NextResponse.json({ url: publicUrl, bytes: output.length })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })

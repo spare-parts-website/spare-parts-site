@@ -103,7 +103,7 @@ export function ProfileView() {
           <div className="space-y-2">
             <Label>رفع صورة شخصية</Label>
             <p className="text-xs text-muted-foreground">يمكنك رفع صورتك أو اختيار إحدى الصور الجاهزة أدناه. ستظهر الصورة في ملفك والتقييمات، ولصاحب المحل بجانب إعلانات المتجر.</p>
-            <ImageUpload value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} className="max-w-sm" compact />
+            <ImageUpload purpose="avatar" value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} className="max-w-sm" compact />
           </div>
           <div className="space-y-2">
             <Label>اختيار صورة الحساب</Label>
