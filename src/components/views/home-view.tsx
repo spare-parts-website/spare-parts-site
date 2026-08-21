@@ -4,9 +4,8 @@ import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
-  ArrowLeft, BadgeCheck, Banknote, BatteryCharging, CarFront, CircleGauge,
-  Disc3, Headphones, Package, RefreshCw, Search, ShieldCheck, ShoppingCart,
-  Sparkles, Store as StoreIcon, Truck, Wrench,
+  ArrowLeft, BadgeCheck, Banknote, CircleGauge, Headphones, Package, RefreshCw,
+  Search, ShieldCheck, ShoppingCart, Store as StoreIcon, Truck,
 } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
@@ -41,15 +40,6 @@ interface Part {
   image?: string | null
   store: { id: string; name: string; image?: string | null; owner: { name: string; avatar?: string | null } }
 }
-
-const categories = [
-  { label: 'المحرك', icon: Wrench },
-  { label: 'الفرامل', icon: Disc3 },
-  { label: 'الكهرباء', icon: BatteryCharging },
-  { label: 'العفشة', icon: CarFront },
-  { label: 'العدادات', icon: CircleGauge },
-  { label: 'الإكسسوارات', icon: Sparkles },
-]
 
 export function HomeView() {
   const { setView, setSearchQuery } = useAppStore()
@@ -134,22 +124,6 @@ export function HomeView() {
             { value: 'متاجر متخصصة', label: 'تعرف على البائع وتقييماته' },
             { value: 'طلب مطمئن', label: 'تابع حالة الطلب من حسابك' },
           ].map((item) => <div key={item.value} className="px-4 py-6 text-center"><strong className="block text-lg font-black">{item.value}</strong><span className="mt-1 block text-sm text-muted-foreground">{item.label}</span></div>)}
-        </div>
-      </section>
-
-      <section className="content-container section-space">
-        <div className="page-heading">
-          <div><span className="eyebrow"><CarFront className="size-4" /> ابدأ من نوع القطعة</span><h2 className="mt-2 text-3xl font-black sm:text-4xl">ماذا تحتاج لسيارتك؟</h2></div>
-          <Link href="/parts" className="inline-flex items-center gap-1 text-sm font-bold text-primary hover:underline">كل الأقسام <ArrowLeft className="size-4" /></Link>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {categories.map(({ label, icon: Icon }) => (
-            <button key={label} onClick={() => runSearch(label)} className="group rounded-2xl border bg-card p-5 text-right shadow-sm transition hover:-translate-y-1 hover:border-primary/50 hover:shadow-lg">
-              <span className="grid size-12 place-items-center rounded-2xl bg-slate-950 text-primary transition group-hover:bg-primary group-hover:text-primary-foreground dark:bg-slate-800"><Icon className="size-6" /></span>
-              <span className="mt-5 block font-black">{label}</span>
-              <span className="mt-1 block text-xs text-muted-foreground">استكشف القطع</span>
-            </button>
-          ))}
         </div>
       </section>
 
