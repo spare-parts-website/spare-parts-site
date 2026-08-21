@@ -301,7 +301,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                   ليس لديك حساب؟{' '}
                   <button
                     onClick={() => setView({ name: 'register' })}
-                    className="text-primary hover:underline font-medium"
+                    className="font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
                   >
                     سجّل الآن
                   </button>
@@ -311,7 +311,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                   لديك حساب؟{' '}
                   <button
                     onClick={() => setView({ name: 'login' })}
-                    className="text-primary hover:underline font-medium"
+                    className="font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
                   >
                     سجّل الدخول
                   </button>
