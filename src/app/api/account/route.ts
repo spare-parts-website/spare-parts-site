@@ -33,10 +33,10 @@ export async function PUT(req: NextRequest) {
 
     const updated = await db.user.update({
       where: { id: session.id },
-      data: { name, phone, avatar, emailNotifications, ...(newPassword ? { password: await hashPassword(newPassword) } : {}) },
+      data: { name, phone, avatar, emailNotifications, ...(newPassword ? { password: await hashPassword(newPassword), sessionVersion: { increment: 1 } } : {}) },
     })
     if (avatar !== user.avatar) await deleteUploadedFiles([user.avatar])
-    await createSession({ id: updated.id, name: updated.name, email: updated.email, role: updated.role as any, phone: updated.phone, avatar: updated.avatar, emailNotifications: updated.emailNotifications })
+    await createSession({ id: updated.id, name: updated.name, email: updated.email, role: updated.role as any, phone: updated.phone, avatar: updated.avatar, emailNotifications: updated.emailNotifications, sessionVersion: updated.sessionVersion })
     return NextResponse.json({ user: { id: updated.id, name: updated.name, email: updated.email, role: updated.role, phone: updated.phone, avatar: updated.avatar, emailNotifications: updated.emailNotifications } })
   } catch (error) {
     console.error(error)

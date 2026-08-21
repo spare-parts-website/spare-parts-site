@@ -1,11 +1,12 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { useAppStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
 import { Mail, Lock, User, Phone, Store, ShieldCheck } from 'lucide-react'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
@@ -123,9 +124,9 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
             <div className="mx-auto mb-3 flex size-16 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-sm">
               <img src="/ghyar-market-logo.png" alt="غيار ماركت" className="size-16 object-contain drop-shadow-sm" />
             </div>
-            <CardTitle className="text-2xl">
+            <h1 className="text-2xl font-semibold leading-none">
               {verification ? 'تأكيد بريدك الإلكتروني' : mode === 'login' ? 'تسجيل الدخول' : 'إنشاء حساب جديد'}
-            </CardTitle>
+            </h1>
             <CardDescription>
               {verification
                 ? `أدخل الرمز المرسل إلى ${verification.emailHint}`
@@ -267,7 +268,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="password">كلمة المرور</Label>
+                <div className="flex items-center justify-between gap-3"><Label htmlFor="password">كلمة المرور</Label>{mode === 'login' && <Link href="/forgot-password" className="text-xs font-bold text-primary hover:underline">نسيت كلمة المرور؟</Link>}</div>
                 <div className="relative">
                   <Lock className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                       <Input

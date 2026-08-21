@@ -20,6 +20,8 @@ export type View =
   | { name: 'part'; partId: string }
   | { name: 'login' }
   | { name: 'register' }
+  | { name: 'forgot-password' }
+  | { name: 'reset-password' }
   | { name: 'orders' }
   | { name: 'profile' }
   | { name: 'inbox' }
@@ -48,6 +50,10 @@ export function viewToPath(view: View, searchQuery = ''): string {
       return '/login'
     case 'register':
       return '/register'
+    case 'forgot-password':
+      return '/forgot-password'
+    case 'reset-password':
+      return '/reset-password'
     case 'orders':
       return '/account/orders'
     case 'profile':

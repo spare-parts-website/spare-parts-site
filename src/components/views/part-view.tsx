@@ -35,13 +35,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
+import { UserAvatar } from '@/components/user-avatar'
 
 interface Review {
   id: string
   rating: number
   comment?: string | null
   createdAt: string
-  user: { name: string }
+  user: { name: string; avatar?: string | null }
 }
 
 interface PartImage {
@@ -352,13 +353,7 @@ export function PartView({ partId }: { partId: string }) {
             className="surface-panel flex w-full items-center gap-4 border-border/70 bg-muted/25 p-4 text-right transition hover:border-primary/40 hover:bg-primary/5"
             onClick={() => setView({ name: 'store', storeId: part.store.id })}
           >
-            <div className="relative size-16 shrink-0 overflow-hidden rounded-2xl border border-primary/20 bg-primary/10 text-primary">
-              {part.store.owner.avatar ? (
-                <Image src={part.store.owner.avatar} alt={part.store.owner.name} fill sizes="64px" className="object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-2xl font-bold">{part.store.owner.name.charAt(0)}</span>
-              )}
-            </div>
+            <UserAvatar name={part.store.owner.name} src={part.store.owner.avatar} className="size-16 rounded-2xl text-2xl" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-primary">
                 <StoreIcon className="size-5 shrink-0" />
@@ -671,9 +666,7 @@ export function PartView({ partId }: { partId: string }) {
                 <div key={review.id} className="pb-4 border-b last:border-0 last:pb-0">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
-                        {review.user.name.charAt(0)}
-                      </div>
+                      <UserAvatar name={review.user.name} src={review.user.avatar} className="size-8 text-sm" />
                       <div>
                         <p className="text-sm font-medium">{review.user.name}</p>
                         <p className="text-xs text-muted-foreground">

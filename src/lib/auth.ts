@@ -11,6 +11,7 @@ export interface SessionUser {
   phone?: string | null
   avatar?: string | null
   emailNotifications?: boolean
+  sessionVersion?: number
 }
 
 const SESSION_COOKIE = 'spare_parts_session'
@@ -39,7 +40,7 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
 
 export async function createSession(user: SessionUser): Promise<void> {
   const cookieStore = await cookies()
-  const payload = Buffer.from(JSON.stringify(user)).toString('base64url')
+  const payload = Buffer.from(JSON.stringify({ ...user, sessionVersion: user.sessionVersion ?? 0 })).toString('base64url')
   const unsigned = TOKEN_VERSION + payload
   cookieStore.set(SESSION_COOKIE, `${unsigned}.${sign(unsigned)}`, {
     httpOnly: true,
@@ -74,6 +75,7 @@ export async function getSession(): Promise<SessionUser | null> {
     // Verify user still exists in DB
     const user = await db.user.findUnique({ where: { id: decoded.id } })
     if (!user) return null
+    if ((decoded.sessionVersion ?? 0) !== user.sessionVersion) return null
     return {
       id: user.id,
       name: user.name,
@@ -82,6 +84,7 @@ export async function getSession(): Promise<SessionUser | null> {
       phone: user.phone,
       avatar: user.avatar,
       emailNotifications: user.emailNotifications,
+      sessionVersion: user.sessionVersion,
     }
   } catch {
     return null

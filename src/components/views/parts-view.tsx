@@ -18,6 +18,7 @@ import {
 } from '@/components/ui/select'
 import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
 import { formatPrice } from '@/components/common'
+import { UserAvatar } from '@/components/user-avatar'
 
 interface Part {
   id: string
@@ -279,6 +280,7 @@ export function PartsView() {
                 )}
               </div>
               <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
+                <div className="flex items-center gap-2 rounded-xl bg-muted/40 p-2 text-xs"><UserAvatar name={part.store.owner.name} src={part.store.owner.avatar} className="size-8 text-[10px]" /><span className="min-w-0"><span className="block truncate font-bold">{part.store.name}</span><span className="block truncate text-muted-foreground">{part.store.owner.name}</span></span></div>
                 <div className="space-y-2">
                 <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10">
                   {part.name}

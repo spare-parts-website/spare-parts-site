@@ -10,7 +10,7 @@ export function MobileBottomNav() {
     { label: 'الرئيسية', href: '/', icon: Home, active: view.name === 'home' },
     { label: 'القطع', href: '/parts', icon: PackageSearch, active: view.name === 'parts' || view.name === 'part' },
     { label: 'المفضلة', href: user ? '/account/wishlist' : '/login', icon: Heart, active: view.name === 'wishlist' },
-    { label: 'حسابي', href: user ? '/account/profile' : '/login', icon: UserRound, active: ['profile', 'orders', 'inbox', 'login'].includes(view.name) },
+    { label: 'حسابي', href: user ? '/account/profile' : '/login', icon: UserRound, active: ['profile', 'orders', 'inbox', 'login', 'register', 'forgot-password', 'reset-password'].includes(view.name) },
   ]
 
   return (

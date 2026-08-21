@@ -36,14 +36,14 @@ export function Footer() {
         <FooterColumn title="السوق" links={marketplaceLinks} />
         <FooterColumn title="المساعدة والسياسات" links={policyLinks} />
         <div>
-          <h3 className="font-black">هل تملك متجر قطع غيار؟</h3>
+          <h2 className="font-black">هل تملك متجر قطع غيار؟</h2>
           <p className="mt-3 text-sm leading-7 text-white/55">اعرض مخزونك واستقبل طلبات ورسائل عملاء جدد.</p>
           <Button asChild variant="secondary" className="mt-5"><Link href={user?.role === 'SHOP_OWNER' ? '/seller/parts' : '/register'}>{user?.role === 'SHOP_OWNER' ? 'فتح لوحة المتجر' : 'انضم كبائع'}</Link></Button>
           <div className="mt-5 flex items-center gap-2 text-xs text-white/45"><Mail className="size-4" /> الدعم متاح من صفحة التواصل</div>
         </div>
       </div>
       <div className="border-t border-white/10">
-        <div className="content-container flex flex-col items-center justify-between gap-3 py-5 text-xs text-white/40 sm:flex-row">
+        <div className="content-container flex flex-col items-center justify-between gap-3 py-5 text-xs text-white/65 sm:flex-row">
           <p>© {new Date().getFullYear()} غيار ماركت. جميع الحقوق محفوظة.</p>
           <p className="flex items-center gap-1.5"><ShieldCheck className="size-4 text-primary" /> نحمي الحسابات والطلبات بإجراءات أمان متعددة</p>
         </div>
@@ -53,5 +53,5 @@ export function Footer() {
 }
 
 function FooterColumn({ title, links }: { title: string; links: Array<{ href: string; label: string }> }) {
-  return <div><h3 className="font-black">{title}</h3><ul className="mt-4 space-y-3">{links.map((link) => <li key={link.href}><Link href={link.href} className="text-sm text-white/55 transition hover:text-primary">{link.label}</Link></li>)}</ul></div>
+  return <div><h2 className="font-black">{title}</h2><ul className="mt-4 space-y-3">{links.map((link) => <li key={link.href}><Link href={link.href} className="text-sm text-white/55 transition hover:text-primary">{link.label}</Link></li>)}</ul></div>
 }

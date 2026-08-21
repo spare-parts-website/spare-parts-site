@@ -10,7 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { UserAvatar } from '@/components/user-avatar'
 import {
   Search,
   Store as StoreIcon,
@@ -236,9 +236,7 @@ export function Header({ user }: { user: AuthUser | null }) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="gap-2 rounded-xl px-1.5 sm:px-2">
-                  <Avatar className="size-8">
-                    {user.avatar ? <img src={user.avatar} alt={user.name} className="aspect-square size-full object-cover" /> : <AvatarFallback className="bg-primary/15 text-primary text-xs font-semibold">{user.name.charAt(0)}</AvatarFallback>}
-                  </Avatar>
+                  <UserAvatar name={user.name} src={user.avatar} className="size-8 text-xs" />
                   <span className="hidden sm:inline text-sm font-medium">
                     {user.name}
                   </span>

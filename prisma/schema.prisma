@@ -12,16 +12,17 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String   @default("BUYER") // BUYER, ADMIN, SHOP_OWNER
-  phone     String?
-  avatar    String?
-  emailNotifications Boolean @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                 String   @id @default(cuid())
+  name               String
+  email              String   @unique
+  password           String
+  role               String   @default("BUYER") // BUYER, ADMIN, SHOP_OWNER
+  phone              String?
+  avatar             String?
+  emailNotifications Boolean  @default(true)
+  sessionVersion     Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
 
   store                   Store?
   orders                  Order[]
@@ -38,6 +39,22 @@ model User {
   reportsGiven            Report[]            @relation("ReportReporter")
   reportsReviewed         Report[]            @relation("ReportReviewer")
   loginVerifications      LoginVerification[]
+  passwordResets          PasswordReset[]
+}
+
+model PasswordReset {
+  id        String    @id
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  codeHash  String
+  attempts  Int       @default(0)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([userId, usedAt, expiresAt])
 }
 
 model LoginVerification {
@@ -74,11 +91,11 @@ model Store {
 }
 
 model Part {
-  id              String           @id @default(cuid())
+  id              String                 @id @default(cuid())
   name            String
   description     String?
   price           Float
-  stock           Int              @default(0)
+  stock           Int                    @default(0)
   category        String?
   brand           String?
   condition       String?
@@ -86,16 +103,16 @@ model Part {
   // Car compatibility - stored as JSON string: e.g. '["Toyota Camry 2018-2023", "Honda Accord 2019-2022"]'
   carModels       String?
   storeId         String
-  store           Store            @relation(fields: [storeId], references: [id])
+  store           Store                  @relation(fields: [storeId], references: [id])
   orders          Order[]
   reviews         ProductReview[]
   images          PartImage[]
   productMessages ProductMessage[]
   wishlist        Wishlist[]
   compatibilities VehicleCompatibility[]
-  blocked         Boolean          @default(false)
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+  blocked         Boolean                @default(false)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
 
   @@index([storeId, createdAt])
   @@index([blocked, createdAt])
@@ -209,15 +226,15 @@ model StoreReview {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  title     String
-  message   String
-  type      String // ORDER_STATUS, NEW_ORDER, PAYMENT, REVIEW, SYSTEM, CHAT
-  read      Boolean  @default(false)
-  link      String?
-  createdAt DateTime @default(now())
+  id            String                @id @default(cuid())
+  userId        String
+  user          User                  @relation(fields: [userId], references: [id])
+  title         String
+  message       String
+  type          String // ORDER_STATUS, NEW_ORDER, PAYMENT, REVIEW, SYSTEM, CHAT
+  read          Boolean               @default(false)
+  link          String?
+  createdAt     DateTime              @default(now())
   emailDelivery EmailDeliveryAttempt?
 
   @@index([userId, read, createdAt])

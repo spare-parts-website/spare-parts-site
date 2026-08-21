@@ -30,6 +30,7 @@ import {
 } from '@/components/ui/dialog'
 import { useToast } from '@/hooks/use-toast'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
+import { UserAvatar } from '@/components/user-avatar'
 
 interface Store {
   id: string
@@ -40,7 +41,7 @@ interface Store {
   image?: string | null
   owner: { name: string; phone?: string | null; avatar?: string | null }
   parts: any[]
-  reviews: any[]
+  reviews: Array<{ id: string; rating: number; comment?: string | null; createdAt: string; user: { name: string; avatar?: string | null } }>
   verified: boolean
   completedOrderCount: number
   canReview?: boolean
@@ -165,9 +166,7 @@ export function StoreView({ storeId }: { storeId: string }) {
             </div>
             <div className="flex-1 space-y-2">
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <div className="relative size-10 rounded-xl overflow-hidden bg-primary/10 text-primary flex items-center justify-center font-semibold">
-                  {store.owner.avatar ? <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="32px" className="object-cover" /> : store.owner.name.charAt(0)}
-                </div>
+                <UserAvatar name={store.owner.name} src={store.owner.avatar} className="size-10 rounded-xl" />
                 <span>صاحب المحل: {store.owner.name}</span>
               </div>
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -344,13 +343,7 @@ export function StoreView({ storeId }: { storeId: string }) {
                 </div>
                 <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
                   <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/25 p-3">
-                    <div className="relative size-12 shrink-0 overflow-hidden rounded-xl border border-primary/20 bg-primary/10 text-primary">
-                      {store.owner.avatar ? (
-                        <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="48px" className="object-cover" />
-                      ) : (
-                        <span className="flex h-full w-full items-center justify-center text-lg font-bold">{store.owner.name.charAt(0)}</span>
-                      )}
-                    </div>
+                    <UserAvatar name={store.owner.name} src={store.owner.avatar} className="size-12 rounded-xl text-lg" />
                     <div className="min-w-0">
                       <p className="truncate text-base font-bold text-primary">{store.name}</p>
                       <p className="truncate text-sm font-medium text-muted-foreground">البائع: {store.owner.name}</p>
@@ -396,9 +389,7 @@ export function StoreView({ storeId }: { storeId: string }) {
                 <div key={review.id} className="pb-4 border-b last:border-0 last:pb-0">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
-                      <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold">
-                        {review.user.name.charAt(0)}
-                      </div>
+                      <UserAvatar name={review.user.name} src={review.user.avatar} className="size-8 text-sm" />
                       <div>
                         <p className="text-sm font-medium">{review.user.name}</p>
                         <p className="text-xs text-muted-foreground">

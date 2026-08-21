@@ -15,6 +15,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Stars, formatPrice } from '@/components/common'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
+import { UserAvatar } from '@/components/user-avatar'
 
 interface Store {
   id: string
@@ -38,7 +39,7 @@ interface Part {
   brand?: string | null
   condition?: string | null
   image?: string | null
-  store: { id: string; name: string; image?: string | null }
+  store: { id: string; name: string; image?: string | null; owner: { name: string; avatar?: string | null } }
 }
 
 const categories = [
@@ -217,7 +218,7 @@ function PartCard({ part }: { part: Part }) {
         </div>
       </div>
       <div className="p-5">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground"><StoreIcon className="size-3.5" />{part.store.name}</div>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground"><UserAvatar name={part.store.owner.name} src={part.store.owner.avatar} className="size-7 text-[10px]" /><span className="min-w-0"><span className="block truncate font-bold text-foreground">{part.store.name}</span><span className="block truncate">{part.store.owner.name}</span></span></div>
         <h3 className="mt-3 line-clamp-2 min-h-12 font-black leading-6 transition group-hover:text-primary">{part.name}</h3>
         <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-xl text-primary">{formatPrice(part.price)}</strong>{part.brand && <span className="text-xs text-muted-foreground">{part.brand}</span>}</div>
       </div>
@@ -234,7 +235,7 @@ function StoreCard({ store }: { store: Store }) {
           <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-primary">
             {store.image ? <Image src={store.image} alt={store.name} fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-8" />}
           </div>
-          <div className="min-w-0"><div className="flex items-center gap-1.5"><h3 className="truncate text-lg font-black group-hover:text-primary">{store.name}</h3>{store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" />}</div><div className="mt-2 flex items-center gap-2"><Stars value={store.avgRating} /><span className="text-xs text-muted-foreground">({store.reviewCount})</span></div></div>
+          <div className="min-w-0"><div className="flex items-center gap-1.5"><h3 className="truncate text-lg font-black group-hover:text-primary">{store.name}</h3>{store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" />}</div><div className="mt-2 flex items-center gap-2"><UserAvatar name={store.owner.name} src={store.owner.avatar} className="size-7 text-[10px]" /><span className="truncate text-xs text-muted-foreground">{store.owner.name}</span></div><div className="mt-2 flex items-center gap-2"><Stars value={store.avgRating} /><span className="text-xs text-muted-foreground">({store.reviewCount})</span></div></div>
         </div>
         <p className="mt-5 line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">{store.description || 'متجر متخصص في بيع قطع غيار السيارات.'}</p>
         <div className="mt-5 flex items-center justify-between border-t pt-4 text-sm"><span className="flex items-center gap-1.5 text-muted-foreground"><Package className="size-4" /> {store._count.parts} قطعة</span><span className="font-bold text-primary">زيارة المتجر <ArrowLeft className="mr-1 inline size-4" /></span></div>

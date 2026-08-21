@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
       phone: user.phone,
       avatar: user.avatar,
+      sessionVersion: user.sessionVersion,
     })
 
     await db.loginVerification.deleteMany({ where: { userId: user.id, id: { not: challengeId } } })

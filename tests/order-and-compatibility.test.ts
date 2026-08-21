@@ -2,7 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { calculateOrderLine, InvalidOrderTransition, resolveOrderTransition } from '../src/lib/order-state.ts'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '../src/lib/vehicle-compatibility.ts'
-import { loginCodeEmailHtml, notificationEmailHtml } from '../src/lib/email-templates.ts'
+import { loginCodeEmailHtml, notificationEmailHtml, passwordResetEmailHtml } from '../src/lib/email-templates.ts'
 
 test('calculates coupon discount against quantity without floating-point drift', () => {
   assert.deepEqual(calculateOrderLine(125.5, 2, 10), { subtotal: 251, discount: 25.1, total: 225.9 })
@@ -54,4 +54,12 @@ test('renders escaped Arabic RTL transactional email markup', () => {
   assert.match(login, /<table/)
   assert.ok(!login.includes('<محمد>'))
   assert.ok(!notification.includes('<script>'))
+})
+
+test('renders a safe one-time password reset email', () => {
+  const html = passwordResetEmailHtml({ name: '<محمد>', resetUrl: 'https://ghyarmarket-eg.com/reset-password?token=a&next=<script>' })
+  assert.match(html, /استعادة كلمة المرور/)
+  assert.match(html, /https:\/\/ghyarmarket-eg\.com\/reset-password/)
+  assert.ok(!html.includes('<محمد>'))
+  assert.ok(!html.includes('<script>'))
 })

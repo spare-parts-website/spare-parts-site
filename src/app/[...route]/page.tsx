@@ -12,6 +12,7 @@ import { OrdersView } from '@/components/views/orders-view'
 import { PartView } from '@/components/views/part-view'
 import { PartsView } from '@/components/views/parts-view'
 import { ProfileView } from '@/components/views/profile-view'
+import { PasswordResetView } from '@/components/views/password-reset-view'
 import { ShopDashboardView } from '@/components/views/shop-dashboard-view'
 import { StoreView } from '@/components/views/store-view'
 import { StoresView } from '@/components/views/stores-view'
@@ -35,6 +36,11 @@ function first(value: string | string[] | undefined) {
 export async function generateMetadata({ params }: RoutePageProps): Promise<Metadata> {
   const { route } = await params
   const [section, id] = route
+
+  if (['login', 'register', 'forgot-password', 'reset-password'].includes(section)) {
+    const titles: Record<string, string> = { login: 'تسجيل الدخول', register: 'إنشاء حساب', 'forgot-password': 'استعادة كلمة المرور', 'reset-password': 'تعيين كلمة مرور جديدة' }
+    return { title: titles[section], robots: { index: false, follow: false } }
+  }
 
   try {
     if (section === 'parts' && id) {
@@ -63,6 +69,7 @@ export async function generateMetadata({ params }: RoutePageProps): Promise<Meta
 
   const titles: Record<string, string> = {
     parts: 'قطع الغيار', stores: 'المتاجر', login: 'تسجيل الدخول', register: 'إنشاء حساب',
+    'forgot-password': 'استعادة كلمة المرور', 'reset-password': 'تعيين كلمة مرور جديدة',
     cart: 'سلة المشتريات', checkout: 'إتمام الطلب', account: 'حسابي', seller: 'لوحة المتجر',
     admin: 'لوحة الإدارة', privacy: 'سياسة الخصوصية', terms: 'شروط الاستخدام',
     returns: 'سياسة الاسترجاع', contact: 'تواصل معنا', messages: 'الرسائل',
@@ -96,6 +103,12 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
   } else if (section === 'register' && !id) {
     view = { name: 'register' }
     content = <AuthView mode="register" />
+  } else if (section === 'forgot-password' && !id) {
+    view = { name: 'forgot-password' }
+    content = <PasswordResetView mode="request" />
+  } else if (section === 'reset-password' && !id) {
+    view = { name: 'reset-password' }
+    content = <PasswordResetView mode="reset" token={first(query.token)} />
   } else if (section === 'cart' && !id) {
     view = { name: 'cart' }
     content = <CartView />

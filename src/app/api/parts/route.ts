@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
         },
         reviews: {
           where: { blocked: false },
-          include: { user: { select: { name: true } } },
+          include: { user: { select: { name: true, avatar: true } } },
           orderBy: { createdAt: 'desc' },
         },
         images: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },

@@ -11,6 +11,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Store as StoreIcon, Package, Search, MapPin, Phone, ShieldCheck, RefreshCw } from 'lucide-react'
 import { Stars } from '@/components/common'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
+import { UserAvatar } from '@/components/user-avatar'
 
 interface Store {
   id: string
@@ -138,9 +139,7 @@ export function StoresView() {
                 <div className="flex items-start gap-3">
                   <div className="relative size-24 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
                     {store.image ? <Image src={store.image} alt={store.name} fill sizes="160px" quality={100} className="object-cover" /> : <StoreIcon className="size-7" />}
-                    <div className="absolute -bottom-1 -left-1 size-8 rounded-full border-2 border-card bg-muted overflow-hidden" title={`صاحب المحل: ${store.owner.name}`}>
-                      {store.owner.avatar ? <Image src={store.owner.avatar} alt={store.owner.name} fill sizes="32px" className="object-cover" /> : <span className="flex h-full w-full items-center justify-center text-[10px] font-bold">{store.owner.name.charAt(0)}</span>}
-                    </div>
+                    <UserAvatar name={store.owner.name} src={store.owner.avatar} className="absolute -bottom-1 -left-1 size-8 border-2 border-card text-[10px]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">

@@ -3,6 +3,7 @@ import { Cairo } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
+import { applicationOrigin } from "@/lib/application-url";
 
 const cairo = Cairo({
   variable: "--font-cairo",
@@ -11,7 +12,7 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.APP_URL || "https://ghyarmarket-eg.com"),
+  metadataBase: new URL(applicationOrigin()),
   title: {
     default: "غيار ماركت | قطع غيار السيارات من متاجر موثوقة",
     template: "%s | غيار ماركت",

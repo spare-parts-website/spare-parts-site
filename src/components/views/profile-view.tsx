@@ -5,7 +5,7 @@ import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { UserAvatar } from '@/components/user-avatar'
 import { BellRing, Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -72,9 +72,7 @@ export function ProfileView() {
       <Card className="market-card">
         <CardContent className="p-6">
           <div className="flex flex-col sm:flex-row items-start gap-5">
-            <Avatar className="size-20">
-              {user.avatar ? <img src={user.avatar} alt={user.name} className="aspect-square size-full object-cover" /> : <AvatarFallback className="bg-primary text-primary-foreground text-2xl font-semibold">{user.name.charAt(0)}</AvatarFallback>}
-            </Avatar>
+            <UserAvatar name={user.name} src={user.avatar} className="size-20 text-2xl" />
             <div className="flex-1 space-y-3">
               <div>
                 <h2 className="text-xl font-bold">{user.name}</h2>
@@ -102,13 +100,11 @@ export function ProfileView() {
       <Card className="market-card">
         <CardHeader><CardTitle>تعديل الحساب</CardTitle></CardHeader>
         <CardContent className="space-y-4">
-          {user.role === 'SHOP_OWNER' && (
-            <div className="space-y-2">
-              <Label>صورة صاحب المحل</Label>
-              <p className="text-xs text-muted-foreground">ستظهر هذه الصورة بجانب إعلان متجرك ليعرف العملاء صاحب المحل.</p>
-              <ImageUpload value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} className="max-w-sm" compact />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label>رفع صورة شخصية</Label>
+            <p className="text-xs text-muted-foreground">يمكنك رفع صورتك أو اختيار إحدى الصور الجاهزة أدناه. ستظهر الصورة في ملفك والتقييمات، ولصاحب المحل بجانب إعلانات المتجر.</p>
+            <ImageUpload value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} className="max-w-sm" compact />
+          </div>
           <div className="space-y-2">
             <Label>اختيار صورة الحساب</Label>
             <ProfileAvatarPicker value={form.avatar} onChange={(avatar) => setForm({ ...form, avatar })} />
