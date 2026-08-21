@@ -57,11 +57,11 @@ export async function GET(req: NextRequest) {
     try {
       const fuzzy = await db.$queryRaw<Array<{ id: string }>>(Prisma.sql`
         select "id" from public."Part"
-        where "blocked" = false and extensions.similarity(
+        where "blocked" = false and extensions.word_similarity(${q},
           coalesce("name", '') || ' ' || coalesce("description", '') || ' ' || coalesce("brand", '') || ' ' ||
-          coalesce("partNumber", '') || ' ' || coalesce("oemNumber", '') || ' ' || coalesce("searchAliases", ''), ${q}
-        ) > 0.10
-        order by extensions.similarity(coalesce("name", '') || ' ' || coalesce("description", '') || ' ' || coalesce("brand", '') || ' ' || coalesce("partNumber", '') || ' ' || coalesce("oemNumber", '') || ' ' || coalesce("searchAliases", ''), ${q}) desc
+          coalesce("partNumber", '') || ' ' || coalesce("oemNumber", '') || ' ' || coalesce("searchAliases", '')
+        ) > 0.30
+        order by extensions.word_similarity(${q}, coalesce("name", '') || ' ' || coalesce("description", '') || ' ' || coalesce("brand", '') || ' ' || coalesce("partNumber", '') || ' ' || coalesce("oemNumber", '') || ' ' || coalesce("searchAliases", '')) desc
         limit 8
       `)
       const missingIds = fuzzy.map((item) => item.id).filter((id) => !parts.some((part) => part.id === id))
