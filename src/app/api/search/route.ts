@@ -60,7 +60,7 @@ export async function GET(req: NextRequest) {
         where "blocked" = false and extensions.similarity(
           coalesce("name", '') || ' ' || coalesce("description", '') || ' ' || coalesce("brand", '') || ' ' ||
           coalesce("partNumber", '') || ' ' || coalesce("oemNumber", '') || ' ' || coalesce("searchAliases", ''), ${q}
-        ) > 0.16
+        ) > 0.10
         order by extensions.similarity(coalesce("name", '') || ' ' || coalesce("description", '') || ' ' || coalesce("brand", '') || ' ' || coalesce("partNumber", '') || ' ' || coalesce("oemNumber", '') || ' ' || coalesce("searchAliases", ''), ${q}) desc
         limit 8
       `)
