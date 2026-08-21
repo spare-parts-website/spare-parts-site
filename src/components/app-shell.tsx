@@ -11,7 +11,6 @@ import { useAppStore, type AuthUser, type CartItem, type View } from '@/lib/stor
 import { Button } from '@/components/ui/button'
 
 const CART_STORAGE_KEY = 'ghyar-market-cart-v1'
-const AUTH_USER_CACHE_KEY = 'ghyar-market-user-v1'
 
 function isCartItem(value: unknown): value is CartItem {
   if (!value || typeof value !== 'object') return false
@@ -27,45 +26,28 @@ function isCartItem(value: unknown): value is CartItem {
   )
 }
 
-function readCachedUser(): AuthUser | null {
-  try {
-    const value: unknown = JSON.parse(window.sessionStorage.getItem(AUTH_USER_CACHE_KEY) || 'null')
-    if (!value || typeof value !== 'object') return null
-    const user = value as Partial<AuthUser>
-    if (
-      typeof user.id !== 'string' ||
-      typeof user.name !== 'string' ||
-      typeof user.email !== 'string' ||
-      !['BUYER', 'ADMIN', 'SHOP_OWNER'].includes(String(user.role))
-    ) return null
-    return user as AuthUser
-  } catch {
-    return null
-  }
-}
-
 export function AppShell({
   children,
   initialView,
   initialSearch = '',
+  initialUser,
 }: {
   children: ReactNode
   initialView: View
   initialSearch?: string
+  initialUser: AuthUser | null
 }) {
   const user = useAppStore((state) => state.user)
   const setUser = useAppStore((state) => state.setUser)
   const hydratedCart = useRef(false)
   const [authResolved, setAuthResolved] = useState(false)
 
-  // Restore the last known account before the browser paints a newly navigated page.
-  // The request below immediately verifies it against the HttpOnly session cookie.
+  // The server has already verified the HttpOnly session before rendering this page.
+  // Hydrate the client store before paint so child views see the same account.
   useLayoutEffect(() => {
-    if (!useAppStore.getState().user) {
-      const cachedUser = readCachedUser()
-      if (cachedUser) setUser(cachedUser)
-    }
-  }, [setUser])
+    setUser(initialUser)
+    setAuthResolved(true)
+  }, [initialUser, setUser])
 
   useEffect(() => {
     useAppStore.setState({ view: initialView, searchQuery: initialSearch })
@@ -94,24 +76,6 @@ export function AppShell({
   }, [])
 
   useEffect(() => {
-    let active = true
-    fetch('/api/auth/me', { cache: 'no-store' })
-      .then((response) => (response.ok ? response.json() : { user: null }))
-      .then((data: { user?: AuthUser | null }) => {
-        if (active) setUser(data.user || null)
-      })
-      .catch(() => {
-        if (active) setUser(null)
-      })
-      .finally(() => {
-        if (active) setAuthResolved(true)
-      })
-    return () => {
-      active = false
-    }
-  }, [setUser])
-
-  useEffect(() => {
     if (!user) {
       useAppStore.getState().setFavoriteStores([])
       return
@@ -135,13 +99,14 @@ export function AppShell({
 
   const requiredRoles = rolesForView(initialView)
   const protectedContent = requiredRoles !== null
-  const canAccess = !protectedContent || (user && (requiredRoles.length === 0 || requiredRoles.includes(user.role)))
+  const visibleUser = authResolved ? user : initialUser
+  const canAccess = !protectedContent || (visibleUser && (requiredRoles.length === 0 || requiredRoles.includes(visibleUser.role)))
 
   return (
     <div className="min-h-screen flex flex-col pb-20 lg:pb-0">
-      <Header user={user} />
+      <Header user={visibleUser} />
       <main className="flex-1">
-        {protectedContent && !authResolved ? <ProtectedLoading /> : canAccess ? children : user ? <ForbiddenState /> : <SignInState />}
+        {protectedContent && !authResolved ? <ProtectedLoading /> : canAccess ? children : visibleUser ? <ForbiddenState /> : <SignInState />}
       </main>
       <Footer />
       <CartDrawer />

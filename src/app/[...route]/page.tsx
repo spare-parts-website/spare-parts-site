@@ -18,6 +18,7 @@ import { StoreView } from '@/components/views/store-view'
 import { StoresView } from '@/components/views/stores-view'
 import { WishlistView } from '@/components/views/wishlist-view'
 import { db } from '@/lib/db'
+import { getSession } from '@/lib/auth'
 import type { View } from '@/lib/store'
 
 type RoutePageProps = {
@@ -78,6 +79,7 @@ export async function generateMetadata({ params }: RoutePageProps): Promise<Meta
 }
 
 export default async function RoutePage({ params, searchParams }: RoutePageProps) {
+  const user = await getSession()
   const { route } = await params
   const query = await searchParams
   const [section, id, childId] = route
@@ -156,5 +158,5 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     notFound()
   }
 
-  return <AppShell initialView={view} initialSearch={search}>{content}</AppShell>
+  return <AppShell initialView={view} initialSearch={search} initialUser={user}>{content}</AppShell>
 }

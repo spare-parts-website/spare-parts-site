@@ -12,22 +12,6 @@ export interface AuthUser {
   emailNotifications?: boolean
 }
 
-const AUTH_USER_CACHE_KEY = 'ghyar-market-user-v1'
-
-function cacheUser(user: AuthUser | null) {
-  if (typeof window === 'undefined') return
-  try {
-    if (user) {
-      // This contains display-only account data, never a session token or password.
-      window.sessionStorage.setItem(AUTH_USER_CACHE_KEY, JSON.stringify(user))
-    } else {
-      window.sessionStorage.removeItem(AUTH_USER_CACHE_KEY)
-    }
-  } catch {
-    // Storage can be unavailable in private browsing; authentication still works.
-  }
-}
-
 export type View =
   | { name: 'home' }
   | { name: 'stores' }
@@ -141,10 +125,7 @@ interface AppState {
 
 export const useAppStore = create<AppState>((set) => ({
   user: null,
-  setUser: (u) => {
-    cacheUser(u)
-    set({ user: u })
-  },
+  setUser: (u) => set({ user: u }),
 
   view: { name: 'home' },
   setView: (v) => {
