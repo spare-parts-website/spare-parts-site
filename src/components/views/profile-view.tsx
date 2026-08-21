@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { UserAvatar } from '@/components/user-avatar'
-import { BellRing, Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock } from 'lucide-react'
+import { BellRing, Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock, Car } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
@@ -130,6 +130,9 @@ export function ProfileView() {
           <CardTitle>إجراءات سريعة</CardTitle>
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
+          {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
+            <Button variant="outline" onClick={() => setView({ name: 'cars' })} className="justify-start h-auto p-4"><Car className="size-5 ml-2" /><div className="text-right"><p className="font-medium">سياراتي</p><p className="text-xs text-muted-foreground">احفظ سيارتك واعرض القطع المتوافقة</p></div></Button>
+          )}
           {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
             <Button variant="outline" onClick={() => setView({ name: 'orders' })} className="justify-start h-auto p-4">
               <ShoppingBag className="size-5 ml-2" />

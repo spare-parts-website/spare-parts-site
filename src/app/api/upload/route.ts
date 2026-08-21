@@ -6,7 +6,8 @@ import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { IMAGE_PURPOSES, IMAGE_UPLOAD_MAX_INPUT_BYTES, IMAGE_UPLOAD_MAX_OUTPUT_BYTES, IMAGE_UPLOAD_TYPES, isImagePurpose } from '@/lib/image-policy'
 
 const ALLOWED_TYPES = new Set<string>(IMAGE_UPLOAD_TYPES)
-const BUCKET = 'uploads'
+const PUBLIC_BUCKET = 'uploads'
+const PRIVATE_BUCKET = 'protected-uploads'
 
 export async function POST(req: NextRequest) {
   try {
@@ -39,6 +40,8 @@ export async function POST(req: NextRequest) {
 
     const input = Buffer.from(await file.arrayBuffer())
     const policy = IMAGE_PURPOSES[purpose]
+    const isPrivate = purpose === 'evidence' || purpose === 'verification'
+    const bucket = isPrivate ? PRIVATE_BUCKET : PUBLIC_BUCKET
     let output = await sharp(input, { limitInputPixels: 25_000_000, failOn: 'error' })
       .rotate()
       .resize({ width: policy.width, height: policy.height, fit: 'inside', withoutEnlargement: true })
@@ -57,7 +60,7 @@ export async function POST(req: NextRequest) {
     }
 
     const filename = `${purpose}-${session.id}-${Date.now()}-${randomUUID()}.webp`
-    const uploadUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/${BUCKET}/${filename}`
+    const uploadUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/${bucket}/${filename}`
     const uploadResponse = await fetch(uploadUrl, {
       method: 'POST',
       headers: {
@@ -75,8 +78,8 @@ export async function POST(req: NextRequest) {
       throw new Error(`Supabase Storage upload failed: ${uploadResponse.status} ${details}`)
     }
 
-    const publicUrl = `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${BUCKET}/${filename}`
-    return NextResponse.json({ url: publicUrl, bytes: output.length })
+    const url = isPrivate ? `/api/private-image?path=${encodeURIComponent(filename)}` : `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${PUBLIC_BUCKET}/${filename}`
+    return NextResponse.json({ url, bytes: output.length })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })

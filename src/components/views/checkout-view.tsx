@@ -18,6 +18,8 @@ import {
 } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
+import { GOVERNORATE_DELIVERY, type GovernorateCode } from '@/lib/delivery'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export function CheckoutView() {
   const { cart, user, setView, clearCart, setCartOpen } = useAppStore()
@@ -28,6 +30,7 @@ export function CheckoutView() {
     deliveryAddress: '',
     notes: '',
     couponCode: '',
+    governorate: '' as GovernorateCode | '',
   })
 
   // Group cart items by store
@@ -47,6 +50,7 @@ export function CheckoutView() {
     }),
     { total: 0, totalItems: 0 },
   ), [cart])
+  const shippingTotal = form.governorate ? GOVERNORATE_DELIVERY[form.governorate].fee * Object.keys(storeGroups).length : 0
 
   if (!user) {
     return (
@@ -69,8 +73,8 @@ export function CheckoutView() {
   }
 
   const handleCheckout = async () => {
-    if (!form.deliveryAddress) {
-      toast({ title: 'خطأ', description: 'عنوان التوصيل مطلوب', variant: 'destructive' })
+    if (!form.deliveryAddress || !form.governorate) {
+      toast({ title: 'خطأ', description: 'المحافظة وعنوان التوصيل مطلوبان', variant: 'destructive' })
       return
     }
     setSubmitting(true)
@@ -85,6 +89,7 @@ export function CheckoutView() {
           deliveryAddress: form.deliveryAddress,
           notes: form.notes,
           couponCode: form.couponCode.trim() || undefined,
+          governorate: form.governorate,
         }),
       })
       const result = await response.json()
@@ -151,6 +156,10 @@ export function CheckoutView() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
+              <Select value={form.governorate} onValueChange={(value) => setForm({ ...form, governorate: value as GovernorateCode })}>
+                <SelectTrigger><SelectValue placeholder="اختر المحافظة" /></SelectTrigger>
+                <SelectContent>{Object.entries(GOVERNORATE_DELIVERY).map(([code, item]) => <SelectItem key={code} value={code}>{item.ar} — {formatPrice(item.fee)} — {item.days} أيام تقريبًا</SelectItem>)}</SelectContent>
+              </Select>
               <Textarea
                 value={form.deliveryAddress}
                 onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })}
@@ -249,9 +258,10 @@ export function CheckoutView() {
                   <span className="text-muted-foreground">عدد الطلبات</span>
                   <span>{cart.length}</span>
                 </div>
+                <div className="flex justify-between text-sm"><span className="text-muted-foreground">التوصيل ({Object.keys(storeGroups).length} متجر)</span><span>{form.governorate ? formatPrice(shippingTotal) : 'اختر المحافظة'}</span></div>
                 <div className="flex justify-between font-bold text-lg pt-2 border-t">
                   <span>الإجمالي</span>
-                  <span className="text-primary">{formatPrice(total)}</span>
+                  <span className="text-primary">{formatPrice(total + shippingTotal)}</span>
                 </div>
               </div>
 
@@ -259,7 +269,7 @@ export function CheckoutView() {
                 className="w-full"
                 size="lg"
                 onClick={handleCheckout}
-                disabled={submitting || !form.deliveryAddress}
+                disabled={submitting || !form.deliveryAddress || !form.governorate}
               >
                 {submitting ? (
                   'جاري إرسال الطلبات...'

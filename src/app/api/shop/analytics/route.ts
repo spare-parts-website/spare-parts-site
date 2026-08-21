@@ -65,6 +65,14 @@ export async function GET() {
       select: { rating: true },
     })
     const avgRating = reviews.length ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length : 0
+    const messages = await db.productMessage.findMany({ where: { part: { storeId: store.id } }, select: { senderId: true, receiverId: true, createdAt: true }, orderBy: { createdAt: 'asc' } })
+    const waitingSince = new Map<string, Date>(); const responseMinutes: number[] = []
+    for (const message of messages) {
+      const customerId = message.senderId === session.id ? message.receiverId : message.senderId
+      if (message.senderId !== session.id) waitingSince.set(customerId, message.createdAt)
+      else { const waiting = waitingSince.get(customerId); if (waiting) { responseMinutes.push((message.createdAt.getTime() - waiting.getTime()) / 60000); waitingSince.delete(customerId) } }
+    }
+    const avgResponseMinutes = responseMinutes.length ? Math.round(responseMinutes.reduce((sum, value) => sum + value, 0) / responseMinutes.length) : null
 
     return NextResponse.json({
       stats: {
@@ -73,6 +81,7 @@ export async function GET() {
         paidOrders: paidOrders.length,
         avgRating,
         reviewCount: reviews.length,
+        avgResponseMinutes,
       },
       statusCounts,
       monthlyRevenue,

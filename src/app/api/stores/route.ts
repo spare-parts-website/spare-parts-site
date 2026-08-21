@@ -29,7 +29,10 @@ export async function GET(req: NextRequest) {
     if (!store || isBlockedStoreName(store.name)) {
       return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
     }
-    const completedOrderCount = await db.order.count({ where: { storeId: store.id, status: 'DELIVERED' } })
+    const [completedOrderCount, decidedOrderCount] = await Promise.all([
+      db.order.count({ where: { storeId: store.id, status: 'DELIVERED' } }),
+      db.order.count({ where: { storeId: store.id, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } } }),
+    ])
     const session = await getSession()
     const canReview = session && ['BUYER', 'SHOP_OWNER'].includes(session.role)
       ? Boolean(await db.order.findFirst({
@@ -37,7 +40,7 @@ export async function GET(req: NextRequest) {
           select: { id: true },
         }))
       : false
-    return NextResponse.json({ store: { ...store, completedOrderCount }, canReview })
+    return NextResponse.json({ store: { ...store, completedOrderCount, completionRate: decidedOrderCount ? Math.round(completedOrderCount / decidedOrderCount * 100) : 100 }, canReview })
   }
 
   const where = search
@@ -75,6 +78,8 @@ export async function GET(req: NextRequest) {
       })
     : []
   const reviewByStore = new Map(reviewGroups.map((review) => [review.storeId, review]))
+  const decidedGroups = visibleStores.length ? await db.order.groupBy({ by: ['storeId'], where: { storeId: { in: visibleStores.map((store) => store.id) }, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } }, _count: { _all: true } }) : []
+  const decidedByStore = new Map(decidedGroups.map((item) => [item.storeId, item._count._all]))
   const storesWithRating = visibleStores.map((store) => {
     const review = reviewByStore.get(store.id)
     return {
@@ -82,6 +87,7 @@ export async function GET(req: NextRequest) {
       avgRating: review?._avg.rating || 0,
       reviewCount: review?._count._all || 0,
       completedOrderCount: store._count.orders,
+      completionRate: decidedByStore.get(store.id) ? Math.round(store._count.orders / decidedByStore.get(store.id)! * 100) : 100,
     }
   })
 

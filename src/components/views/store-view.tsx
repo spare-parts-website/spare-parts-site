@@ -43,6 +43,8 @@ interface Store {
   parts: any[]
   reviews: Array<{ id: string; rating: number; comment?: string | null; createdAt: string; user: { name: string; avatar?: string | null } }>
   verified: boolean
+  verificationStatus?: string
+  completionRate?: number
   completedOrderCount: number
   canReview?: boolean
 }
@@ -173,7 +175,8 @@ export function StoreView({ storeId }: { storeId: string }) {
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-3xl font-extrabold md:text-4xl">{store.name}</h1>
-                    {store.verified && <Badge className="bg-emerald-600 hover:bg-emerald-600"><ShieldCheck className="size-3.5 ml-1" />متجر موثق</Badge>}
+                    {(store.verified || store.verificationStatus === 'APPROVED') && <Badge className="bg-emerald-600 hover:bg-emerald-600"><ShieldCheck className="size-3.5 ml-1" />متجر معتمد</Badge>}
+                    <Badge variant="outline">نسبة الطلبات المكتملة {store.completionRate ?? 100}%</Badge>
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <Stars value={avgRating} size={16} />

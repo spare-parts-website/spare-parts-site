@@ -36,6 +36,8 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
 import { UserAvatar } from '@/components/user-avatar'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { GOVERNORATE_DELIVERY } from '@/lib/delivery'
 
 interface Review {
   id: string
@@ -81,11 +83,12 @@ export function PartView({ partId }: { partId: string }) {
   const [reportOpen, setReportOpen] = useState(false)
   const [orderForm, setOrderForm] = useState({
     quantity: 1,
+    governorate: '',
     deliveryAddress: '',
     notes: '',
     paymentMethod: 'cod',
   })
-  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' })
+  const [reviewForm, setReviewForm] = useState({ rating: 5, sellerRating: 5, packagingRating: 5, deliveryRating: 5, comment: '' })
   const [reportForm, setReportForm] = useState({ reason: '', details: '' })
   const [submitting, setSubmitting] = useState(false)
 
@@ -156,6 +159,9 @@ export function PartView({ partId }: { partId: string }) {
           type: 'product',
           targetId: partId,
           rating: reviewForm.rating,
+          sellerRating: reviewForm.sellerRating,
+          packagingRating: reviewForm.packagingRating,
+          deliveryRating: reviewForm.deliveryRating,
           comment: reviewForm.comment,
         }),
       })
@@ -166,7 +172,7 @@ export function PartView({ partId }: { partId: string }) {
       }
       toast({ title: 'تم إضافة تقييمك', description: 'شكراً على مشاركتك' })
       setReviewOpen(false)
-      setReviewForm({ rating: 5, comment: '' })
+      setReviewForm({ rating: 5, sellerRating: 5, packagingRating: 5, deliveryRating: 5, comment: '' })
       load()
     } finally {
       setSubmitting(false)
@@ -529,6 +535,14 @@ export function PartView({ partId }: { partId: string }) {
                   </div>
                   <div className="space-y-2">
                     <Label>عنوان التوصيل</Label>
+                    <Select value={orderForm.governorate} onValueChange={(governorate) => setOrderForm({ ...orderForm, governorate })}>
+                      <SelectTrigger><SelectValue placeholder="اختر المحافظة لحساب الشحن" /></SelectTrigger>
+                      <SelectContent>
+                        {Object.entries(GOVERNORATE_DELIVERY).map(([code, item]) => (
+                          <SelectItem key={code} value={code}>{item.ar} — {formatPrice(item.fee)} — {item.days} أيام</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                     <Textarea
                       value={orderForm.deliveryAddress}
                       onChange={(e) =>
@@ -563,7 +577,7 @@ export function PartView({ partId }: { partId: string }) {
                   <Button variant="outline" onClick={() => setOrderOpen(false)}>
                     إلغاء
                   </Button>
-                  <Button onClick={handleOrder} disabled={submitting || !orderForm.deliveryAddress}>
+                  <Button onClick={handleOrder} disabled={submitting || !orderForm.governorate || !orderForm.deliveryAddress}>
                     {submitting ? 'جاري الإرسال...' : 'تأكيد الطلب'}
                   </Button>
                 </DialogFooter>
@@ -615,6 +629,18 @@ export function PartView({ partId }: { partId: string }) {
                       rows={4}
                     />
                   </div>
+                  {([['sellerRating', 'تعامل البائع'], ['packagingRating', 'التغليف'], ['deliveryRating', 'التوصيل']] as const).map(([key, label]) => (
+                    <div key={key} className="space-y-1">
+                      <Label>{label}</Label>
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <button key={n} type="button" onClick={() => setReviewForm({ ...reviewForm, [key]: n })} className="p-1">
+                            <Star className={`size-6 ${n <= reviewForm[key] ? 'fill-amber-400 text-amber-400' : 'fill-muted text-muted-foreground/30'}`} />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setReviewOpen(false)}>

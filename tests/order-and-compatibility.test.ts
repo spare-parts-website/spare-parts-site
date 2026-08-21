@@ -16,7 +16,11 @@ test('enforces COD order transitions and stock restoration rules', () => {
     { status: 'APPROVED', paymentStatus: 'UNPAID', restoreStock: false },
   )
   assert.deepEqual(
-    resolveOrderTransition({ action: 'deliver', status: 'APPROVED', paymentStatus: 'UNPAID', paymentMethod: 'cod' }),
+    resolveOrderTransition({ action: 'ship', status: 'APPROVED', paymentStatus: 'UNPAID', paymentMethod: 'cod' }),
+    { status: 'SHIPPED', paymentStatus: 'UNPAID', restoreStock: false },
+  )
+  assert.deepEqual(
+    resolveOrderTransition({ action: 'deliver', status: 'SHIPPED', paymentStatus: 'UNPAID', paymentMethod: 'cod' }),
     { status: 'DELIVERED', paymentStatus: 'PAID', restoreStock: false },
   )
   assert.deepEqual(

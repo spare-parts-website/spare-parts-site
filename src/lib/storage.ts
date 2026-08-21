@@ -1,4 +1,5 @@
 const BUCKET = 'uploads'
+const PRIVATE_BUCKET = 'protected-uploads'
 
 function getStorageObjectPath(value: string) {
   const base = process.env.SUPABASE_URL?.replace(/\/$/, '')
@@ -22,9 +23,19 @@ export async function deleteUploadedFiles(urls: Array<string | null | undefined>
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
   const base = process.env.SUPABASE_URL?.replace(/\/$/, '')
   if (!serviceRoleKey || !base) return
-  const paths = Array.from(new Set(urls.map((url) => typeof url === 'string' ? getStorageObjectPath(url) : null).filter(Boolean))) as string[]
-  await Promise.allSettled(paths.map(async (path) => {
-    const response = await fetch(`${base}/storage/v1/object/${BUCKET}/${path}`, {
+  const objects = urls.flatMap((url) => {
+    if (typeof url !== 'string') return []
+    const publicPath = getStorageObjectPath(url)
+    if (publicPath) return [{ bucket: BUCKET, path: publicPath }]
+    if (url.startsWith('/api/private-image?path=')) {
+      const path = decodeURIComponent(url.slice('/api/private-image?path='.length))
+      if (path && !path.includes('..') && !path.includes('\\')) return [{ bucket: PRIVATE_BUCKET, path }]
+    }
+    return []
+  })
+  const unique = Array.from(new Map(objects.map((item) => [`${item.bucket}/${item.path}`, item])).values())
+  await Promise.allSettled(unique.map(async ({ bucket, path }) => {
+    const response = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, {
       method: 'DELETE',
       headers: { Authorization: `Bearer ${serviceRoleKey}`, apikey: serviceRoleKey },
     })

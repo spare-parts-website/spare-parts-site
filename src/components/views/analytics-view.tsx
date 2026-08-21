@@ -13,6 +13,7 @@ interface Analytics {
     paidOrders: number
     avgRating: number
     reviewCount: number
+    avgResponseMinutes: number | null
   }
   statusCounts: Record<string, number>
   monthlyRevenue: { month: string; revenue: number; orders: number }[]
@@ -115,6 +116,7 @@ export function AnalyticsView() {
           </CardContent>
         </Card>
       </div>
+      <Card><CardContent className="p-4"><p className="text-sm text-muted-foreground">متوسط وقت الرد</p><p className="mt-1 text-xl font-bold">{data.stats.avgResponseMinutes === null ? 'لا توجد بيانات كافية' : data.stats.avgResponseMinutes < 60 ? `${data.stats.avgResponseMinutes} دقيقة` : `${(data.stats.avgResponseMinutes / 60).toFixed(1)} ساعة`}</p></CardContent></Card>
 
       {/* Charts row */}
       <div className="grid lg:grid-cols-2 gap-4">

@@ -40,6 +40,9 @@ model User {
   reportsReviewed         Report[]            @relation("ReportReviewer")
   loginVerifications      LoginVerification[]
   passwordResets          PasswordReset[]
+  disputes                Dispute[]           @relation("DisputeBuyer")
+  disputesReviewed        Dispute[]           @relation("DisputeReviewer")
+  auditLogs               AuditLog[]
 }
 
 model PasswordReset {
@@ -72,22 +75,26 @@ model LoginVerification {
 }
 
 model Store {
-  id          String          @id @default(cuid())
-  name        String
-  description String?
-  address     String?
-  phone       String?
-  image       String?
-  verified    Boolean         @default(false)
-  ownerId     String          @unique
-  owner       User            @relation(fields: [ownerId], references: [id])
-  parts       Part[]
-  orders      Order[]
-  reviews     StoreReview[]
-  coupons     Coupon[]
-  wishlist    StoreWishlist[]
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id                 String              @id @default(cuid())
+  name               String
+  description        String?
+  address            String?
+  phone              String?
+  image              String?
+  verified           Boolean             @default(false)
+  verificationStatus String              @default("UNVERIFIED")
+  verifiedAt         DateTime?
+  ownerId            String              @unique
+  owner              User                @relation(fields: [ownerId], references: [id])
+  parts              Part[]
+  orders             Order[]
+  reviews            StoreReview[]
+  coupons            Coupon[]
+  wishlist           StoreWishlist[]
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  verification       SellerVerification?
+  disputes           Dispute[]
 }
 
 model Part {
@@ -98,6 +105,9 @@ model Part {
   stock           Int                    @default(0)
   category        String?
   brand           String?
+  partNumber      String?
+  oemNumber       String?
+  searchAliases   String?
   condition       String?
   image           String?
   // Car compatibility - stored as JSON string: e.g. '["Toyota Camry 2018-2023", "Honda Accord 2019-2022"]'
@@ -118,6 +128,8 @@ model Part {
   @@index([blocked, createdAt])
   @@index([category])
   @@index([brand])
+  @@index([partNumber])
+  @@index([oemNumber])
   @@index([condition])
 }
 
@@ -157,27 +169,32 @@ model PartImage {
 }
 
 model Order {
-  id              String          @id @default(cuid())
-  partId          String
-  part            Part            @relation(fields: [partId], references: [id])
-  storeId         String
-  store           Store           @relation(fields: [storeId], references: [id])
-  buyerId         String
-  buyer           User            @relation(fields: [buyerId], references: [id])
-  quantity        Int             @default(1)
-  totalPrice      Float
-  status          String          @default("PENDING") // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
-  paymentStatus   String          @default("UNPAID") // UNPAID, PAID, REFUNDED
-  paymentMethod   String?
-  deliveryAddress String
-  notes           String?
-  couponCode      String?
-  discount        Float           @default(0)
-  clientOrderId   String?         @unique
-  timeline        OrderTimeline[]
-  chatMessages    ChatMessage[]
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
+  id                  String          @id @default(cuid())
+  partId              String
+  part                Part            @relation(fields: [partId], references: [id])
+  storeId             String
+  store               Store           @relation(fields: [storeId], references: [id])
+  buyerId             String
+  buyer               User            @relation(fields: [buyerId], references: [id])
+  quantity            Int             @default(1)
+  totalPrice          Float
+  status              String          @default("PENDING") // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
+  paymentStatus       String          @default("UNPAID") // UNPAID, PAID, REFUNDED
+  paymentMethod       String?
+  deliveryAddress     String
+  governorate         String?
+  shippingFee         Float           @default(0)
+  estimatedDeliveryAt DateTime?
+  trackingNumber      String?
+  notes               String?
+  couponCode          String?
+  discount            Float           @default(0)
+  clientOrderId       String?         @unique
+  timeline            OrderTimeline[]
+  chatMessages        ChatMessage[]
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  disputes            Dispute[]
 
   @@index([buyerId, createdAt])
   @@index([storeId, createdAt])
@@ -196,15 +213,19 @@ model OrderTimeline {
 }
 
 model ProductReview {
-  id        String   @id @default(cuid())
-  partId    String
-  part      Part     @relation(fields: [partId], references: [id])
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
-  rating    Int
-  comment   String?
-  blocked   Boolean  @default(false)
-  createdAt DateTime @default(now())
+  id              String   @id @default(cuid())
+  partId          String
+  part            Part     @relation(fields: [partId], references: [id])
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  rating          Int
+  sellerRating    Int?
+  packagingRating Int?
+  deliveryRating  Int?
+  orderId         String?
+  comment         String?
+  blocked         Boolean  @default(false)
+  createdAt       DateTime @default(now())
 
   @@index([partId, createdAt])
   @@index([userId])
@@ -287,10 +308,64 @@ model UserCar {
   brand     String // Toyota, Honda, etc.
   model     String // Camry, Civic, etc.
   year      Int?
+  engine    String?
+  isPrimary Boolean  @default(false)
   nickname  String? // "سيارة العمل", "سيارة العائلة"
   createdAt DateTime @default(now())
 
   @@index([userId, createdAt])
+}
+
+model SellerVerification {
+  id           String    @id @default(cuid())
+  storeId      String    @unique
+  store        Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  documentUrls String
+  businessName String?
+  status       String    @default("PENDING")
+  adminNote    String?
+  submittedAt  DateTime  @default(now())
+  reviewedAt   DateTime?
+}
+
+model Dispute {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  buyerId      String
+  buyer        User     @relation("DisputeBuyer", fields: [buyerId], references: [id], onDelete: Cascade)
+  storeId      String
+  store        Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  type         String
+  reason       String
+  evidenceUrls String?
+  status       String   @default("OPEN")
+  resolution   String?
+  reviewedById String?
+  reviewedBy   User?    @relation("DisputeReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([orderId, buyerId, status])
+  @@index([status, createdAt])
+  @@index([orderId])
+  @@index([buyerId])
+  @@index([storeId])
+  @@index([reviewedById])
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  targetType String
+  targetId   String?
+  metadata   String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
 }
 
 // Discount coupons

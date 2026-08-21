@@ -25,6 +25,7 @@ import {
 import { StatusBadge, formatPrice } from '@/components/common'
 import { OrderTimeline } from '@/components/order-timeline'
 import { useToast } from '@/hooks/use-toast'
+import { DisputeDialog } from '@/components/dispute-dialog'
 
 interface OrderTimelineEntry {
   id: string
@@ -41,6 +42,10 @@ interface Order {
   paymentStatus: string
   paymentMethod?: string | null
   deliveryAddress: string
+  governorate?: string | null
+  shippingFee?: number
+  estimatedDeliveryAt?: string | null
+  trackingNumber?: string | null
   notes?: string | null
   createdAt: string
   part: { id: string; name: string; image?: string | null; price: number }
@@ -210,7 +215,7 @@ export function OrdersView() {
 
                     {/* Actions */}
                     <div className="flex flex-wrap gap-2 pt-3 border-t">
-                      {(order.status === 'PAID' || (order.status === 'APPROVED' && order.paymentMethod === 'cod')) && (
+                      {order.status === 'SHIPPED' && (
                         <Button
                           size="sm"
                           onClick={() => handleAction(order.id, 'deliver')}
@@ -220,6 +225,7 @@ export function OrdersView() {
                           تم استلام الطلب و الدفع
                         </Button>
                       )}
+                      {order.trackingNumber && <Badge variant="outline">رقم التتبع: {order.trackingNumber}</Badge>}
                       {order.status === 'DELIVERED' && (
                         <Button
                           size="sm"
@@ -231,6 +237,7 @@ export function OrdersView() {
                           استرجاع القطعة
                         </Button>
                       )}
+                      {['SHIPPED', 'DELIVERED', 'RETURNED'].includes(order.status) && <DisputeDialog orderId={order.id} />}
                       {(order.status === 'PENDING' || order.status === 'APPROVED') && order.paymentStatus === 'UNPAID' && (
                         <Button
                           size="sm"

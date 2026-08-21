@@ -36,6 +36,7 @@ import { StatusBadge, formatPrice } from '@/components/common'
 import { AnalyticsView } from '@/components/views/analytics-view'
 import { CouponsView } from '@/components/views/coupons-view'
 import { ShopMessagesView } from '@/components/views/shop-messages-view'
+import { SellerVerificationCard } from '@/components/seller-verification-card'
 import { useToast } from '@/hooks/use-toast'
 import {
   Dialog,
@@ -66,6 +67,9 @@ interface Part {
   image?: string | null
   images?: { id: string; url: string; position: number }[]
   carModels?: string | null
+  partNumber?: string | null
+  oemNumber?: string | null
+  searchAliases?: string | null
   blocked: boolean
   store: { id: string; name: string }
 }
@@ -103,6 +107,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     condition: '',
     images: [] as string[],
     carModels: '',
+    partNumber: '', oemNumber: '', searchAliases: '',
   })
   const [storeForm, setStoreForm] = useState({
     name: '',
@@ -115,6 +120,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [imageUploading, setImageUploading] = useState(false)
   const [storeImageUploading, setStoreImageUploading] = useState(false)
   const partFormRef = useRef<HTMLDivElement>(null)
+  const csvInputRef = useRef<HTMLInputElement>(null)
 
   const loadStore = async () => {
     setLoadError(false)
@@ -232,7 +238,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         description: 'تم حفظ قطعة الغيار بنجاح',
       })
       setEditPart(null)
-      setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '' })
+      setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '', partNumber: '', oemNumber: '', searchAliases: '' })
       loadAllParts()
     } finally {
       setSubmitting(false)
@@ -248,6 +254,9 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     }
   }
 
+  const bulkRestock = async () => { const value = Number(window.prompt('الكمية الجديدة لكل القطع منخفضة المخزون')); if (!Number.isInteger(value) || value < 0) return; const items = parts.filter((part) => part.stock <= 3).map((part) => ({ id: part.id, price: part.price, stock: value })); if (!items.length) return toast({ title: 'لا توجد قطع منخفضة المخزون' }); const response = await fetch('/api/shop/inventory', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) }); if (response.ok) { toast({ title: `تم تحديث ${items.length} قطعة` }); loadAllParts() } }
+  const importCsv = async (file: File) => { const form = new FormData(); form.append('file', file); const response = await fetch('/api/shop/inventory', { method: 'POST', body: form }); const data = await response.json(); toast({ title: response.ok ? `تم تحديث ${data.updated} قطعة` : 'فشل الاستيراد', description: data.error, variant: response.ok ? 'default' : 'destructive' }); if (response.ok) loadAllParts() }
+
   const handleEditPart = (part: Part) => {
     setEditPart(part)
     setPartForm({
@@ -260,6 +269,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       condition: part.condition || '',
       images: [part.image, ...(part.images || []).slice().sort((a, b) => a.position - b.position).map((item) => item.url)].filter(Boolean) as string[],
       carModels: part.carModels || '',
+      partNumber: part.partNumber || '', oemNumber: part.oemNumber || '', searchAliases: part.searchAliases || '',
     })
     requestAnimationFrame(() => {
       partFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -272,7 +282,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       const res = await fetch('/api/orders', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, action }),
+        body: JSON.stringify({ id, action, ...(action === 'ship' ? { trackingNumber: window.prompt('رقم التتبع (اختياري)') || '' } : {}) }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -369,12 +379,13 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
             <Button
               onClick={() => {
                 setEditPart(null)
-                setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '' })
+                setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '', partNumber: '', oemNumber: '', searchAliases: '' })
               }}
             >
               <Plus className="size-4 ml-1" />
               إضافة قطعة
             </Button>
+            <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={bulkRestock}>تحديث المخزون المنخفض ({parts.filter((part) => part.stock <= 3).length})</Button><Button variant="outline" onClick={() => window.open('/api/shop/inventory')}>تصدير CSV</Button><Button variant="outline" onClick={() => csvInputRef.current?.click()}>استيراد CSV</Button><input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importCsv(file); event.currentTarget.value = '' }} /></div>
           </div>
 
           {/* Add/Edit form */}
@@ -435,6 +446,9 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                     placeholder="0"
                   />
                 </div>
+                <div className="space-y-2"><Label>رقم القطعة</Label><Input value={partForm.partNumber} onChange={(e) => setPartForm({ ...partForm, partNumber: e.target.value })} placeholder="Part number" dir="ltr" /></div>
+                <div className="space-y-2"><Label>رقم OEM</Label><Input value={partForm.oemNumber} onChange={(e) => setPartForm({ ...partForm, oemNumber: e.target.value })} placeholder="OEM number" dir="ltr" /></div>
+                <div className="space-y-2 md:col-span-2"><Label>أسماء بحث إضافية</Label><Input value={partForm.searchAliases} onChange={(e) => setPartForm({ ...partForm, searchAliases: e.target.value })} placeholder="مرادفات عربية وإنجليزية مفصولة بفواصل" /></div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>صور القطعة</Label>
                   <MultiImageUpload
@@ -478,7 +492,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                         : 'إضافة القطعة'}
                 </Button>
                 {editPart && (
-                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '' }) }}>
+                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '', partNumber: '', oemNumber: '', searchAliases: '' }) }}>
                     إلغاء
                   </Button>
                 )}
@@ -627,10 +641,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                         </>
                       )}
                       {order.status === 'APPROVED' && (
-                        <Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">
-                          الدفع عند الاستلام
-                        </Badge>
+                        <><Badge variant="outline" className="text-blue-600 border-blue-200 bg-blue-50">الدفع عند الاستلام</Badge><Button size="sm" onClick={() => handleOrderAction(order.id, 'ship')} disabled={submitting}>خرج للتوصيل</Button></>
                       )}
+                      {order.status === 'PAID' && <Button size="sm" onClick={() => handleOrderAction(order.id, 'ship')} disabled={submitting}>خرج للتوصيل</Button>}
+                      {order.status === 'SHIPPED' && <Badge variant="outline">قيد التوصيل</Badge>}
                       {order.status === 'DELIVERED' && (
                         <Badge variant="outline" className="text-emerald-600 border-emerald-200 bg-emerald-50">
                           تم التوصيل
@@ -670,6 +684,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
         {/* Store tab */}
         <TabsContent value="store" className="space-y-4">
+          <SellerVerificationCard />
           <Card className="market-card">
             <CardHeader>
               <CardTitle>معلومات المتجر</CardTitle>

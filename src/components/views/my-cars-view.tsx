@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -24,18 +25,21 @@ interface UserCar {
   model: string
   year?: number | null
   nickname?: string | null
+  engine?: string | null
+  isPrimary: boolean
   createdAt: string
 }
 
 const POPULAR_BRANDS = ['Toyota', 'Hyundai', 'Nissan', 'Kia', 'Honda', 'Mercedes', 'BMW', 'VW', 'Chevrolet', 'Mitsubishi']
 
 export function MyCarsView() {
+  const router = useRouter()
   const { user, setView, setSearchQuery } = useAppStore()
   const { toast } = useToast()
   const [cars, setCars] = useState<UserCar[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ brand: '', model: '', year: '', nickname: '' })
+  const [form, setForm] = useState({ brand: '', model: '', year: '', engine: '', nickname: '', isPrimary: false })
   const [submitting, setSubmitting] = useState(false)
 
   const load = () => {
@@ -67,7 +71,7 @@ export function MyCarsView() {
         return
       }
       toast({ title: 'تمت الإضافة', description: 'تم حفظ سيارتك' })
-      setForm({ brand: '', model: '', year: '', nickname: '' })
+      setForm({ brand: '', model: '', year: '', engine: '', nickname: '', isPrimary: false })
       setShowForm(false)
       load()
     } finally {
@@ -82,9 +86,13 @@ export function MyCarsView() {
   }
 
   const handleSearchParts = (car: UserCar) => {
-    const query = `${car.brand} ${car.model}`.trim()
-    setSearchQuery(query)
-    setView({ name: 'parts' })
+    setSearchQuery('')
+    router.push(`/parts?carId=${encodeURIComponent(car.id)}`)
+  }
+
+  const makePrimary = async (id: string) => {
+    const response = await fetch('/api/user-cars', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+    if (response.ok) setCars((current) => current.map((car) => ({ ...car, isPrimary: car.id === id })))
   }
 
   if (!user) {
@@ -173,6 +181,10 @@ export function MyCarsView() {
                   placeholder="سيارة العمل، سيارة العائلة..."
                 />
               </div>
+              <div className="space-y-2">
+                <Label>المحرك (اختياري)</Label>
+                <Input value={form.engine} onChange={(e) => setForm({ ...form, engine: e.target.value })} placeholder="مثال: 1.6 أو 2.0 Turbo" dir="ltr" />
+              </div>
             </div>
             <div className="flex gap-2">
               <Button onClick={handleAdd} disabled={submitting}>
@@ -213,7 +225,7 @@ export function MyCarsView() {
                     </div>
                     <div>
                       <h3 className="font-bold text-lg">{car.brand} {car.model}</h3>
-                      {car.year && <p className="text-sm text-muted-foreground">{car.year}</p>}
+                      {car.year && <p className="text-sm text-muted-foreground">{car.year}{car.engine ? ` • ${car.engine}` : ''}</p>}
                     </div>
                   </div>
                   <Button size="icon" variant="ghost" onClick={() => handleDelete(car.id)}>
@@ -223,6 +235,7 @@ export function MyCarsView() {
                 {car.nickname && (
                   <Badge variant="secondary">{car.nickname}</Badge>
                 )}
+                {car.isPrimary && <Badge>السيارة الأساسية</Badge>}
                 <Button
                   variant="outline"
                   className="w-full"
@@ -231,6 +244,7 @@ export function MyCarsView() {
                   <Search className="size-4 ml-1" />
                   البحث عن قطع لهذه السيارة
                 </Button>
+                {!car.isPrimary && <Button variant="ghost" className="w-full" onClick={() => makePrimary(car.id)}>اجعلها السيارة الأساسية</Button>}
               </CardContent>
             </Card>
           ))}

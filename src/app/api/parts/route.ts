@@ -25,6 +25,7 @@ export async function GET(req: NextRequest) {
   const minPrice = searchParams.get('minPrice')
   const maxPrice = searchParams.get('maxPrice')
   const carModel = searchParams.get('carModel') || ''
+  const carId = searchParams.get('carId') || ''
   const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
   const page = Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1
   const mine = searchParams.get('scope') === 'mine'
@@ -71,6 +72,12 @@ export async function GET(req: NextRequest) {
   }
 
   const where: any = mine ? {} : { blocked: false }
+  let selectedCar: { brand: string; model: string; year: number | null; engine: string | null } | null = null
+  if (carId && !mine) {
+    const session = await getSession()
+    if (session) selectedCar = await db.userCar.findFirst({ where: { id: carId, userId: session.id }, select: { brand: true, model: true, year: true, engine: true } })
+    if (selectedCar) where.compatibilities = { some: { make: { contains: selectedCar.brand }, model: { contains: selectedCar.model }, AND: selectedCar.year ? [{ OR: [{ yearFrom: null }, { yearFrom: { lte: selectedCar.year } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: selectedCar.year } }] }] : undefined } }
+  }
   if (mine) {
     const session = await getSession()
     if (!session || session.role !== 'SHOP_OWNER') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
@@ -84,6 +91,9 @@ export async function GET(req: NextRequest) {
       { description: { contains: search } },
       { brand: { contains: search } },
       { condition: { contains: search } },
+      { partNumber: { contains: search } },
+      { oemNumber: { contains: search } },
+      { searchAliases: { contains: search } },
     ]
   }
   if (category) where.category = category
@@ -115,7 +125,7 @@ export async function GET(req: NextRequest) {
       where,
       select: {
         id: true, name: true, description: true, price: true, stock: true,
-        category: true, brand: true, condition: true, image: true, carModels: true,
+        category: true, brand: true, condition: true, image: true, carModels: true, partNumber: true, oemNumber: true,
         createdAt: true, blocked: true,
         images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
         compatibilities: { select: { id: true, make: true, model: true, yearFrom: true, yearTo: true } },
@@ -155,7 +165,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(
       {
-        parts: visibleParts,
+        parts: visibleParts.map((part) => ({ ...part, compatibleWithSelectedCar: Boolean(selectedCar) })),
+        selectedCar,
         pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
         categories: categories.map((c) => c.category).filter(Boolean),
         brands: brands.map((b) => b.brand).filter(Boolean),
@@ -175,7 +186,7 @@ export async function POST(req: NextRequest) {
     const limit = await rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
-    const { name, description, price, stock, category, brand, condition, image, images, carModels } = body
+    const { name, description, price, stock, category, brand, condition, image, images, carModels, partNumber, oemNumber, searchAliases } = body
 
     if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160 || price == null) {
       return NextResponse.json({ error: 'الاسم والسعر مطلوبان' }, { status: 400 })
@@ -205,6 +216,9 @@ export async function POST(req: NextRequest) {
         stock: numericStock,
         category: category || null,
         brand: brand || null,
+        partNumber: typeof partNumber === 'string' ? partNumber.trim().slice(0, 100) || null : null,
+        oemNumber: typeof oemNumber === 'string' ? oemNumber.trim().slice(0, 100) || null : null,
+        searchAliases: typeof searchAliases === 'string' ? searchAliases.trim().slice(0, 500) || null : null,
         condition: condition.trim(),
         image: gallery[0] || null,
         carModels: legacyCarModels,
@@ -232,7 +246,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { id, name, description, price, stock, category, brand, condition, image, images, carModels } = body
+    const { id, name, description, price, stock, category, brand, condition, image, images, carModels, partNumber, oemNumber, searchAliases } = body
 
     const part = await db.part.findUnique({ where: { id }, include: { store: true, images: true } })
     if (!part) {
@@ -270,6 +284,9 @@ export async function PUT(req: NextRequest) {
           stock: numericStock,
           category: category !== undefined ? (category || null) : undefined,
           brand: brand !== undefined ? (brand || null) : undefined,
+          partNumber: partNumber !== undefined ? String(partNumber).trim().slice(0, 100) || null : undefined,
+          oemNumber: oemNumber !== undefined ? String(oemNumber).trim().slice(0, 100) || null : undefined,
+          searchAliases: searchAliases !== undefined ? String(searchAliases).trim().slice(0, 500) || null : undefined,
           condition: condition.trim(),
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,
           carModels: legacyCarModels,

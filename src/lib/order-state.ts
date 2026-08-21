@@ -1,6 +1,6 @@
-export const ORDER_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'DELIVERED', 'RETURNED', 'CANCELLED'] as const
+export const ORDER_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED'] as const
 export const PAYMENT_STATUSES = ['UNPAID', 'PAID', 'REFUNDED'] as const
-export const ORDER_ACTIONS = ['approve', 'reject', 'pay', 'deliver', 'return', 'cancel'] as const
+export const ORDER_ACTIONS = ['approve', 'reject', 'pay', 'ship', 'deliver', 'return', 'cancel'] as const
 
 export type OrderStatus = (typeof ORDER_STATUSES)[number]
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number]
@@ -34,9 +34,13 @@ export function resolveOrderTransition(input: {
     if (paymentMethod === 'cod') throw new InvalidOrderTransition('هذا الطلب يُدفع عند الاستلام')
     return { status: 'PAID' as const, paymentStatus: 'PAID' as const, restoreStock: false }
   }
+  if (action === 'ship') {
+    if (status !== 'PAID' && !(status === 'APPROVED' && paymentMethod === 'cod')) throw new InvalidOrderTransition('لا يمكن شحن الطلب قبل الموافقة أو الدفع')
+    return { status: 'SHIPPED' as const, paymentStatus, restoreStock: false }
+  }
   if (action === 'deliver') {
-    if (status !== 'PAID' && !(status === 'APPROVED' && paymentMethod === 'cod')) {
-      throw new InvalidOrderTransition('لا يمكن تأكيد الاستلام قبل الموافقة على الطلب')
+    if (status !== 'SHIPPED') {
+      throw new InvalidOrderTransition('لا يمكن تأكيد الاستلام قبل شحن الطلب')
     }
     return { status: 'DELIVERED' as const, paymentStatus: paymentMethod === 'cod' ? 'PAID' as const : paymentStatus, restoreStock: false }
   }

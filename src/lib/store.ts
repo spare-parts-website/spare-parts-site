@@ -32,6 +32,7 @@ export type View =
   | { name: 'reset-password' }
   | { name: 'orders' }
   | { name: 'profile' }
+  | { name: 'cars' }
   | { name: 'inbox' }
   | { name: 'legal'; page: 'privacy' | 'terms' | 'returns' | 'contact' }
   | { name: 'shop-dashboard'; tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }
@@ -66,6 +67,8 @@ export function viewToPath(view: View, searchQuery = ''): string {
       return '/account/orders'
     case 'profile':
       return '/account/profile'
+    case 'cars':
+      return '/account/cars'
     case 'inbox':
       return '/account/messages'
     case 'legal':

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react'
 import Image from 'next/image'
-import { useSearchParams } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react'
+import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight, RefreshCw, Car, BadgeCheck } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 import { UserAvatar } from '@/components/user-avatar'
 
@@ -31,10 +31,14 @@ interface Part {
   condition?: string | null
   image?: string | null
   carModels?: string | null
+  partNumber?: string | null
+  oemNumber?: string | null
+  compatibleWithSelectedCar?: boolean
   store: { id: string; name: string; image?: string | null; owner: { name: string; avatar?: string | null } }
 }
 
 export function PartsView() {
+  const router = useRouter()
   const { setView, searchQuery } = useAppStore()
   const routeParams = useSearchParams()
   const [parts, setParts] = useState<Part[]>([])
@@ -52,6 +56,8 @@ export function PartsView() {
   const [page, setPage] = useState(Math.max(1, Number(routeParams.get('page')) || 1))
   const [totalPages, setTotalPages] = useState(1)
   const [total, setTotal] = useState(0)
+  const carId = routeParams.get('carId') || ''
+  const [selectedCar, setSelectedCar] = useState<{ brand: string; model: string; year?: number | null } | null>(null)
 
   useEffect(() => {
     setSearch(searchQuery)
@@ -64,10 +70,11 @@ export function PartsView() {
     if (category) params.set('category', category)
     if (brand) params.set('brand', brand)
     if (condition) params.set('condition', condition)
+    if (carId) params.set('carId', carId)
     params.set('sort', sort)
     params.set('page', String(page))
     return params.toString()
-  }, [search, category, brand, condition, sort, page])
+  }, [search, category, brand, condition, sort, page, carId])
 
   useEffect(() => {
     setLoading(true)
@@ -85,12 +92,13 @@ export function PartsView() {
         setConditions(data.conditions || [])
         setTotal(data.pagination?.total || 0)
         setTotalPages(data.pagination?.totalPages || 1)
+        setSelectedCar(data.selectedCar || null)
       })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false))
   }, [buildUrl, retryKey])
 
-  const hasFilters = category || brand || condition || search
+  const hasFilters = category || brand || condition || search || carId
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -106,6 +114,7 @@ export function PartsView() {
 
       {/* Filters */}
       <div className="surface-panel space-y-4 p-4 md:p-5">
+        {selectedCar && <div className="flex flex-wrap items-center gap-2 rounded-xl border border-primary/30 bg-primary/10 p-3 text-sm"><Car className="size-5 text-primary" /><strong>قطع متوافقة مع {selectedCar.brand} {selectedCar.model}{selectedCar.year ? ` ${selectedCar.year}` : ''}</strong><Button variant="ghost" size="sm" onClick={() => router.push('/parts')}>عرض كل القطع</Button></div>}
         <form
           onSubmit={(e) => {
             e.preventDefault()
@@ -273,6 +282,7 @@ export function PartsView() {
                     نفد
                   </span>
                 )}
+                {part.compatibleWithSelectedCar && <Badge className="absolute bottom-2 right-2 gap-1"><BadgeCheck className="size-3" />متوافق مع سيارتك</Badge>}
                 {part.brand && (
                   <span className="absolute top-2 left-2 bg-card/90 backdrop-blur text-xs px-2 py-0.5 rounded-full font-medium">
                     {part.brand}
@@ -291,6 +301,7 @@ export function PartsView() {
                   </Badge>
                 )}
                 {part.condition && <Badge variant="secondary" className="text-xs">{part.condition}</Badge>}
+                {(part.partNumber || part.oemNumber) && <p className="text-[11px] text-muted-foreground" dir="ltr">{part.oemNumber || part.partNumber}</p>}
                 <div className="pt-1 flex items-center justify-between">
                   <span className="text-lg font-bold text-primary">
                     {formatPrice(part.price)}

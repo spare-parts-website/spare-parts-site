@@ -36,6 +36,7 @@ export function StatusBadge({ status }: { status: string }) {
     APPROVED: { label: 'تمت الموافقة', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
     REJECTED: { label: 'مرفوض', className: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300' },
     PAID: { label: 'مدفوع', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300' },
+    SHIPPED: { label: 'خرج للتوصيل', className: 'bg-sky-100 text-sky-800 dark:bg-sky-900/30 dark:text-sky-300' },
     DELIVERED: { label: 'تم التوصيل', className: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-300' },
     RETURNED: { label: 'تم الاسترجاع', className: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300' },
     CANCELLED: { label: 'ملغى', className: 'bg-slate-100 text-slate-800 dark:bg-slate-900/30 dark:text-slate-300' },

@@ -12,6 +12,8 @@ const cairo = Cairo({
 });
 
 export const metadata: Metadata = {
+  manifest: '/manifest.webmanifest',
+  applicationName: 'غيار ماركت',
   metadataBase: new URL(applicationOrigin()),
   title: {
     default: "غيار ماركت | قطع غيار السيارات من متاجر موثوقة",

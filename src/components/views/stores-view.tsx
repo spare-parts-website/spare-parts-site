@@ -23,6 +23,8 @@ interface Store {
   avgRating: number
   reviewCount: number
   verified: boolean
+  verificationStatus?: string
+  completionRate?: number
   completedOrderCount: number
   image?: string | null
   owner: { name: string; avatar?: string | null }
@@ -144,7 +146,7 @@ export function StoresView() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
-                      {store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر موثق" />}
+                      {(store.verified || store.verificationStatus === 'APPROVED') && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر معتمد" />}
                       <div className="mr-auto" onClick={(event) => event.stopPropagation()}>
                         <FavoriteStoreButton storeId={store.id} />
                       </div>
@@ -183,6 +185,7 @@ export function StoresView() {
                   {store._count.parts} قطعة غيار
                 </Badge>
                 <p className="text-xs text-muted-foreground">{store.completedOrderCount} طلباً مكتملًا</p>
+                <Badge variant="outline" className="text-[10px]">نسبة الإكمال {store.completionRate ?? 100}%</Badge>
                 <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: store.id }) }}>
                   زيارة المتجر
                 </Button>

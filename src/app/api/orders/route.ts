@@ -5,6 +5,7 @@ import { createNotification } from '@/lib/notifications'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import type { Order } from '@prisma/client'
 import { calculateOrderLine, InvalidOrderTransition, isOrderAction, resolveOrderTransition } from '@/lib/order-state'
+import { deliveryQuote } from '@/lib/delivery'
 
 type CheckoutItem = { partId: string; quantity: number }
 
@@ -13,8 +14,9 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
   const deliveryAddress = typeof body.deliveryAddress === 'string' ? body.deliveryAddress.trim() : ''
   const notes = typeof body.notes === 'string' ? body.notes.trim() : ''
   const couponCode = typeof body.couponCode === 'string' ? body.couponCode.trim().toUpperCase() : ''
+  const quote = deliveryQuote(body.governorate)
   if (!/^[a-zA-Z0-9-]{16,64}$/.test(checkoutId)) throw new Error('INVALID_CHECKOUT')
-  if (!deliveryAddress || deliveryAddress.length > 500 || notes.length > 1000) throw new Error('INVALID_CHECKOUT')
+  if (!deliveryAddress || deliveryAddress.length > 500 || notes.length > 1000 || !quote) throw new Error('INVALID_CHECKOUT')
   if (!Array.isArray(body.items) || body.items.length < 1 || body.items.length > 50) throw new Error('INVALID_CHECKOUT')
 
   const items: CheckoutItem[] = body.items.map((value) => {
@@ -32,7 +34,7 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
     const existingOrders = await tx.order.findMany({ where: { clientOrderId: { in: clientOrderIds } } })
     if (existingOrders.length) {
       if (existingOrders.length !== items.length) throw new Error('CHECKOUT_CONFLICT')
-      return { orders: existingOrders, duplicate: true, summaries: [] as Array<{ ownerId: string; storeName: string; partName: string; quantity: number }> }
+      return { orders: existingOrders, duplicate: true, summaries: [] as Array<{ ownerId: string; storeName: string; partName: string; quantity: number; remainingStock: number }> }
     }
 
     const parts = await tx.part.findMany({
@@ -61,7 +63,8 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
     }
 
     const orders: Order[] = []
-    const summaries: Array<{ ownerId: string; storeName: string; partName: string; quantity: number }> = []
+    const chargedStores = new Set<string>()
+    const summaries: Array<{ ownerId: string; storeName: string; partName: string; quantity: number; remainingStock: number }> = []
     for (const [index, item] of items.entries()) {
       const part = partById.get(item.partId)!
       const reserved = await tx.part.updateMany({
@@ -72,13 +75,18 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
 
       const appliesCoupon = coupon?.storeId === part.storeId ? coupon : null
       const pricing = calculateOrderLine(part.price, item.quantity, appliesCoupon?.discountPercent || 0)
+      const shippingFee = chargedStores.has(part.storeId) ? 0 : quote.fee
+      chargedStores.add(part.storeId)
       orders.push(await tx.order.create({
         data: {
           partId: part.id,
           storeId: part.storeId,
           buyerId: session.id,
           quantity: item.quantity,
-          totalPrice: pricing.total,
+          totalPrice: pricing.total + shippingFee,
+          governorate: quote.ar,
+          shippingFee,
+          estimatedDeliveryAt: quote.estimatedAt,
           deliveryAddress,
           notes: notes || null,
           paymentMethod: 'cod',
@@ -90,7 +98,7 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
           timeline: { create: { status: 'PENDING', note: 'تم إنشاء الطلب والدفع عند الاستلام' } },
         },
       }))
-      summaries.push({ ownerId: part.store.ownerId, storeName: part.store.name, partName: part.name, quantity: item.quantity })
+      summaries.push({ ownerId: part.store.ownerId, storeName: part.store.name, partName: part.name, quantity: item.quantity, remainingStock: part.stock - item.quantity })
     }
     return { orders, duplicate: false, summaries }
   })
@@ -162,14 +170,16 @@ export async function POST(req: NextRequest) {
           type: 'NEW_ORDER',
           link: 'shop-dashboard',
         })))
+        await Promise.allSettled(result.summaries.filter((summary) => summary.remainingStock <= 3).map((summary) => createNotification({ userId: summary.ownerId, title: 'تنبيه مخزون منخفض', message: `بقي ${summary.remainingStock} فقط من "${summary.partName}".`, type: 'LOW_STOCK', link: 'shop-dashboard' })))
       }
       return NextResponse.json({ orders: result.orders, duplicate: result.duplicate })
     }
     const { partId, quantity, deliveryAddress, notes } = body
+    const quote = deliveryQuote(body.governorate)
     const clientOrderId = typeof body.clientOrderId === 'string' && body.clientOrderId.length <= 100 ? body.clientOrderId : null
     const couponCode = typeof body.couponCode === 'string' ? body.couponCode.trim().toUpperCase() : null
 
-    if (!partId || typeof deliveryAddress !== 'string' || !deliveryAddress.trim()) {
+    if (!partId || typeof deliveryAddress !== 'string' || !deliveryAddress.trim() || !quote) {
       return NextResponse.json({ error: 'قطعة الغيار وعنوان التوصيل مطلوبان' }, { status: 400 })
     }
     if (deliveryAddress.trim().length > 500) {
@@ -231,7 +241,10 @@ export async function POST(req: NextRequest) {
           storeId: part.store.id,
           buyerId: session.id,
           quantity: qty,
-          totalPrice: Math.max(0, subtotal - discount),
+          totalPrice: Math.max(0, subtotal - discount) + quote.fee,
+          governorate: quote.ar,
+          shippingFee: quote.fee,
+          estimatedDeliveryAt: quote.estimatedAt,
           deliveryAddress: deliveryAddress.trim(),
           notes: typeof notes === 'string' ? notes.trim() || null : null,
           // Card data is intentionally not accepted. The beta uses cash on delivery.
@@ -261,6 +274,7 @@ export async function POST(req: NextRequest) {
         type: 'NEW_ORDER',
         link: 'shop-dashboard',
       })
+      if (part.stock - qty <= 3) await createNotification({ userId: part.store.ownerId, title: 'تنبيه مخزون منخفض', message: `بقي ${part.stock - qty} فقط من "${part.name}".`, type: 'LOW_STOCK', link: 'shop-dashboard' })
 
     } catch (e) {
       console.error('Notify error:', e)
@@ -305,7 +319,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
     }
 
-    if (action === 'approve' || action === 'reject') {
+    if (action === 'approve' || action === 'reject' || action === 'ship') {
       if (session.role !== 'SHOP_OWNER' || order.store.ownerId !== session.id) {
         return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
       }
@@ -328,6 +342,7 @@ export async function PUT(req: NextRequest) {
       approve: 'وافق المحل على الطلب',
       reject: 'رفض المحل الطلب',
       pay: 'تم استلام الدفعة',
+      ship: 'خرج الطلب للتوصيل',
       deliver: 'أكد العميل استلام الطلب وتحصيل الدفع',
       return: 'تم استرجاع القطعة',
       cancel: 'ألغى العميل الطلب وتمت إعادة الكمية للمخزون',
@@ -338,7 +353,7 @@ export async function PUT(req: NextRequest) {
       // and prevents restoring stock twice when two requests arrive together.
       const claimed = await tx.order.updateMany({
         where: { id, status: order.status, paymentStatus: order.paymentStatus },
-        data: { status: newStatus, paymentStatus: newPaymentStatus },
+        data: { status: newStatus, paymentStatus: newPaymentStatus, ...(action === 'ship' ? { trackingNumber: typeof body.trackingNumber === 'string' ? body.trackingNumber.trim().slice(0, 100) || null : null } : {}) },
       })
       if (claimed.count !== 1) throw new Error('ORDER_CHANGED')
       await tx.orderTimeline.create({ data: { orderId: id, status: newStatus, note: timelineNotes[action] || newStatus } })
@@ -374,6 +389,8 @@ export async function PUT(req: NextRequest) {
         'ORDER_STATUS',
         'shop-dashboard',
       )
+    } else if (action === 'ship') {
+      await notify(order.buyerId, 'طلبك خرج للتوصيل', `خرج طلب "${order.part.name}" للتوصيل${typeof body.trackingNumber === 'string' && body.trackingNumber.trim() ? `، رقم التتبع: ${body.trackingNumber.trim()}` : ''}.`, 'ORDER_STATUS', 'orders')
     } else if (action === 'return') {
       const storeOwner = await db.store.findUnique({ where: { id: order.storeId }, select: { ownerId: true } })
       if (storeOwner) {

@@ -31,6 +31,7 @@ import {
 } from 'lucide-react'
 import { StatusBadge, formatPrice, Stars } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
+import { ModerationCenter } from '@/components/moderation-center'
 import {
   Select,
   SelectContent,
@@ -397,6 +398,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
 
         {/* Reports */}
         <TabsContent value="reports" className="space-y-4">
+          <ModerationCenter />
           <h2 className="text-lg font-semibold">بلاغات المستخدمين ({reports.filter((r) => r.status === 'OPEN').length} مفتوحة)</h2>
           {loading ? (
             <Skeleton className="h-64 rounded-xl" />

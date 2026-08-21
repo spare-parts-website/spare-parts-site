@@ -10,8 +10,10 @@ import { CartDrawer } from '@/components/cart-drawer'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { setAppNavigator, useAppStore, type AuthUser, type CartItem, type View } from '@/lib/store'
 import { Button } from '@/components/ui/button'
+import { PwaInstaller } from '@/components/pwa-installer'
 
 const CART_STORAGE_KEY = 'ghyar-market-cart-v1'
+const CART_UPDATED_KEY = 'ghyar-market-cart-updated-v1'
 
 function isCartItem(value: unknown): value is CartItem {
   if (!value || typeof value !== 'object') return false
@@ -68,6 +70,8 @@ export function AppShell({
         const parsed: unknown = JSON.parse(storedCart)
         if (Array.isArray(parsed)) {
           useAppStore.setState({ cart: parsed.filter(isCartItem) })
+          const updatedAt = Number(window.localStorage.getItem(CART_UPDATED_KEY) || 0)
+          if (initialUser && parsed.length && updatedAt && Date.now() - updatedAt > 86400000) void fetch('/api/cart-reminders', { method: 'POST' })
         }
       }
     } catch {
@@ -75,9 +79,10 @@ export function AppShell({
     }
 
     hydratedCart.current = true
-    return useAppStore.subscribe((state) => {
-      if (hydratedCart.current) {
+    return useAppStore.subscribe((state, previous) => {
+      if (hydratedCart.current && state.cart !== previous.cart) {
         window.localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(state.cart))
+        window.localStorage.setItem(CART_UPDATED_KEY, String(Date.now()))
       }
     })
   }, [])
@@ -118,6 +123,7 @@ export function AppShell({
       <Footer />
       <CartDrawer />
       <MobileBottomNav />
+      <PwaInstaller />
     </div>
   )
 }
@@ -125,7 +131,7 @@ export function AppShell({
 function rolesForView(view: View): AuthUser['role'][] | null {
   if (view.name === 'shop-dashboard') return ['SHOP_OWNER']
   if (view.name === 'admin-dashboard') return ['ADMIN']
-  if (['orders', 'wishlist', 'checkout'].includes(view.name)) return ['BUYER', 'SHOP_OWNER']
+  if (['orders', 'wishlist', 'checkout', 'cars'].includes(view.name)) return ['BUYER', 'SHOP_OWNER']
   if (['profile', 'inbox', 'chat'].includes(view.name)) return []
   return null
 }

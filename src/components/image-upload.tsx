@@ -12,9 +12,9 @@ interface ImageUploadProps {
   onChange: (url: string) => void
   onUploadingChange?: (uploading: boolean) => void
   className?: string
+  purpose: Exclude<ImagePurpose, 'part' | 'chat'>
   cropPreview?: boolean
   compact?: boolean
-  purpose: Exclude<ImagePurpose, 'part' | 'chat'>
 }
 
 interface MultiImageUploadProps {
@@ -23,6 +23,7 @@ interface MultiImageUploadProps {
   onUploadingChange?: (uploading: boolean) => void
   maxImages?: number
   className?: string
+  purpose?: Extract<ImagePurpose, 'part' | 'evidence' | 'verification'>
 }
 
 // Module-level ref to track any ongoing upload synchronously (works across re-renders)
@@ -220,7 +221,7 @@ export function ImageUpload({ value, onChange, onUploadingChange, className, cro
   )
 }
 
-export function MultiImageUpload({ value, onChange, onUploadingChange, maxImages = 4, className }: MultiImageUploadProps) {
+export function MultiImageUpload({ value, onChange, onUploadingChange, maxImages = 4, className, purpose = 'part' }: MultiImageUploadProps) {
   const { toast } = useToast()
   const [uploading, setUploading] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -258,7 +259,7 @@ export function MultiImageUpload({ value, onChange, onUploadingChange, maxImages
       for (const file of files) {
         const formData = new FormData()
         formData.append('file', file)
-        formData.append('purpose', 'part')
+        formData.append('purpose', purpose)
         const res = await fetch('/api/upload', { method: 'POST', body: formData })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'حدث خطأ أثناء رفع الصورة')

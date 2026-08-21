@@ -17,6 +17,7 @@ import { ShopDashboardView } from '@/components/views/shop-dashboard-view'
 import { StoreView } from '@/components/views/store-view'
 import { StoresView } from '@/components/views/stores-view'
 import { WishlistView } from '@/components/views/wishlist-view'
+import { MyCarsView } from '@/components/views/my-cars-view'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import type { View } from '@/lib/store'
@@ -86,6 +87,7 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
   const search = first(query.search)
   let view: View
   let content: React.ReactNode
+  let structuredData: Record<string, unknown> | null = null
 
   if (section === 'parts' && !id) {
     view = { name: 'parts' }
@@ -93,12 +95,16 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
   } else if (section === 'parts' && id && !childId) {
     view = { name: 'part', partId: id }
     content = <PartView partId={id} />
+    const part = await db.part.findUnique({ where: { id, blocked: false }, select: { name: true, description: true, image: true, price: true, stock: true, condition: true, brand: true, store: { select: { name: true } } } })
+    if (part) structuredData = { '@context': 'https://schema.org', '@type': 'Product', name: part.name, description: part.description || undefined, image: part.image ? [part.image] : undefined, brand: part.brand ? { '@type': 'Brand', name: part.brand } : undefined, itemCondition: part.condition === 'جديد' ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition', offers: { '@type': 'Offer', priceCurrency: 'EGP', price: part.price, availability: part.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', name: part.store.name } } }
   } else if (section === 'stores' && !id) {
     view = { name: 'stores' }
     content = <StoresView />
   } else if (section === 'stores' && id && !childId) {
     view = { name: 'store', storeId: id }
     content = <StoreView storeId={id} />
+    const store = await db.store.findUnique({ where: { id }, select: { name: true, description: true, image: true, address: true, phone: true } })
+    if (store) structuredData = { '@context': 'https://schema.org', '@type': 'AutoPartsStore', name: store.name, description: store.description || undefined, image: store.image || undefined, address: store.address || undefined, telephone: store.phone || undefined, url: `${process.env.APP_URL || 'https://ghyarmarket-eg.com'}/stores/${id}` }
   } else if (section === 'login' && !id) {
     view = { name: 'login' }
     content = <AuthView mode="login" />
@@ -120,6 +126,9 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
   } else if (section === 'account' && id === 'profile' && !childId) {
     view = { name: 'profile' }
     content = <ProfileView />
+  } else if (section === 'account' && id === 'cars' && !childId) {
+    view = { name: 'cars' }
+    content = <MyCarsView />
   } else if (section === 'account' && id === 'orders' && !childId) {
     view = { name: 'orders' }
     content = <OrdersView />
@@ -158,5 +167,5 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     notFound()
   }
 
-  return <AppShell initialView={view} initialSearch={search} initialUser={user}>{content}</AppShell>
+  return <AppShell initialView={view} initialSearch={search} initialUser={user}>{structuredData && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />}{content}</AppShell>
 }
