@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { LockKeyhole, ShieldX } from 'lucide-react'
 import { Header } from '@/components/header'
@@ -11,6 +11,7 @@ import { useAppStore, type AuthUser, type CartItem, type View } from '@/lib/stor
 import { Button } from '@/components/ui/button'
 
 const CART_STORAGE_KEY = 'ghyar-market-cart-v1'
+const AUTH_USER_CACHE_KEY = 'ghyar-market-user-v1'
 
 function isCartItem(value: unknown): value is CartItem {
   if (!value || typeof value !== 'object') return false
@@ -26,6 +27,23 @@ function isCartItem(value: unknown): value is CartItem {
   )
 }
 
+function readCachedUser(): AuthUser | null {
+  try {
+    const value: unknown = JSON.parse(window.sessionStorage.getItem(AUTH_USER_CACHE_KEY) || 'null')
+    if (!value || typeof value !== 'object') return null
+    const user = value as Partial<AuthUser>
+    if (
+      typeof user.id !== 'string' ||
+      typeof user.name !== 'string' ||
+      typeof user.email !== 'string' ||
+      !['BUYER', 'ADMIN', 'SHOP_OWNER'].includes(String(user.role))
+    ) return null
+    return user as AuthUser
+  } catch {
+    return null
+  }
+}
+
 export function AppShell({
   children,
   initialView,
@@ -39,6 +57,15 @@ export function AppShell({
   const setUser = useAppStore((state) => state.setUser)
   const hydratedCart = useRef(false)
   const [authResolved, setAuthResolved] = useState(false)
+
+  // Restore the last known account before the browser paints a newly navigated page.
+  // The request below immediately verifies it against the HttpOnly session cookie.
+  useLayoutEffect(() => {
+    if (!useAppStore.getState().user) {
+      const cachedUser = readCachedUser()
+      if (cachedUser) setUser(cachedUser)
+    }
+  }, [setUser])
 
   useEffect(() => {
     useAppStore.setState({ view: initialView, searchQuery: initialSearch })
