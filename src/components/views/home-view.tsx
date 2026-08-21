@@ -144,19 +144,27 @@ export function HomeView() {
       </section>
 
       <section className="content-container pb-20">
-        <div className="overflow-hidden rounded-[2rem] bg-[#07111f] text-white shadow-2xl">
-          <div className="grid lg:grid-cols-[1.15fr_.85fr]">
-            <div className="p-8 sm:p-12 lg:p-16">
+        <div className="relative overflow-hidden rounded-[2rem] border bg-card text-card-foreground shadow-xl shadow-slate-900/5 dark:shadow-black/20">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-primary/10 via-transparent to-primary/[.04]" />
+          <div className="relative grid lg:grid-cols-[1.15fr_.85fr]">
+            <div className="border-b p-8 sm:p-12 lg:border-b-0 lg:border-l lg:p-16">
               <span className="eyebrow"><StoreIcon className="size-4" /> لأصحاب محلات قطع الغيار</span>
               <h2 className="mt-4 text-3xl font-black sm:text-4xl">حوّل مخزونك إلى متجر يصل لعملاء أكثر.</h2>
-              <p className="mt-4 max-w-xl leading-8 text-white/65">اعرض قطعك، استقبل الطلبات، وتابع رسائل العملاء من لوحة واحدة واضحة.</p>
-              <Button asChild size="lg" className="mt-7"><Link href="/register">ابدأ بيع قطعك</Link></Button>
+              <p className="mt-4 max-w-xl leading-8 text-muted-foreground">اعرض قطعك، استقبل الطلبات، وتابع رسائل العملاء من لوحة واحدة واضحة.</p>
+              <Button asChild size="lg" className="mt-7 rounded-xl px-7 shadow-lg shadow-primary/15"><Link href="/register">ابدأ بيع قطعك</Link></Button>
             </div>
-            <div className="grid grid-cols-2 gap-px bg-white/10 p-px">
+            <div className="grid grid-cols-2 gap-px bg-border">
               {[
                 { icon: Package, title: 'إدارة المخزون' }, { icon: ShoppingCart, title: 'متابعة الطلبات' },
                 { icon: Headphones, title: 'رسائل العملاء' }, { icon: CircleGauge, title: 'ملخص الأداء' },
-              ].map(({ icon: Icon, title }) => <div key={title} className="flex min-h-36 flex-col justify-end bg-white/[.035] p-6"><Icon className="size-7 text-primary" /><strong className="mt-4">{title}</strong></div>)}
+              ].map(({ icon: Icon, title }) => (
+                <div key={title} className="flex min-h-40 flex-col justify-end bg-card/95 p-6 transition-colors hover:bg-primary/[.07] sm:p-7">
+                  <span className="grid size-12 place-items-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm">
+                    <Icon className="size-6" />
+                  </span>
+                  <strong className="mt-5 text-base font-black sm:text-lg">{title}</strong>
+                </div>
+              ))}
             </div>
           </div>
         </div>
