@@ -1,8 +1,8 @@
 export const PROFILE_AVATARS = [
-  { url: '/istockphoto-1331164968-612x612.png', label: 'سيارة ومحطة وقود' },
-  { url: '/profile-turbo.png', label: 'شاحن توربيني' },
-  { url: '/profile-car.png', label: 'سيارة رياضية' },
-  { url: '/profile-electric-car.png', label: 'سيارة كهربائية' },
+  { url: '/profile-avatars/fuel-gauge-car.png', label: 'عداد وسيارة رياضية' },
+  { url: '/profile-avatars/classic-car.png', label: 'سيارة كلاسيكية' },
+  { url: '/profile-avatars/electric-car.png', label: 'سيارة كهربائية' },
+  { url: '/profile-avatars/turbocharger.png', label: 'شاحن توربيني' },
 ] as const
 
 export function isProfileAvatar(value: unknown): value is string {
