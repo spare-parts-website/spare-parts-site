@@ -1,5 +1,13 @@
 import { create } from 'zustand'
 
+type AppNavigator = (path: string) => void
+
+let appNavigator: AppNavigator | null = null
+
+export function setAppNavigator(navigate: AppNavigator | null) {
+  appNavigator = navigate
+}
+
 export type UserRole = 'BUYER' | 'ADMIN' | 'SHOP_OWNER'
 
 export interface AuthUser {
@@ -133,7 +141,14 @@ export const useAppStore = create<AppState>((set) => ({
       const target = viewToPath(v, useAppStore.getState().searchQuery)
       const current = `${window.location.pathname}${window.location.search}`
       if (target !== current) {
-        window.location.assign(target)
+        // Update immediately so the persistent shell remains coherent while the
+        // next route streams in, then let Next.js perform a client transition.
+        set({ view: v })
+        if (appNavigator) {
+          appNavigator(target)
+        } else {
+          window.location.assign(target)
+        }
         return
       }
     }

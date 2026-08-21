@@ -2,12 +2,13 @@
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { LockKeyhole, ShieldX } from 'lucide-react'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { CartDrawer } from '@/components/cart-drawer'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
-import { useAppStore, type AuthUser, type CartItem, type View } from '@/lib/store'
+import { setAppNavigator, useAppStore, type AuthUser, type CartItem, type View } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 
 const CART_STORAGE_KEY = 'ghyar-market-cart-v1'
@@ -37,6 +38,7 @@ export function AppShell({
   initialSearch?: string
   initialUser: AuthUser | null
 }) {
+  const router = useRouter()
   const user = useAppStore((state) => state.user)
   const setUser = useAppStore((state) => state.setUser)
   const hydratedCart = useRef(false)
@@ -48,6 +50,11 @@ export function AppShell({
     setUser(initialUser)
     setAuthResolved(true)
   }, [initialUser, setUser])
+
+  useLayoutEffect(() => {
+    setAppNavigator((path) => router.push(path))
+    return () => setAppNavigator(null)
+  }, [router])
 
   useEffect(() => {
     useAppStore.setState({ view: initialView, searchQuery: initialSearch })
