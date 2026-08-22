@@ -216,7 +216,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       return {}
     case 'car_create':
       await db.$transaction(async (tx) => {
-        await tx.$queryRaw`select pg_advisory_xact_lock(hashtext(${`ai-car:${user.id}`}))`
+        await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`ai-car:${user.id}`}))`
         if (await tx.userCar.count({ where: { userId: user.id } }) >= 5) throw new Error('CAR_LIMIT')
         if (input.isPrimary) await tx.userCar.updateMany({ where: { userId: user.id }, data: { isPrimary: false } })
         await tx.userCar.create({ data: { userId: user.id, brand: input.brand!, model: input.model!, year: input.year ? Math.floor(input.year) : null, engine: input.engine || null, nickname: input.nickname || null, isPrimary: input.isPrimary === true } })

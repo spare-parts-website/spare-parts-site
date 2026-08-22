@@ -25,7 +25,7 @@ export async function acquireAIConcurrency(key: string, role: AIRole) {
   const now = new Date()
   const expiresAt = new Date(now.getTime() + 35_000)
   return db.$transaction(async (tx) => {
-    await tx.$queryRaw`select pg_advisory_xact_lock(hashtext(${key}))`
+    await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${key}))`
     await tx.aIRequestLease.deleteMany({ where: { OR: [{ expiresAt: { lte: now } }, { key, role: { not: role } }] } })
     const count = await tx.aIRequestLease.count({ where: { key, role, expiresAt: { gt: now } } })
     if (count >= CONCURRENCY[role]) return null
