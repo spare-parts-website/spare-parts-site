@@ -196,7 +196,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
           <Sparkles className="ml-2 size-5" /> <span>اسأل غيار</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" dir="rtl" className="w-full gap-0 p-0 sm:max-w-xl">
+      <SheetContent side="left" dir="rtl" className="flex h-[100dvh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
         <SheetHeader className="border-b bg-primary/5 px-5 py-4 pl-16">
           <div className="flex items-start justify-between gap-3">
             <div><SheetTitle className="flex items-center gap-2 text-lg"><span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span>مساعد غيار ماركت</SheetTitle><SheetDescription className="mt-1">{role === 'GUEST' ? 'بحث ومساعدة عامة' : role === 'BUYER' ? 'مساعد المشتري' : role === 'SHOP_OWNER' ? 'مساعد المتجر' : 'مساعد الإدارة'}</SheetDescription></div>
@@ -206,7 +206,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
         </SheetHeader>
 
         {showHistory && user ? <HistoryPanel conversations={conversations} onSelect={selectConversation} onDelete={deleteConversation} /> : (
-          <ScrollArea className="flex-1 px-4">
+          <ScrollArea className="min-h-0 flex-1 px-4">
             <div className="space-y-4 py-5">
               {!messages.length && <Welcome role={role} onPrompt={(prompt) => void send(prompt)} />}
               {messages.map((message) => <MessageBubble key={message.id} message={message} onProposal={setPendingProposal} />)}
@@ -246,5 +246,5 @@ function ToolCard({ card, onProposal }: { card: AIToolCard; onProposal: (proposa
 }
 
 function HistoryPanel({ conversations, onSelect, onDelete }: { conversations: SavedConversation[]; onSelect: (conversation: SavedConversation) => void; onDelete: (id: string) => void }) {
-  return <ScrollArea className="flex-1 p-4"><div className="space-y-2"><h2 className="mb-3 font-bold">المحادثات خلال الساعة الأخيرة</h2>{!conversations.length && <p className="py-10 text-center text-sm text-muted-foreground">لا توجد محادثات محفوظة</p>}{conversations.map((conversation) => <div key={conversation.id} className="flex items-center gap-2 rounded-xl border p-2"><button className="min-w-0 flex-1 text-right" onClick={() => onSelect(conversation)}><p className="truncate text-sm font-medium">{conversation.title || 'محادثة جديدة'}</p><p className="text-xs text-muted-foreground">{new Date(conversation.updatedAt).toLocaleTimeString('ar-EG')}</p></button><Button size="icon" variant="ghost" onClick={() => void onDelete(conversation.id)} aria-label="حذف المحادثة"><Trash2 className="size-4 text-destructive" /></Button></div>)}</div></ScrollArea>
+  return <ScrollArea className="min-h-0 flex-1 p-4"><div className="space-y-2"><h2 className="mb-3 font-bold">المحادثات خلال الساعة الأخيرة</h2>{!conversations.length && <p className="py-10 text-center text-sm text-muted-foreground">لا توجد محادثات محفوظة</p>}{conversations.map((conversation) => <div key={conversation.id} className="flex items-center gap-2 rounded-xl border p-2"><button className="min-w-0 flex-1 text-right" onClick={() => onSelect(conversation)}><p className="truncate text-sm font-medium">{conversation.title || 'محادثة جديدة'}</p><p className="text-xs text-muted-foreground">{new Date(conversation.updatedAt).toLocaleTimeString('ar-EG')}</p></button><Button size="icon" variant="ghost" onClick={() => void onDelete(conversation.id)} aria-label="حذف المحادثة"><Trash2 className="size-4 text-destructive" /></Button></div>)}</div></ScrollArea>
 }
