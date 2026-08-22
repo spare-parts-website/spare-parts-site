@@ -6,7 +6,7 @@ export async function GET() {
   try {
     const user = await requireAuth()
     const conversations = await db.aIConversation.findMany({ where: { userId: user.id, role: user.role, expiresAt: { gt: new Date() } }, include: { messages: { orderBy: { createdAt: 'desc' }, take: 30 } }, orderBy: { updatedAt: 'desc' }, take: 10 })
-    return NextResponse.json({ conversations: conversations.map((conversation) => ({ id: conversation.id, title: conversation.title, expiresAt: conversation.expiresAt, updatedAt: conversation.updatedAt, messages: conversation.messages.reverse().map((message) => ({ id: message.id, role: message.role, content: message.content, metadata: parseMetadata(message.metadata), createdAt: message.createdAt })) })) })
+    return NextResponse.json({ conversations: conversations.map((conversation) => { const messages = conversation.messages.reverse().map((message) => ({ id: message.id, role: message.role, content: message.content, metadata: parseMetadata(message.metadata), createdAt: message.createdAt })); const preview = messages.find((message) => message.role === 'user')?.content?.trim() || messages.at(-1)?.content?.trim() || null; return { id: conversation.id, title: conversation.title?.trim() || null, preview, expiresAt: conversation.expiresAt, updatedAt: conversation.updatedAt, messages } }) })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error && error.message === 'UNAUTHORIZED' ? 'غير مصرح' : 'تعذر تحميل المحادثات' }, { status: error instanceof Error && error.message === 'UNAUTHORIZED' ? 401 : 500 })
   }
