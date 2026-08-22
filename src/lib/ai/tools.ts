@@ -215,7 +215,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
       inputSchema: z.object({ kind: z.enum(['user', 'store', 'part', 'order']), query: z.string().min(1).max(120) }),
       execute: async ({ kind, query }): Promise<AIToolCard> => {
         const items = kind === 'user'
-          ? (await db.user.findMany({ where: { OR: [{ name: { contains: query } }, { email: { contains: query } }, { phone: { contains: query } }] }, select: { id: true, name: true, email: true, phone: true, role: true }, take: 10 })).map((item) => ({ id: item.id, title: item.name, subtitle: `${item.role} • ${maskEmail(item.email)} • ${maskPhone(item.phone)}`, href: '/admin/users' }))
+          ? (await db.user.findMany({ where: { OR: [{ name: { contains: query } }, { email: { contains: query } }, { phone: { contains: query } }] }, select: { id: true, name: true, email: true, phone: true, role: true }, take: 10 })).map((item) => ({ id: item.id, title: item.name, subtitle: `${item.role} • ${maskEmail(item.email) || 'بدون بريد'} • ${maskPhone(item.phone) || 'بدون هاتف'}`, href: '/admin/users' }))
           : kind === 'store'
             ? (await db.store.findMany({ where: { name: { contains: query } }, select: { id: true, name: true, verified: true }, take: 10 })).map((item) => ({ id: item.id, title: item.name, subtitle: item.verified ? 'معتمد' : 'غير معتمد', href: '/admin/stores' }))
             : kind === 'part'
