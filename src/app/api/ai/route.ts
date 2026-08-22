@@ -7,7 +7,7 @@ import { appendAIMessage, getOrCreateConversation, loadConversationMessages, pur
 import { acquireAIConcurrency, aiQuota, AI_MESSAGE_LIMIT, releaseAIConcurrency } from '@/lib/ai/runtime'
 import type { AIClientContext, AIRole, AIToolCard } from '@/lib/ai/types'
 
-export const maxDuration = 30
+export const maxDuration = 60
 
 type GuestHistory = Array<{ role?: unknown; content?: unknown }>
 
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
     }
 
     const agent = createGhyarAgent({ role, user, conversationId, clientContext: safeClientContext(body.clientContext) })
-    const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 25_000 } })
+    const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 50_000 } })
     const cards = result.steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)
     const answer = result.text.trim() || (cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.')
 

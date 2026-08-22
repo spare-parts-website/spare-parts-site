@@ -33,7 +33,7 @@ ${ROLE_GUIDANCE[input.role]}
 - إذا رفض المستخدم إجراءً فلا تحاول تكراره دون طلب جديد.`,
     tools: createAITools(input),
     stopWhen: isStepCount(5),
-    maxOutputTokens: 1200,
+    maxOutputTokens: 700,
     temperature: 0.2,
   })
 }
