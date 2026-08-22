@@ -246,5 +246,30 @@ function ToolCard({ card, onProposal, onSelect }: { card: AIToolCard; onProposal
 }
 
 function HistoryPanel({ conversations, onSelect, onDelete }: { conversations: SavedConversation[]; onSelect: (conversation: SavedConversation) => void; onDelete: (id: string) => void }) {
-  return <ScrollArea className="min-h-0 flex-1 p-4"><div className="space-y-2"><h2 className="mb-3 font-bold">المحادثات خلال الساعة الأخيرة</h2>{!conversations.length && <p className="py-10 text-center text-sm text-muted-foreground">لا توجد محادثات محفوظة</p>}{conversations.map((conversation) => { const firstUserMessage = conversation.messages.find((message) => message.role === 'user')?.content?.trim(); const title = conversation.title?.trim() || conversation.preview?.trim() || firstUserMessage || 'محادثة جديدة'; const preview = firstUserMessage && firstUserMessage !== title ? firstUserMessage : conversation.messages.at(-1)?.content?.trim(); return <div key={conversation.id} className="flex items-center gap-2 rounded-xl border p-3"><button className="min-w-0 flex-1 text-right" onClick={() => onSelect(conversation)}><p className="truncate text-sm font-semibold">{title}</p>{preview && <p className="mt-1 truncate text-xs text-muted-foreground">{preview}</p>}<p className="mt-1 text-[11px] text-muted-foreground">{conversation.messages.length} رسائل • {new Date(conversation.updatedAt).toLocaleTimeString('ar-EG')}</p></button><Button size="icon" variant="ghost" onClick={() => void onDelete(conversation.id)} aria-label="حذف المحادثة"><Trash2 className="size-4 text-destructive" /></Button></div> })}</div></ScrollArea>
+  return (
+    <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 scrollbar-thin">
+      <div className="space-y-2">
+        <h2 className="mb-3 font-bold">المحادثات خلال الساعة الأخيرة</h2>
+        {!conversations.length && <p className="py-10 text-center text-sm text-muted-foreground">لا توجد محادثات محفوظة</p>}
+        {conversations.map((conversation) => {
+          const firstUserMessage = conversation.messages.find((message) => message.role === 'user')?.content?.trim()
+          const title = conversation.title?.trim() || conversation.preview?.trim() || firstUserMessage || 'محادثة جديدة'
+          const preview = firstUserMessage && firstUserMessage !== title ? firstUserMessage : conversation.messages.at(-1)?.content?.trim()
+
+          return (
+            <div key={conversation.id} className="grid min-h-0 grid-cols-[minmax(0,1fr)_auto] items-start gap-2 rounded-xl border p-3">
+              <button type="button" className="block min-h-0 w-full overflow-hidden text-right" onClick={() => onSelect(conversation)}>
+                <p className="truncate text-sm font-semibold">{title}</p>
+                {preview && <p className="mt-1 truncate text-xs text-muted-foreground">{preview}</p>}
+                <p className="mt-1 text-[11px] text-muted-foreground">{conversation.messages.length} رسائل • {new Date(conversation.updatedAt).toLocaleTimeString('ar-EG')}</p>
+              </button>
+              <Button type="button" size="icon" variant="ghost" className="size-9 shrink-0 self-start" onClick={() => void onDelete(conversation.id)} aria-label="حذف المحادثة">
+                <Trash2 className="size-4 text-destructive" />
+              </Button>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
 }
