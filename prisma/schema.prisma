@@ -43,6 +43,8 @@ model User {
   disputes                Dispute[]           @relation("DisputeBuyer")
   disputesReviewed        Dispute[]           @relation("DisputeReviewer")
   auditLogs               AuditLog[]
+  aiConversations         AIConversation[]
+  aiActionProposals       AIActionProposal[]
 }
 
 model PasswordReset {
@@ -154,6 +156,67 @@ model RateLimitBucket {
   updatedAt DateTime @updatedAt
 
   @@index([resetAt])
+}
+
+model AIConversation {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String
+  title     String?
+  expiresAt DateTime
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  messages  AIMessage[]
+  proposals AIActionProposal[]
+
+  @@index([userId, expiresAt])
+  @@index([expiresAt])
+}
+
+model AIMessage {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String
+  content        String
+  metadata       String?
+  createdAt      DateTime       @default(now())
+
+  @@index([conversationId, createdAt])
+}
+
+model AIActionProposal {
+  id             String         @id @default(cuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  action         String
+  payload        String
+  summary        String
+  status         String         @default("PENDING")
+  idempotencyKey String         @unique
+  expiresAt      DateTime
+  executedAt     DateTime?
+  createdAt      DateTime       @default(now())
+
+  @@index([userId, status, expiresAt])
+  @@index([conversationId, createdAt])
+  @@index([expiresAt])
+}
+
+model AIRequestLease {
+  id        String   @id @default(cuid())
+  key       String
+  token     String   @unique
+  role      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([key, expiresAt])
+  @@index([expiresAt])
 }
 
 // Multiple images for a part

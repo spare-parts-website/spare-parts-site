@@ -28,6 +28,7 @@ import {
   Phone,
   Calendar,
   Flag,
+  Bot,
 } from 'lucide-react'
 import { StatusBadge, formatPrice, Stars } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
@@ -257,12 +258,13 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
 
   return (
     <div className="content-container dashboard-shell min-w-0 space-y-7 py-10">
-      <div className="page-heading mb-0">
+      <div className="page-heading mb-0 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="page-kicker">إدارة المنصة</p>
           <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">لوحة تحكم المدير</h1>
         <p className="text-muted-foreground mt-1">إدارة شاملة للنظام</p>
         </div>
+        <Button variant="outline" className="gap-2" onClick={() => window.dispatchEvent(new CustomEvent('ghyar-ai-open', { detail: { prompt: 'اعرض حالة المنصة وأهم الأمور اللي تحتاج مراجعة' } }))}><Bot className="size-4" />اسأل مساعد الإدارة</Button>
       </div>
 
       {loadError && (

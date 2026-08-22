@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Car, Plus, Trash2, Search } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { subscribeAIDraft } from '@/lib/ai/draft-client'
 import {
   Select,
   SelectContent,
@@ -50,7 +51,13 @@ export function MyCarsView() {
   }
 
   useEffect(() => {
-    if (user && ['BUYER', 'SHOP_OWNER'].includes(user.role)) load()
+    if (user && ['BUYER', 'SHOP_OWNER'].includes(user.role)) {
+      load()
+      return subscribeAIDraft('car', (draft) => {
+        setForm((current) => ({ ...current, brand: typeof draft.brand === 'string' ? draft.brand : current.brand, model: typeof draft.model === 'string' ? draft.model : current.model, year: draft.year === undefined ? current.year : String(draft.year), engine: typeof draft.engine === 'string' ? draft.engine : current.engine, nickname: typeof draft.nickname === 'string' ? draft.nickname : current.nickname, isPrimary: typeof draft.isPrimary === 'boolean' ? draft.isPrimary : current.isPrimary }))
+        setShowForm(true)
+      })
+    }
   }, [user])
 
   const handleAdd = async () => {

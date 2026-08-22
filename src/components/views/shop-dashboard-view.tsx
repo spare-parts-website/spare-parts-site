@@ -31,6 +31,7 @@ import {
   TrendingUp,
   Ticket,
   MessageSquare,
+  Bot,
 } from 'lucide-react'
 import { StatusBadge, formatPrice } from '@/components/common'
 import { AnalyticsView } from '@/components/views/analytics-view'
@@ -38,6 +39,7 @@ import { CouponsView } from '@/components/views/coupons-view'
 import { ShopMessagesView } from '@/components/views/shop-messages-view'
 import { SellerVerificationCard } from '@/components/seller-verification-card'
 import { useToast } from '@/hooks/use-toast'
+import { subscribeAIDraft } from '@/lib/ai/draft-client'
 import {
   Dialog,
   DialogContent,
@@ -121,6 +123,27 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [storeImageUploading, setStoreImageUploading] = useState(false)
   const partFormRef = useRef<HTMLDivElement>(null)
   const csvInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    return subscribeAIDraft('listing', (draft) => {
+      setTab('parts')
+      setPartForm((current) => ({
+        ...current,
+        name: typeof draft.name === 'string' ? draft.name : current.name,
+        description: typeof draft.description === 'string' ? draft.description : current.description,
+        price: draft.price === undefined ? current.price : String(draft.price),
+        stock: draft.stock === undefined ? current.stock : String(draft.stock),
+        brand: typeof draft.brand === 'string' ? draft.brand : current.brand,
+        category: typeof draft.category === 'string' ? draft.category : current.category,
+        condition: typeof draft.condition === 'string' ? draft.condition : current.condition,
+        partNumber: typeof draft.partNumber === 'string' ? draft.partNumber : current.partNumber,
+        oemNumber: typeof draft.oemNumber === 'string' ? draft.oemNumber : current.oemNumber,
+        searchAliases: typeof draft.searchAliases === 'string' ? draft.searchAliases : current.searchAliases,
+        carModels: typeof draft.carModels === 'string' ? draft.carModels : current.carModels,
+      }))
+      requestAnimationFrame(() => partFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
+    })
+  }, [])
 
   const loadStore = async () => {
     setLoadError(false)
@@ -327,7 +350,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
   return (
     <div className="content-container dashboard-shell min-w-0 space-y-7 py-10">
-      <div className="page-heading mb-0">
+      <div className="page-heading mb-0 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="page-kicker">إدارة المتجر</p>
           <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">لوحة تحكم المحل</h1>
@@ -335,6 +358,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
           {store ? store.name : 'جاري التحميل...'}
         </p>
         </div>
+        <Button variant="outline" className="gap-2" onClick={() => window.dispatchEvent(new CustomEvent('ghyar-ai-open', { detail: { prompt: 'حلل أداء متجري واقترح أهم الخطوات اللي أعملها دلوقتي' } }))}><Bot className="size-4" />اسأل مساعد المتجر</Button>
       </div>
 
       {loadError && (

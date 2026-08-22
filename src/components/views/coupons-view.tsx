@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { Skeleton } from '@/components/ui/skeleton'
 import { Ticket, Plus, Trash2, Copy, Check } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { subscribeAIDraft } from '@/lib/ai/draft-client'
 
 interface Coupon {
   id: string
@@ -39,6 +40,10 @@ export function CouponsView() {
 
   useEffect(() => {
     load()
+    return subscribeAIDraft('coupon', (draft) => {
+      setForm((current) => ({ ...current, code: typeof draft.code === 'string' ? draft.code.toUpperCase() : current.code, discountPercent: draft.discountPercent === undefined ? current.discountPercent : String(draft.discountPercent), maxUses: draft.maxUses === undefined ? current.maxUses : String(draft.maxUses), expiresAt: typeof draft.expiresAt === 'string' ? draft.expiresAt : current.expiresAt }))
+      setShowForm(true)
+    })
   }, [])
 
   const handleCreate = async () => {

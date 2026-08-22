@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
 import { ArrowRight, Send, MessageSquare, Paperclip, X, Loader2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { subscribeAIDraft } from '@/lib/ai/draft-client'
 import { useToast } from '@/hooks/use-toast'
 import { IMAGE_UPLOAD_ACCEPT, IMAGE_UPLOAD_MAX_INPUT_BYTES, IMAGE_UPLOAD_TYPES } from '@/lib/image-policy'
 
@@ -52,6 +53,12 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
     }, 10000)
     return () => clearInterval(interval)
   }, [orderId, partId, participantId])
+
+  useEffect(() => {
+    return subscribeAIDraft('message', (draft) => {
+      if (typeof draft.message === 'string') setInput(draft.message)
+    })
+  }, [])
 
   // Scroll to bottom on new messages
   useEffect(() => {
