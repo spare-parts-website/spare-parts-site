@@ -125,7 +125,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
 
   const actionTools = input.user ? {
     prepareAction: tool({
-      description: 'حضّر إجراءً حقيقياً للمراجعة. لا ينفّذ شيئاً؛ يعرض تحذيراً وزر تأكيد للمستخدم.',
+      description: 'حضّر إجراءً حقيقياً للمراجعة. لا ينفّذ شيئاً؛ يعرض تحذيراً وزر تأكيد للمستخدم. لتحديث قطعة لدى البائع، مرّر اسم القطعة في name ولا تطلب منه المعرّف؛ الخادم يطابق الاسم داخل متجره فقط ويحفظ المعرّف الصحيح. استخدم targetId فقط إذا كان متاحاً بالفعل.',
       inputSchema: actionSchema,
       execute: async (proposal): Promise<AIToolCard> => {
         if (!input.conversationId) throw new Error('CONVERSATION_REQUIRED')

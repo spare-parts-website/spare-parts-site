@@ -49,6 +49,29 @@ function normalizeInput(input: AIProposalInput): AIProposalInput {
   }
 }
 
+async function resolveSellerPart(storeId: string, input: AIProposalInput) {
+  if (input.targetId) {
+    return db.part.findFirst({ where: { id: input.targetId, storeId }, select: { id: true, name: true } })
+  }
+
+  if (!input.name) return null
+  const exact = await db.part.findMany({
+    where: { storeId, name: { equals: input.name, mode: 'insensitive' } },
+    select: { id: true, name: true },
+    take: 2,
+  })
+  if (exact.length === 1) return exact[0]
+  if (exact.length > 1) throw new Error('PART_AMBIGUOUS')
+
+  const matches = await db.part.findMany({
+    where: { storeId, name: { contains: input.name, mode: 'insensitive' } },
+    select: { id: true, name: true },
+    take: 2,
+  })
+  if (matches.length > 1) throw new Error('PART_AMBIGUOUS')
+  return matches[0] || null
+}
+
 export async function prepareActionProposal(input: {
   conversationId: string
   user: SessionUser
@@ -56,6 +79,13 @@ export async function prepareActionProposal(input: {
 }) {
   const proposal = normalizeInput(input.proposal)
   if (!roleCanPrepareAction(input.user.role, proposal.action)) throw new Error('ACTION_FORBIDDEN')
+  if (proposal.action === 'seller_part_update') {
+    const store = await db.store.findUnique({ where: { ownerId: input.user.id }, select: { id: true } })
+    const part = store ? await resolveSellerPart(store.id, proposal) : null
+    if (!part) throw new Error('PART_NOT_FOUND')
+    proposal.targetId = part.id
+    proposal.name = part.name
+  }
   const summary = await validateAndDescribe(input.user, proposal)
   const expiresAt = new Date(Date.now() + AI_PROPOSAL_TTL_MS)
   const created = await db.aIActionProposal.create({
@@ -115,7 +145,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
     }
     case 'seller_part_update': {
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
-      const part = store ? await db.part.findFirst({ where: { id: input.targetId, storeId: store.id }, select: { name: true } }) : null
+      const part = store ? await resolveSellerPart(store.id, input) : null
       const validPrice = input.price === undefined || (input.price >= 0 && input.price <= 100000000)
       const validStock = input.stock === undefined || (Number.isInteger(input.stock) && input.stock >= 0 && input.stock <= 1000000)
       if (!part || (!validPrice || !validStock) || (input.price === undefined && input.stock === undefined && !input.description)) throw new Error('INVALID_ACTION_INPUT')
