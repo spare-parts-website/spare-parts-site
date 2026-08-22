@@ -4,11 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
-import { AlertTriangle, Bot, Clock3, History, Loader2, MessageCirclePlus, Send, Sparkles, Trash2 } from 'lucide-react'
+import { AlertTriangle, Bot, Clock3, History, Loader2, MessageCirclePlus, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet'
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { useAppStore, type AuthUser } from '@/lib/store'
@@ -196,11 +196,11 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
           <Sparkles className="ml-2 size-5" /> <span>اسأل غيار</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" dir="rtl" className="flex h-[100dvh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
-        <SheetHeader className="border-b bg-primary/5 px-5 py-4 pl-16">
+      <SheetContent side="left" dir="rtl" showClose={false} className="flex h-[100dvh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+        <SheetHeader className="border-b bg-primary/5 px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div><SheetTitle className="flex items-center gap-2 text-lg"><span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span>مساعد غيار ماركت</SheetTitle><SheetDescription className="mt-1">{role === 'GUEST' ? 'بحث ومساعدة عامة' : role === 'BUYER' ? 'مساعد المشتري' : role === 'SHOP_OWNER' ? 'مساعد المتجر' : 'مساعد الإدارة'}</SheetDescription></div>
-            <div className="flex gap-1"><Button size="icon" variant="ghost" onClick={newChat} title="محادثة جديدة"><MessageCirclePlus className="size-4" /></Button>{user && <Button size="icon" variant="ghost" onClick={() => setShowHistory((value) => !value)} title="السجل"><History className="size-4" /></Button>}</div>
+            <div className="flex shrink-0 gap-1"><Button size="icon" variant="ghost" onClick={newChat} title="محادثة جديدة"><MessageCirclePlus className="size-4" /></Button>{user && <Button size="icon" variant="ghost" onClick={() => setShowHistory((value) => !value)} title="السجل"><History className="size-4" /></Button>}<SheetClose asChild><Button size="icon" variant="ghost" aria-label="إغلاق المساعد" title="إغلاق"><X className="size-4" /></Button></SheetClose></div>
           </div>
           <p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Clock3 className="size-3" />{expiryLabel}</p>
         </SheetHeader>
