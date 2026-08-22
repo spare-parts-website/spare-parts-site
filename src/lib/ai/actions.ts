@@ -6,7 +6,8 @@ import { resolveOrderTransition, type OrderAction } from '@/lib/order-state'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
 import { AI_PROPOSAL_TTL_MS } from '@/lib/ai/runtime'
 import { roleCanPrepareAction } from '@/lib/ai/policy'
-import type { AIClientAction, AIProposalInput } from '@/lib/ai/types'
+import { resolveAdminEntity, resolveOrder, resolvePart, resolveStore, type EntityResolution } from '@/lib/ai/resolver'
+import type { AIClientAction, AIProposalInput, AISelectedEntity, AIToolCard } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
 function cleanText(value: unknown, max: number) {
@@ -18,11 +19,40 @@ function finite(value: unknown) {
   return Number.isFinite(number) ? number : undefined
 }
 
+function normalizeStatus(action: AIProposalInput['action'], value: unknown) {
+  const raw = cleanText(value, 50)
+  if (!raw) return undefined
+  const key = raw.toLowerCase().replace(/[\s_-]+/g, '')
+  const maps: Partial<Record<AIProposalInput['action'], Record<string, string>>> = {
+    order_action: { الغاء: 'cancel', إلغاء: 'cancel', cancel: 'cancel', استلام: 'deliver', تسليم: 'deliver', deliver: 'deliver', ارجاع: 'return', إرجاع: 'return', return: 'return', موافقة: 'approve', قبول: 'approve', approve: 'approve', رفض: 'reject', reject: 'reject', شحن: 'ship', ship: 'ship' },
+    admin_part_block: { حظر: 'BLOCKED', محظور: 'BLOCKED', block: 'BLOCKED', blocked: 'BLOCKED', تفعيل: 'ACTIVE', نشط: 'ACTIVE', active: 'ACTIVE', unblock: 'ACTIVE' },
+    admin_store_verify: { اعتماد: 'VERIFIED', توثيق: 'VERIFIED', verified: 'VERIFIED', إلغاءاعتماد: 'UNVERIFIED', إلغاءتوثيق: 'UNVERIFIED', unverified: 'UNVERIFIED' },
+    admin_report_decision: { مراجعة: 'REVIEWED', reviewed: 'REVIEWED', تجاهل: 'DISMISSED', رفض: 'DISMISSED', dismissed: 'DISMISSED', حظر: 'BLOCKED', blocked: 'BLOCKED' },
+    admin_verification_decision: { قبول: 'APPROVED', اعتماد: 'APPROVED', approved: 'APPROVED', رفض: 'REJECTED', rejected: 'REJECTED' },
+    admin_dispute_decision: { للمشتري: 'RESOLVED_BUYER', حسمالمشتري: 'RESOLVED_BUYER', resolvedbuyer: 'RESOLVED_BUYER', للبائع: 'RESOLVED_SELLER', حسمالبائع: 'RESOLVED_SELLER', resolvedseller: 'RESOLVED_SELLER', رفض: 'REJECTED', rejected: 'REJECTED' },
+  }
+  return maps[action]?.[key] || raw
+}
+
+function humanDecision(value?: string) {
+  const labels: Record<string, string> = {
+    cancel: 'إلغاء الطلب', deliver: 'تأكيد الاستلام', return: 'طلب إرجاع', approve: 'الموافقة', reject: 'الرفض', ship: 'تأكيد الشحن',
+    BLOCKED: 'الحظر', ACTIVE: 'إلغاء الحظر', VERIFIED: 'الاعتماد', UNVERIFIED: 'إلغاء الاعتماد', REVIEWED: 'تمت المراجعة', DISMISSED: 'رفض البلاغ', APPROVED: 'القبول', REJECTED: 'الرفض', RESOLVED_BUYER: 'الحسم لصالح المشتري', RESOLVED_SELLER: 'الحسم لصالح البائع',
+    BUYER: 'مشتري', SHOP_OWNER: 'صاحب متجر', ADMIN: 'مدير',
+  }
+  return value ? labels[value] || value : ''
+}
+
 function normalizeInput(input: AIProposalInput): AIProposalInput {
   return {
     action: input.action,
     targetId: cleanText(input.targetId, 100) || undefined,
     name: cleanText(input.name, 160) || undefined,
+    entityName: cleanText(input.entityName, 160) || undefined,
+    storeName: cleanText(input.storeName, 160) || undefined,
+    orderDescription: cleanText(input.orderDescription, 240) || undefined,
+    recency: input.recency === 'oldest' ? 'oldest' : input.recency === 'latest' ? 'latest' : undefined,
+    date: cleanText(input.date, 30) || undefined,
     quantity: finite(input.quantity),
     price: finite(input.price),
     stock: finite(input.stock),
@@ -37,7 +67,7 @@ function normalizeInput(input: AIProposalInput): AIProposalInput {
     discountPercent: finite(input.discountPercent),
     maxUses: finite(input.maxUses),
     expiresAt: cleanText(input.expiresAt, 50) || undefined,
-    status: cleanText(input.status, 50) || undefined,
+    status: normalizeStatus(input.action, input.status),
     role: input.role,
     trackingNumber: cleanText(input.trackingNumber, 100) || undefined,
     brand: cleanText(input.brand, 80) || undefined,
@@ -49,43 +79,18 @@ function normalizeInput(input: AIProposalInput): AIProposalInput {
   }
 }
 
-async function resolveSellerPart(storeId: string, input: AIProposalInput) {
-  if (input.targetId) {
-    return db.part.findFirst({ where: { id: input.targetId, storeId }, select: { id: true, name: true } })
-  }
-
-  if (!input.name) return null
-  const exact = await db.part.findMany({
-    where: { storeId, name: { equals: input.name, mode: 'insensitive' } },
-    select: { id: true, name: true },
-    take: 2,
-  })
-  if (exact.length === 1) return exact[0]
-  if (exact.length > 1) throw new Error('PART_AMBIGUOUS')
-
-  const matches = await db.part.findMany({
-    where: { storeId, name: { contains: input.name, mode: 'insensitive' } },
-    select: { id: true, name: true },
-    take: 2,
-  })
-  if (matches.length > 1) throw new Error('PART_AMBIGUOUS')
-  return matches[0] || null
-}
-
 export async function prepareActionProposal(input: {
   conversationId: string
   user: SessionUser
   proposal: AIProposalInput
-}) {
+  selection?: AISelectedEntity
+}): Promise<AIToolCard> {
   const proposal = normalizeInput(input.proposal)
   if (!roleCanPrepareAction(input.user.role, proposal.action)) throw new Error('ACTION_FORBIDDEN')
-  if (proposal.action === 'seller_part_update') {
-    const store = await db.store.findUnique({ where: { ownerId: input.user.id }, select: { id: true } })
-    const part = store ? await resolveSellerPart(store.id, proposal) : null
-    if (!part) throw new Error('PART_NOT_FOUND')
-    proposal.targetId = part.id
-    proposal.name = part.name
-  }
+  const missing = missingEssentialInput(proposal)
+  if (missing) return missing
+  const unresolved = await resolveProposalTarget(input.user, proposal, input.selection)
+  if (unresolved) return unresolved
   const summary = await validateAndDescribe(input.user, proposal)
   const expiresAt = new Date(Date.now() + AI_PROPOSAL_TTL_MS)
   const created = await db.aIActionProposal.create({
@@ -107,6 +112,44 @@ export async function prepareActionProposal(input: {
     description: 'راجع التفاصيل جيداً. لن يتم أي تغيير قبل الضغط على تأكيد.',
     proposal: { id: created.id, action: proposal.action, summary, expiresAt: expiresAt.toISOString(), targetId: proposal.targetId },
   }
+}
+
+function missingEssentialInput(input: AIProposalInput): AIToolCard | null {
+  const fields: Partial<Record<AIProposalInput['action'], Array<[boolean, string]>>> = {
+    car_create: [[!input.brand, 'ماركة السيارة'], [!input.model, 'موديل السيارة']],
+    order_action: [[!input.status, 'الإجراء المطلوب للطلب']],
+    seller_part_create: [[!input.name, 'اسم القطعة'], [input.price === undefined, 'السعر'], [input.stock === undefined, 'المخزون'], [!input.condition, 'الحالة (جديدة أو مستعملة)']],
+    seller_part_update: [[input.price === undefined && input.stock === undefined && !input.description, 'التغيير المطلوب مثل السعر أو المخزون أو الوصف']],
+    seller_coupon_create: [[!input.code, 'كود الكوبون'], [input.discountPercent === undefined, 'نسبة الخصم'], [input.maxUses === undefined, 'عدد مرات الاستخدام']],
+    admin_part_block: [[!input.status, 'هل تريد الحظر أم إلغاء الحظر؟']],
+    admin_user_role: [[!input.role, 'الدور الجديد للمستخدم']],
+    admin_store_verify: [[!input.status, 'هل تريد اعتماد المتجر أم إلغاء اعتماده؟']],
+    admin_report_decision: [[!input.status, 'قرار البلاغ']],
+    admin_verification_decision: [[!input.status, 'قبول طلب التوثيق أو رفضه']],
+    admin_dispute_decision: [[!input.status, 'قرار النزاع'], [!input.description, 'سبب القرار']],
+  }
+  const missing = fields[input.action]?.filter(([needed]) => needed).map(([, label]) => label) || []
+  if (!missing.length) return null
+  return { type: 'insight', title: 'محتاج معلومة واحدة عشان أكمل', description: `اسأل المستخدم باختصار عن: ${missing[0]}. لا تطلب أي معرّف أو كود تقني.` }
+}
+
+async function resolveProposalTarget(user: SessionUser, proposal: AIProposalInput, selection?: AISelectedEntity) {
+  let resolution: EntityResolution | undefined
+  if (proposal.action === 'cart_add') resolution = await resolvePart({ user, scope: 'public', reference: proposal, selection, requireStock: true })
+  if (proposal.action === 'wishlist_store_add' || proposal.action === 'wishlist_store_remove') resolution = await resolveStore(proposal, selection)
+  if (proposal.action === 'order_action') resolution = await resolveOrder(user, proposal, selection)
+  if (proposal.action === 'seller_part_update') resolution = await resolvePart({ user, scope: 'seller', reference: proposal, selection })
+  if (proposal.action === 'admin_part_block') resolution = await resolvePart({ user, scope: 'admin', reference: proposal, selection })
+  if (proposal.action === 'admin_user_role') resolution = await resolveAdminEntity('user', proposal, selection)
+  if (proposal.action === 'admin_store_verify') resolution = await resolveStore(proposal, selection)
+  if (proposal.action === 'admin_report_decision') resolution = await resolveAdminEntity('report', proposal, selection)
+  if (proposal.action === 'admin_verification_decision') resolution = await resolveAdminEntity('verification', proposal, selection)
+  if (proposal.action === 'admin_dispute_decision') resolution = await resolveAdminEntity('dispute', proposal, selection)
+  if (!resolution) return null
+  if (resolution.status !== 'resolved') return resolution.card
+  proposal.targetId = resolution.entity.id
+  proposal.name = resolution.entity.label
+  return null
 }
 
 async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
@@ -134,7 +177,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
       const sellerAllowed = ['approve', 'reject', 'ship'].includes(input.status) && order.store.ownerId === user.id
       if (!buyerAllowed && !sellerAllowed) throw new Error('ACTION_FORBIDDEN')
       resolveOrderTransition({ action: input.status as OrderAction, status: order.status, paymentStatus: order.paymentStatus, paymentMethod: order.paymentMethod })
-      return `تحديث طلب ${order.part.name}: ${input.status}`
+      return `${humanDecision(input.status)} لطلب ${order.part.name}`
     }
     case 'seller_part_create': {
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
@@ -145,7 +188,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
     }
     case 'seller_part_update': {
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
-      const part = store ? await resolveSellerPart(store.id, input) : null
+      const part = store ? await db.part.findFirst({ where: { id: input.targetId, storeId: store.id }, select: { name: true } }) : null
       const validPrice = input.price === undefined || (input.price >= 0 && input.price <= 100000000)
       const validStock = input.stock === undefined || (Number.isInteger(input.stock) && input.stock >= 0 && input.stock <= 1000000)
       if (!part || (!validPrice || !validStock) || (input.price === undefined && input.stock === undefined && !input.description)) throw new Error('INVALID_ACTION_INPUT')
@@ -167,7 +210,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
       const target = await db.user.findUnique({ where: { id: input.targetId }, select: { name: true, role: true } })
       if (!target || !input.role || input.targetId === user.id) throw new Error('INVALID_ACTION_INPUT')
       if (target.role === input.role) throw new Error('ACTION_STALE')
-      return `تغيير دور ${target.name} إلى ${input.role}`
+      return `تغيير دور ${target.name} إلى ${humanDecision(input.role)}`
     }
     case 'admin_store_verify': {
       const store = await db.store.findUnique({ where: { id: input.targetId }, select: { name: true, verified: true } })
@@ -179,7 +222,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
       const report = await db.report.findUnique({ where: { id: input.targetId }, select: { id: true, status: true } })
       if (!report || !['REVIEWED', 'DISMISSED', 'BLOCKED'].includes(input.status || '')) throw new Error('INVALID_ACTION_INPUT')
       if (report.status !== 'OPEN') throw new Error('ACTION_STALE')
-      return `تحديث البلاغ إلى ${input.status}`
+      return `تحديث البلاغ: ${humanDecision(input.status)}`
     }
     case 'admin_verification_decision': {
       const verification = await db.sellerVerification.findUnique({ where: { id: input.targetId }, include: { store: { select: { name: true } } } })
@@ -191,7 +234,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
       const dispute = await db.dispute.findUnique({ where: { id: input.targetId }, include: { order: { include: { part: { select: { name: true } } } } } })
       if (!dispute || !['RESOLVED_BUYER', 'RESOLVED_SELLER', 'REJECTED'].includes(input.status || '') || !input.description || input.description.length < 3) throw new Error('INVALID_ACTION_INPUT')
       if (dispute.status !== 'OPEN') throw new Error('ACTION_STALE')
-      return `حسم نزاع ${dispute.order.part.name}: ${input.status}`
+      return `حسم نزاع ${dispute.order.part.name}: ${humanDecision(input.status)}`
     }
   }
 }

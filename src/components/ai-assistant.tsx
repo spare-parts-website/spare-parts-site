@@ -12,7 +12,7 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTi
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { useAppStore, type AuthUser } from '@/lib/store'
-import type { AIChatResponse, AIClientAction, AIToolCard } from '@/lib/ai/types'
+import type { AIChatResponse, AIClientAction, AISelectedEntity, AIToolCard } from '@/lib/ai/types'
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; cards?: AIToolCard[] }
 type SavedConversation = { id: string; title?: string | null; expiresAt: string; updatedAt: string; messages: Array<{ id: string; role: string; content: string; metadata?: { cards?: AIToolCard[] } | null }> }
@@ -99,7 +99,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
     } catch { /* Chat remains usable without the history list. */ }
   }
 
-  async function send(prompt?: string) {
+  async function send(prompt?: string, selection?: AISelectedEntity) {
     const text = (prompt ?? input).trim()
     if (!text || loading) return
     const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
@@ -111,7 +111,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
     setLoading(true)
     try {
       const cart = useAppStore.getState().cart
-      const response = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, conversationId, history: user ? undefined : prior.map((item) => ({ role: item.role, content: item.content })).slice(-12), clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })) } }) })
+      const response = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, conversationId, history: user ? undefined : prior.map((item) => ({ role: item.role, content: item.content })).slice(-12), clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })), selection } }) })
       const data = await response.json() as AIChatResponse & { error?: string }
       if (!response.ok) throw new Error(data.error || 'تعذر الاتصال بالمساعد')
       setConversationId(data.conversationId)
@@ -209,7 +209,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
           <ScrollArea className="min-h-0 flex-1 px-4">
             <div className="space-y-4 py-5">
               {!messages.length && <Welcome role={role} onPrompt={(prompt) => void send(prompt)} />}
-              {messages.map((message) => <MessageBubble key={message.id} message={message} onProposal={setPendingProposal} />)}
+              {messages.map((message) => <MessageBubble key={message.id} message={message} onProposal={setPendingProposal} onSelect={(selection) => void send(`اخترت ${selection.label}. كمل نفس الطلب السابق.`, selection)} />)}
               {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />جاري التفكير والتحقق من البيانات...</div>}
               {error && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><b>تعذر إكمال الطلب</b><p className="mt-1">{error}</p>{retryPrompt && <Button type="button" size="sm" variant="outline" className="mt-3" disabled={loading} onClick={() => void send(retryPrompt)}>إعادة المحاولة</Button>}</div>}
               <div ref={bottomRef} />
@@ -237,12 +237,12 @@ function Welcome({ role, onPrompt }: { role: keyof typeof PROMPTS; onPrompt: (pr
   return <div className="py-8 text-center"><span className="mx-auto grid size-16 place-items-center rounded-3xl bg-primary/10 text-primary"><Sparkles className="size-8" /></span><h2 className="mt-4 text-xl font-black">إزاي أقدر أساعدك؟</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">أبحث في بيانات غيار ماركت المسموح لك بها، وأجهز المسودات والإجراءات للمراجعة.</p><div className="mt-5 grid gap-2">{PROMPTS[role].map((prompt) => <Button key={prompt} variant="outline" className="h-auto justify-start whitespace-normal py-3 text-right" onClick={() => onPrompt(prompt)}>{prompt}</Button>)}</div></div>
 }
 
-function MessageBubble({ message, onProposal }: { message: ChatMessage; onProposal: (proposal: AIToolCard['proposal']) => void }) {
-  return <div className={cn('space-y-2', message.role === 'user' && 'mr-auto max-w-[88%]')}><div className={cn('rounded-2xl px-4 py-3 text-sm leading-7', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}><ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} />)}</div>
+function MessageBubble({ message, onProposal, onSelect }: { message: ChatMessage; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
+  return <div className={cn('space-y-2', message.role === 'user' && 'mr-auto max-w-[88%]')}><div className={cn('rounded-2xl px-4 py-3 text-sm leading-7', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}><ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} onSelect={onSelect} />)}</div>
 }
 
-function ToolCard({ card, onProposal }: { card: AIToolCard; onProposal: (proposal: AIToolCard['proposal']) => void }) {
-  return <div className="rounded-2xl border bg-card p-3 shadow-sm"><b className="text-sm">{card.title}</b>{card.description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.description}</p>}{card.items?.length ? <div className="mt-3 space-y-2">{card.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 p-2.5"><div className="min-w-0"><p className="truncate text-sm font-medium">{item.title}</p>{item.subtitle && <p className="truncate text-xs text-muted-foreground">{item.subtitle}</p>}</div><div className="shrink-0 text-left">{item.value !== undefined && <p className="text-xs font-bold text-primary">{item.value}</p>}{item.href && <Button asChild size="sm" variant="link" className="h-auto p-0 text-xs"><Link href={item.href}>فتح</Link></Button>}</div></div>)}</div> : null}{card.proposal && <Button variant="destructive" className="mt-3 w-full" onClick={() => onProposal(card.proposal)}>مراجعة وتنفيذ</Button>}</div>
+function ToolCard({ card, onProposal, onSelect }: { card: AIToolCard; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
+  return <div className="rounded-2xl border bg-card p-3 shadow-sm"><b className="text-sm">{card.title}</b>{card.description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.description}</p>}{card.items?.length ? <div className="mt-3 space-y-2">{card.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 p-2.5"><div className="min-w-0"><p className="truncate text-sm font-medium">{item.title}</p>{item.subtitle && <p className="truncate text-xs text-muted-foreground">{item.subtitle}</p>}</div><div className="flex shrink-0 items-center gap-2 text-left">{item.value !== undefined && <p className="text-xs font-bold text-primary">{item.value}</p>}{item.select && <Button size="sm" variant="outline" className="h-8" onClick={() => onSelect(item.select!)}>اختيار</Button>}{item.href && !item.select && <Button asChild size="sm" variant="link" className="h-auto p-0 text-xs"><Link href={item.href}>فتح</Link></Button>}</div></div>)}</div> : null}{card.proposal && <Button variant="destructive" className="mt-3 w-full" onClick={() => onProposal(card.proposal)}>مراجعة وتنفيذ</Button>}</div>
 }
 
 function HistoryPanel({ conversations, onSelect, onDelete }: { conversations: SavedConversation[]; onSelect: (conversation: SavedConversation) => void; onDelete: (id: string) => void }) {

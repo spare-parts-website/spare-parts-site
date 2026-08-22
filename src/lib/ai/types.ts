@@ -21,21 +21,36 @@ export const AI_ACTIONS = [
 
 export type AIAction = (typeof AI_ACTIONS)[number]
 
+export const AI_ENTITY_KINDS = ['part', 'store', 'car', 'order', 'user', 'report', 'verification', 'dispute', 'coupon', 'message'] as const
+export type AIEntityKind = (typeof AI_ENTITY_KINDS)[number]
+
+export interface AISelectedEntity {
+  kind: AIEntityKind
+  id: string
+  label: string
+}
+
 export interface AIClientContext {
   cart: Array<{ partId: string; name: string; quantity: number; price: number }>
+  selection?: AISelectedEntity
 }
 
 export interface AIProposalInput {
   action: AIAction
   targetId?: string
   name?: string
+  entityName?: string
+  storeName?: string
+  partNumber?: string
+  orderDescription?: string
+  recency?: 'latest' | 'oldest'
+  date?: string
   quantity?: number
   price?: number
   stock?: number
   description?: string
   category?: string
   condition?: string
-  partNumber?: string
   oemNumber?: string
   searchAliases?: string
   carModels?: string
@@ -81,6 +96,7 @@ export interface AIToolCard {
     subtitle?: string
     href?: string
     value?: string | number
+    select?: AISelectedEntity
   }>
   clientAction?: AIClientAction
   proposal?: {

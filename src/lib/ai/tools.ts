@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { db } from '@/lib/db'
 import { isBlockedStoreName } from '@/lib/store-moderation'
 import { prepareActionProposal } from '@/lib/ai/actions'
-import { maskEmail, maskPhone } from '@/lib/ai/policy'
+import { resolutionCard, resolveAdminEntity, resolveCar, resolveOrder, resolvePart, resolveSellerCoupon, resolveSellerMessage, resolveStore } from '@/lib/ai/resolver'
 import { AI_ACTIONS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
@@ -16,8 +16,13 @@ type NavigationDestination = z.infer<typeof navigationDestinations>
 
 const actionSchema = z.object({
   action: z.enum(AI_ACTIONS),
-  targetId: z.string().max(100).optional(),
-  name: z.string().max(160).optional(),
+  targetId: z.string().max(100).optional().describe('داخلي فقط؛ لا تطلبه من المستخدم'),
+  name: z.string().max(160).optional().describe('اسم طبيعي للقطعة أو السجل'),
+  entityName: z.string().max(160).optional().describe('الاسم أو الوصف الذي قاله المستخدم'),
+  storeName: z.string().max(160).optional().describe('اسم المتجر كما قاله المستخدم'),
+  orderDescription: z.string().max(240).optional().describe('وصف الطلب مثل أحدث طلب فرامل من متجر كذا'),
+  recency: z.enum(['latest', 'oldest']).optional(),
+  date: z.string().max(30).optional().describe('تاريخ YYYY-MM-DD مستخرج من كلام المستخدم عند ذكر يوم محدد'),
   quantity: z.number().optional(),
   price: z.number().optional(),
   stock: z.number().optional(),
@@ -32,7 +37,7 @@ const actionSchema = z.object({
   discountPercent: z.number().optional(),
   maxUses: z.number().optional(),
   expiresAt: z.string().max(50).optional(),
-  status: z.string().max(50).optional(),
+  status: z.string().max(50).optional().describe('حوّل نية المستخدم إلى الحالة الداخلية بنفسك ولا تطلب كوداً منه'),
   role: z.enum(['BUYER', 'SHOP_OWNER', 'ADMIN']).optional(),
   trackingNumber: z.string().max(100).optional(),
   brand: z.string().max(80).optional(),
@@ -62,8 +67,8 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
           type: 'results', title: `نتائج البحث عن «${query}»`,
           description: parts.length || stores.length ? 'نتائج حقيقية من غيار ماركت' : 'لم نجد نتائج مطابقة حالياً.',
           items: [
-            ...parts.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => ({ id: part.id, title: part.name, subtitle: `${part.store.name}${part.brand ? ` • ${part.brand}` : ''} • متاح ${part.stock}`, value: `${part.price} ج.م`, href: `/parts/${part.id}` })),
-            ...stores.filter((store) => !isBlockedStoreName(store.name)).map((store) => ({ id: store.id, title: store.name, subtitle: store.verified ? 'متجر معتمد' : 'متجر', href: `/stores/${store.id}` })),
+            ...parts.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.store.name}${part.brand ? ` • ${part.brand}` : ''} • متاح ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })),
+            ...stores.filter((store) => !isBlockedStoreName(store.name)).map((store) => ({ id: `store-${store.id}`, title: store.name, subtitle: store.verified ? 'متجر معتمد' : 'متجر', select: { kind: 'store' as const, id: store.id, label: store.name } })),
           ],
         }
       },
@@ -94,21 +99,21 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
       inputSchema: z.object({}),
       execute: async (): Promise<AIToolCard> => {
         const [cars, favorites, orders] = await Promise.all([
-          db.userCar.findMany({ where: { userId: input.user!.id }, select: { id: true, brand: true, model: true, year: true, engine: true, isPrimary: true }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }], take: 5 }),
+          db.userCar.findMany({ where: { userId: input.user!.id }, select: { id: true, brand: true, model: true, year: true, engine: true, nickname: true, isPrimary: true }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }], take: 5 }),
           db.storeWishlist.findMany({ where: { userId: input.user!.id }, include: { store: { select: { id: true, name: true } } }, take: 10 }),
           db.order.findMany({ where: { buyerId: input.user!.id }, include: { part: { select: { name: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
         ])
-        return { type: 'insight', title: 'ملخص حسابك', description: `${cars.length} سيارة محفوظة • ${favorites.length} متجر مفضل • ${orders.length} طلبات حديثة • ${input.clientContext.cart.length} عناصر في السلة`, items: [...input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `في السلة • الكمية ${item.quantity}`, value: `${item.price * item.quantity} ج.م`, href: '/cart' })), ...cars.map((car) => ({ id: car.id, title: `${car.brand} ${car.model}`, subtitle: `${car.year || ''}${car.engine ? ` • ${car.engine}` : ''}${car.isPrimary ? ' • الأساسية' : ''}`, href: '/account/cars' })), ...orders.map((order) => ({ id: order.id, title: order.part.name, subtitle: `${order.store.name} • ${order.status}`, value: `${order.totalPrice} ج.م`, href: '/account/orders' }))] }
+        return { type: 'insight', title: 'ملخص حسابك', description: `${cars.length} سيارة محفوظة • ${favorites.length} متجر مفضل • ${orders.length} طلبات حديثة • ${input.clientContext.cart.length} عناصر في السلة`, items: [...input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `في السلة • الكمية ${item.quantity}`, value: `${item.price * item.quantity} ج.م`, select: { kind: 'part' as const, id: item.partId, label: item.name } })), ...cars.map((car) => ({ id: `car-${car.id}`, title: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model} ${car.year || ''}${car.engine ? ` • ${car.engine}` : ''}${car.isPrimary ? ' • الأساسية' : ''}`, select: { kind: 'car' as const, id: car.id, label: car.nickname || `${car.brand} ${car.model}` } })), ...favorites.map((favorite) => ({ id: `store-${favorite.store.id}`, title: favorite.store.name, subtitle: 'متجر في المفضلة', select: { kind: 'store' as const, id: favorite.store.id, label: favorite.store.name } })), ...orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${order.store.name} • ${humanStatus(order.status)}`, value: `${order.totalPrice} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } }))] }
       },
     }),
-    findCompatibleParts: tool<{ carId?: string; query?: string }, AIToolCard, Record<string, never>>({
-      description: 'ابحث عن قطع متوافقة فعلياً مع سيارة محفوظة تخص المستخدم الحالي.',
-      inputSchema: z.object({ carId: z.string().max(100).optional(), query: z.string().max(120).optional() }),
-      execute: async ({ carId, query }): Promise<AIToolCard> => {
-        const car = carId
-          ? await db.userCar.findFirst({ where: { id: carId, userId: input.user!.id } })
-          : await db.userCar.findFirst({ where: { userId: input.user!.id }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }] })
-        if (!car) return { type: 'insight', title: 'احفظ سيارتك أولاً', description: 'أضف بيانات السيارة لنبحث في التوافق المسجل للقطع.', clientAction: { type: 'navigate', href: '/account/cars' } }
+    findCompatibleParts: tool<{ carId?: string; carDescription?: string; query?: string }, AIToolCard, Record<string, never>>({
+      description: 'ابحث عن قطع متوافقة مع سيارة محفوظة. استخدم وصفاً طبيعياً مثل عربيتي الأساسية أو تويوتا 2020، ولا تطلب معرّف السيارة.',
+      inputSchema: z.object({ carId: z.string().max(100).optional(), carDescription: z.string().max(160).optional(), query: z.string().max(120).optional() }),
+      execute: async ({ carId, carDescription, query }): Promise<AIToolCard> => {
+        const resolution = await resolveCar(input.user!, carDescription, carId, input.clientContext.selection)
+        if (resolution.status !== 'resolved') return resolution.card
+        const car = await db.userCar.findFirst({ where: { id: resolution.entity.id, userId: input.user!.id } })
+        if (!car) return { type: 'insight', title: 'السيارة لم تعد متاحة', description: 'اختر سيارة محفوظة أخرى أو أضف بيانات السيارة.' }
         const parts = await db.part.findMany({
           where: {
             blocked: false,
@@ -118,18 +123,18 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
           select: { id: true, name: true, price: true, stock: true, store: { select: { name: true } } },
           orderBy: { createdAt: 'desc' }, take: 10,
         })
-        return { type: 'results', title: `قطع متوافقة مع ${car.brand} ${car.model}`, description: `التوافق مبني على بيانات البائع المسجلة${car.year ? ` لسنة ${car.year}` : ''}. راجع رقم القطعة قبل الشراء.`, items: parts.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => ({ id: part.id, title: part.name, subtitle: `${part.store.name} • مخزون ${part.stock}`, value: `${part.price} ج.م`, href: `/parts/${part.id}` })) }
+        return { type: 'results', title: `قطع متوافقة مع ${car.brand} ${car.model}`, description: `التوافق مبني على بيانات البائع المسجلة${car.year ? ` لسنة ${car.year}` : ''}. راجع رقم القطعة قبل الشراء.`, items: parts.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.store.name} • مخزون ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
       },
     }),
   } : {}
 
   const actionTools = input.user ? {
     prepareAction: tool({
-      description: 'حضّر إجراءً حقيقياً للمراجعة. لا ينفّذ شيئاً؛ يعرض تحذيراً وزر تأكيد للمستخدم. لتحديث قطعة لدى البائع، مرّر اسم القطعة في name ولا تطلب منه المعرّف؛ الخادم يطابق الاسم داخل متجره فقط ويحفظ المعرّف الصحيح. استخدم targetId فقط إذا كان متاحاً بالفعل.',
+      description: 'حضّر إجراءً حقيقياً للمراجعة. استخدم الاسم أو الوصف الطبيعي في entityName/name/storeName/orderDescription ولا تطلب أبداً معرّفاً أو حالة تقنية من المستخدم. الخادم يحل السجل داخل صلاحيات الحساب، ويعرض اختيارات قابلة للنقر عند تعدد النتائج. استخدم targetId فقط عندما توفره أداة أخرى داخلياً.',
       inputSchema: actionSchema,
       execute: async (proposal): Promise<AIToolCard> => {
         if (!input.conversationId) throw new Error('CONVERSATION_REQUIRED')
-        return prepareActionProposal({ conversationId: input.conversationId, user: input.user!, proposal })
+        return prepareActionProposal({ conversationId: input.conversationId, user: input.user!, proposal, selection: input.clientContext.selection })
       },
     }),
   } : {}
@@ -150,52 +155,66 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         const revenue = completed.reduce((sum, order) => sum + order.totalPrice, 0)
         const rating = reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0
         const lowStock = parts.filter((part) => part.stock <= 3)
-        return { type: 'insight', title: `أداء ${store.name}`, description: `${parts.length} قطعة • ${orders.length} طلب • ${revenue.toFixed(0)} ج.م مبيعات مكتملة • تقييم ${rating.toFixed(1)}`, items: lowStock.slice(0, 8).map((part) => ({ id: part.id, title: part.name, subtitle: `مخزون منخفض: ${part.stock}`, value: `${part.price} ج.م`, href: '/seller/parts' })) }
+        return { type: 'insight', title: `أداء ${store.name}`, description: `${parts.length} قطعة • ${orders.length} طلب • ${revenue.toFixed(0)} ج.م مبيعات مكتملة • تقييم ${rating.toFixed(1)}`, items: lowStock.slice(0, 8).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `مخزون منخفض: ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
       },
     }),
-    suggestSellerPrice: tool({
-      description: 'اقترح نطاق سعر لقطعة يملكها البائع اعتماداً على عروض غيار ماركت المشابهة وأداء القطعة. الاقتراح غير ملزم.',
-      inputSchema: z.object({ partId: z.string().min(1) }),
-      execute: async ({ partId }): Promise<AIToolCard> => {
+    suggestSellerPrice: tool<{ partId?: string; entityName?: string; partNumber?: string; oemNumber?: string }, AIToolCard, Record<string, never>>({
+      description: 'اقترح نطاق سعر لقطعة يملكها البائع باستخدام اسمها أو رقمها، ولا تطلب معرّف القطعة. الاقتراح غير ملزم.',
+      inputSchema: z.object({ partId: z.string().max(100).optional(), entityName: z.string().max(160).optional(), partNumber: z.string().max(100).optional(), oemNumber: z.string().max(100).optional() }),
+      execute: async ({ partId, entityName, partNumber, oemNumber }): Promise<AIToolCard> => {
+        const resolution = await resolvePart({ user: input.user!, scope: 'seller', reference: { targetId: partId, entityName, partNumber, oemNumber }, selection: input.clientContext.selection })
+        if (resolution.status !== 'resolved') return resolution.card
         const store = await db.store.findUnique({ where: { ownerId: input.user!.id }, select: { id: true } })
-        const part = store ? await db.part.findFirst({ where: { id: partId, storeId: store.id }, select: { id: true, name: true, price: true, category: true, brand: true, stock: true } }) : null
-        if (!part) throw new Error('PART_NOT_OWNED')
+        const part = store ? await db.part.findFirst({ where: { id: resolution.entity.id, storeId: store.id }, select: { id: true, name: true, price: true, category: true, brand: true, stock: true } }) : null
+        if (!part) return { type: 'results', title: 'القطعة لم تعد متاحة', description: 'اكتب اسم قطعة أخرى وسأبحث عنها داخل متجرك.' }
         const comparisons = await db.part.findMany({ where: { id: { not: part.id }, blocked: false, category: part.category || undefined, ...(part.brand ? { brand: part.brand } : {}) }, select: { price: true }, take: 20 })
         const prices = comparisons.map((item) => item.price).filter((price) => price > 0).sort((a, b) => a - b)
         const median = prices.length ? prices[Math.floor(prices.length / 2)] : part.price
         const low = Math.max(0, Math.round(median * 0.9))
         const high = Math.round(median * 1.1)
-        return { type: 'insight', title: `اقتراح سعر: ${part.name}`, description: `النطاق المقترح ${low}–${high} ج.م بناءً على ${prices.length} عرض مشابه. السعر الحالي ${part.price} ج.م والمخزون ${part.stock}. راجع الاقتراح قبل التعديل.`, items: [{ id: part.id, title: part.name, subtitle: 'اقتراح تحليلي وليس سعراً مضموناً', value: `${median} ج.م`, href: '/seller/parts' }] }
+        return { type: 'insight', title: `اقتراح سعر: ${part.name}`, description: `النطاق المقترح ${low}–${high} ج.م بناءً على ${prices.length} عرض مشابه. السعر الحالي ${part.price} ج.م والمخزون ${part.stock}. راجع الاقتراح قبل التعديل.`, items: [{ id: `part-${part.id}`, title: part.name, subtitle: 'اقتراح تحليلي وليس سعراً مضموناً', value: `${median} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } }] }
       },
     }),
-    getSellerWorkspace: tool({
-      description: 'اعرض سجلات تشغيل متجر البائع الحالي فقط: القطع أو الطلبات أو الكوبونات أو الرسائل أو التقييمات.',
-      inputSchema: z.object({ section: z.enum(['listings', 'orders', 'coupons', 'messages', 'reviews']) }),
-      execute: async ({ section }): Promise<AIToolCard> => {
+    getSellerWorkspace: tool<{ section: 'listings' | 'orders' | 'coupons' | 'messages' | 'reviews'; query?: string; recency?: 'latest' | 'oldest'; limit?: number }, AIToolCard, Record<string, never>>({
+      description: 'اعرض أو ابحث في سجلات متجر البائع: القطع أو الطلبات أو الكوبونات أو الرسائل أو التقييمات. يقبل الاسم والوصف الطبيعي وكلمات مثل الأحدث، ولا يحتاج أي معرّف.',
+      inputSchema: z.object({ section: z.enum(['listings', 'orders', 'coupons', 'messages', 'reviews']), query: z.string().max(160).optional(), recency: z.enum(['latest', 'oldest']).default('latest'), limit: z.number().int().min(1).max(20).default(10) }),
+      execute: async ({ section, query, recency = 'latest', limit = 10 }): Promise<AIToolCard> => {
         const store = await db.store.findUnique({ where: { ownerId: input.user!.id }, select: { id: true, name: true } })
         if (!store) return { type: 'insight', title: 'لا يوجد متجر مرتبط بالحساب' }
+        const orderBy = { createdAt: recency === 'oldest' ? 'asc' as const : 'desc' as const }
         if (section === 'listings') {
-          const parts = await db.part.findMany({ where: { storeId: store.id }, select: { id: true, name: true, price: true, stock: true, blocked: true }, orderBy: { updatedAt: 'desc' }, take: 20 })
-          return { type: 'results', title: `قطع ${store.name}`, description: 'هذه النتائج تخص متجرك فقط.', items: parts.map((part) => ({ id: part.id, title: part.name, subtitle: `${part.blocked ? 'محظورة' : 'نشطة'} • مخزون ${part.stock}`, value: `${part.price} ج.م`, href: '/seller/parts' })) }
+          const selectedId = input.clientContext.selection?.kind === 'part' ? input.clientContext.selection.id : undefined
+          const parts = await db.part.findMany({ where: { storeId: store.id, ...(selectedId ? { id: selectedId } : query ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { partNumber: { contains: query, mode: 'insensitive' as const } }, { oemNumber: { contains: query, mode: 'insensitive' as const } }] } : {}) }, select: { id: true, name: true, price: true, stock: true, blocked: true }, orderBy: { updatedAt: recency === 'oldest' ? 'asc' : 'desc' }, take: limit })
+          return { type: 'results', title: `قطع ${store.name}`, description: 'هذه النتائج تخص متجرك فقط.', items: parts.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.blocked ? 'محظورة' : 'نشطة'} • مخزون ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
         }
         if (section === 'orders') {
-          const orders = await db.order.findMany({ where: { storeId: store.id }, select: { id: true, status: true, totalPrice: true, quantity: true, part: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 20 })
-          return { type: 'results', title: 'طلبات المتجر', description: 'لا يعرض المساعد بيانات اتصال المشترين.', items: orders.map((order) => ({ id: order.id, title: order.part.name, subtitle: `${order.status} • الكمية ${order.quantity}`, value: `${order.totalPrice} ج.م`, href: '/seller/orders' })) }
+          const selectedId = input.clientContext.selection?.kind === 'order' ? input.clientContext.selection.id : undefined
+          const orders = await db.order.findMany({ where: { storeId: store.id, ...(selectedId ? { id: selectedId } : query ? { OR: [{ part: { name: { contains: query, mode: 'insensitive' as const } } }, { status: { equals: query, mode: 'insensitive' as const } }] } : {}) }, select: { id: true, status: true, totalPrice: true, quantity: true, createdAt: true, part: { select: { name: true } } }, orderBy, take: limit })
+          return { type: 'results', title: 'طلبات المتجر', description: 'لا يعرض المساعد بيانات اتصال المشترين.', items: orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } })) }
         }
         if (section === 'coupons') {
-          const coupons = await db.coupon.findMany({ where: { storeId: store.id }, select: { id: true, code: true, discountPercent: true, active: true, usedCount: true, maxUses: true, expiresAt: true }, orderBy: { createdAt: 'desc' }, take: 20 })
-          return { type: 'results', title: 'كوبونات المتجر', items: coupons.map((coupon) => ({ id: coupon.id, title: coupon.code, subtitle: `${coupon.active ? 'فعال' : 'متوقف'} • ${coupon.usedCount}/${coupon.maxUses}${coupon.expiresAt ? ` • ينتهي ${coupon.expiresAt.toLocaleDateString('ar-EG')}` : ''}`, value: `${coupon.discountPercent}%`, href: '/seller/coupons' })) }
+          const selectedId = input.clientContext.selection?.kind === 'coupon' ? input.clientContext.selection.id : undefined
+          const coupons = await db.coupon.findMany({ where: { storeId: store.id, ...(selectedId ? { id: selectedId } : query ? { code: { contains: query, mode: 'insensitive' as const } } : {}) }, select: { id: true, code: true, discountPercent: true, active: true, usedCount: true, maxUses: true, expiresAt: true }, orderBy, take: limit })
+          return { type: 'results', title: 'كوبونات المتجر', items: coupons.map((coupon) => ({ id: `coupon-${coupon.id}`, title: coupon.code, subtitle: `${coupon.active ? 'فعال' : 'متوقف'} • ${coupon.usedCount}/${coupon.maxUses}${coupon.expiresAt ? ` • ينتهي ${coupon.expiresAt.toLocaleDateString('ar-EG')}` : ''}`, value: `${coupon.discountPercent}%`, select: { kind: 'coupon' as const, id: coupon.id, label: coupon.code } })) }
         }
         if (section === 'messages') {
-          const messages = await db.productMessage.findMany({ where: { part: { storeId: store.id } }, select: { id: true, message: true, read: true, createdAt: true, senderId: true, part: { select: { name: true } }, sender: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 15 })
-          return { type: 'results', title: 'أحدث رسائل العملاء', description: 'يمكنني تجهيز رد كمسودة فقط؛ الإرسال يتم من صفحة الرسائل.', items: messages.map((message) => ({ id: message.id, title: `${message.part.name} — ${message.sender.name}`, subtitle: `${message.senderId === input.user!.id ? 'ردك' : message.read ? 'مقروءة' : 'غير مقروءة'} • ${message.message.slice(0, 140)}`, href: '/seller/messages' })) }
+          const selectedId = input.clientContext.selection?.kind === 'message' ? input.clientContext.selection.id : undefined
+          const messages = await db.productMessage.findMany({ where: { part: { storeId: store.id }, ...(selectedId ? { id: selectedId } : query ? { OR: [{ message: { contains: query, mode: 'insensitive' as const } }, { part: { name: { contains: query, mode: 'insensitive' as const } } }, { sender: { name: { contains: query, mode: 'insensitive' as const } } }] } : {}) }, select: { id: true, message: true, read: true, createdAt: true, senderId: true, part: { select: { name: true } }, sender: { select: { name: true } } }, orderBy, take: limit })
+          return { type: 'results', title: 'أحدث رسائل العملاء', description: 'يمكنني تجهيز رد كمسودة فقط؛ الإرسال يتم من صفحة الرسائل.', items: messages.map((message) => ({ id: `message-${message.id}`, title: `${message.part.name} — ${message.sender.name}`, subtitle: `${message.senderId === input.user!.id ? 'ردك' : message.read ? 'مقروءة' : 'غير مقروءة'} • ${message.message.slice(0, 140)}`, select: { kind: 'message' as const, id: message.id, label: `${message.part.name} — ${message.sender.name}` } })) }
         }
         const [productReviews, storeReviews] = await Promise.all([
-          db.productReview.findMany({ where: { part: { storeId: store.id }, blocked: false }, select: { id: true, rating: true, comment: true, part: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 10 }),
-          db.storeReview.findMany({ where: { storeId: store.id, blocked: false }, select: { id: true, rating: true, comment: true }, orderBy: { createdAt: 'desc' }, take: 10 }),
+          db.productReview.findMany({ where: { part: { storeId: store.id, ...(query ? { name: { contains: query, mode: 'insensitive' as const } } : {}) }, blocked: false }, select: { id: true, rating: true, comment: true, part: { select: { name: true } } }, orderBy, take: limit }),
+          db.storeReview.findMany({ where: { storeId: store.id, blocked: false, ...(query ? { comment: { contains: query, mode: 'insensitive' as const } } : {}) }, select: { id: true, rating: true, comment: true }, orderBy, take: limit }),
         ])
         return { type: 'results', title: 'أحدث التقييمات', description: 'استخدمها لتحسين الخدمة؛ أي تحليل هو توصية تحتاج مراجعتك.', items: [...productReviews.map((review) => ({ id: review.id, title: `${review.part.name} — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' })), ...storeReviews.map((review) => ({ id: review.id, title: `تقييم المتجر — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' }))] }
       },
+    }),
+    resolveSellerRecord: tool<{ kind: 'coupon' | 'message'; query?: string; recency?: 'latest' | 'oldest' }, AIToolCard, Record<string, never>>({
+      description: 'حدد كوبوناً أو رسالة باسمها أو وصفها أو بعبارة الأحدث/الأقدم داخل متجر البائع. استخدم هذه الأداة قبل تجهيز رد أو العمل على سجل محدد، ولا تطلب معرّفاً.',
+      inputSchema: z.object({ kind: z.enum(['coupon', 'message']), query: z.string().max(160).optional(), recency: z.enum(['latest', 'oldest']).default('latest') }),
+      execute: async ({ kind, query, recency = 'latest' }) => kind === 'coupon'
+        ? resolutionCard(await resolveSellerCoupon(input.user!, query, recency, input.clientContext.selection), 'coupon', 'الكوبون المقصود')
+        : resolutionCard(await resolveSellerMessage(input.user!, query, recency, input.clientContext.selection), 'message', 'الرسالة المقصودة'),
     }),
   } : {}
 
@@ -210,18 +229,16 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         return { type: 'insight', title: 'حالة غيار ماركت', description: `${users} مستخدم • ${stores} متجر • ${parts} قطعة نشطة • ${orders} طلب`, items: [{ id: 'revenue', title: 'قيمة الطلبات المكتملة', value: `${revenue._sum.totalPrice || 0} ج.م` }, { id: 'reports', title: 'بلاغات مفتوحة', value: openReports, href: '/admin/reports' }, { id: 'disputes', title: 'نزاعات مفتوحة', value: openDisputes, href: '/admin/reports' }] }
       },
     }),
-    lookupAdminRecords: tool({
-      description: 'ابحث عن سجل إداري مع إخفاء البريد والهاتف. لا تعرض مستندات أو أدلة خاصة.',
-      inputSchema: z.object({ kind: z.enum(['user', 'store', 'part', 'order']), query: z.string().min(1).max(120) }),
-      execute: async ({ kind, query }): Promise<AIToolCard> => {
-        const items = kind === 'user'
-          ? (await db.user.findMany({ where: { OR: [{ name: { contains: query } }, { email: { contains: query } }, { phone: { contains: query } }] }, select: { id: true, name: true, email: true, phone: true, role: true }, take: 10 })).map((item) => ({ id: item.id, title: item.name, subtitle: `${item.role} • ${maskEmail(item.email) || 'بدون بريد'} • ${maskPhone(item.phone) || 'بدون هاتف'}`, href: '/admin/users' }))
-          : kind === 'store'
-            ? (await db.store.findMany({ where: { name: { contains: query } }, select: { id: true, name: true, verified: true }, take: 10 })).map((item) => ({ id: item.id, title: item.name, subtitle: item.verified ? 'معتمد' : 'غير معتمد', href: '/admin/stores' }))
-            : kind === 'part'
-              ? (await db.part.findMany({ where: { OR: [{ name: { contains: query } }, { partNumber: { contains: query } }, { oemNumber: { contains: query } }] }, select: { id: true, name: true, price: true, blocked: true }, take: 10 })).map((item) => ({ id: item.id, title: item.name, subtitle: item.blocked ? 'محظورة' : 'نشطة', value: `${item.price} ج.م`, href: '/admin/parts' }))
-              : (await db.order.findMany({ where: { id: { contains: query } }, include: { part: { select: { name: true } } }, take: 10 })).map((item) => ({ id: item.id, title: item.part.name, subtitle: item.status, value: `${item.totalPrice} ج.م`, href: '/admin/orders' }))
-        return { type: 'results', title: 'نتائج البحث الإداري', description: 'البيانات الشخصية مخفية داخل المساعد.', items }
+    lookupAdminRecords: tool<{ kind: 'user' | 'store' | 'part' | 'order' | 'report' | 'verification' | 'dispute'; query?: string; recency?: 'latest' | 'oldest'; date?: string }, AIToolCard, Record<string, never>>({
+      description: 'ابحث بالسجل الإداري بالاسم أو الوصف أو التاريخ دون طلب معرّف. البريد والهاتف يظلان مخفيين، ولا تعرض مستندات أو أدلة خاصة.',
+      inputSchema: z.object({ kind: z.enum(['user', 'store', 'part', 'order', 'report', 'verification', 'dispute']), query: z.string().max(160).optional(), recency: z.enum(['latest', 'oldest']).default('latest'), date: z.string().max(30).optional() }),
+      execute: async ({ kind, query, recency = 'latest', date }): Promise<AIToolCard> => {
+        const reference = { entityName: query, orderDescription: query, recency, date }
+        if (kind === 'user') return resolutionCard(await resolveAdminEntity('user', reference, input.clientContext.selection), 'user', 'نتائج المستخدمين')
+        if (kind === 'store') return resolutionCard(await resolveStore(reference, input.clientContext.selection), 'store', 'نتائج المتاجر')
+        if (kind === 'part') return resolutionCard(await resolvePart({ user: input.user!, scope: 'admin', reference, selection: input.clientContext.selection }), 'part', 'نتائج القطع')
+        if (kind === 'report' || kind === 'verification' || kind === 'dispute') return resolutionCard(await resolveAdminEntity(kind, reference, input.clientContext.selection), kind, 'نتائج البحث الإداري')
+        return resolutionCard(await resolveOrder(input.user!, reference, input.clientContext.selection, true), 'order', 'نتائج الطلبات')
       },
     }),
   } : {}
@@ -250,4 +267,11 @@ function assertDraftAllowed(target: string, role: AIRole) {
   if (['listing', 'coupon'].includes(target) && role === 'SHOP_OWNER') return
   if (target === 'moderation_note' && role === 'ADMIN') return
   throw new Error('DRAFT_FORBIDDEN')
+}
+
+function humanStatus(status: string) {
+  const labels: Record<string, string> = {
+    PENDING: 'قيد الانتظار', APPROVED: 'تمت الموافقة', REJECTED: 'مرفوض', PAID: 'مدفوع', SHIPPED: 'تم الشحن', DELIVERED: 'تم التسليم', RETURNED: 'مرتجع', CANCELLED: 'ملغي', UNPAID: 'غير مدفوع', REFUNDED: 'تم رد المبلغ', OPEN: 'مفتوح', REVIEWED: 'تمت المراجعة', DISMISSED: 'مرفوض', BLOCKED: 'محظور', ACTIVE: 'نشط', VERIFIED: 'معتمد', UNVERIFIED: 'غير معتمد', RESOLVED_BUYER: 'حُسم للمشتري', RESOLVED_SELLER: 'حُسم للبائع',
+  }
+  return labels[status] || status
 }

@@ -5,7 +5,7 @@ import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
 import { acquireAIConcurrency, aiQuota, AI_MESSAGE_LIMIT, releaseAIConcurrency } from '@/lib/ai/runtime'
-import type { AIClientContext, AIRole, AIToolCard } from '@/lib/ai/types'
+import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
 
 export const maxDuration = 60
 
@@ -66,6 +66,11 @@ export async function POST(request: Request) {
 
 function safeClientContext(value: unknown): AIClientContext {
   const cart = value && typeof value === 'object' && Array.isArray((value as { cart?: unknown }).cart) ? (value as { cart: unknown[] }).cart : []
+  const rawSelection = value && typeof value === 'object' ? (value as { selection?: unknown }).selection : undefined
+  const selection = rawSelection && typeof rawSelection === 'object' ? rawSelection as Record<string, unknown> : null
+  const kind = selection && AI_ENTITY_KINDS.includes(selection.kind as (typeof AI_ENTITY_KINDS)[number]) ? selection.kind as (typeof AI_ENTITY_KINDS)[number] : undefined
+  const id = typeof selection?.id === 'string' ? selection.id.slice(0, 100) : ''
+  const label = typeof selection?.label === 'string' ? selection.label.trim().slice(0, 160) : ''
   return { cart: cart.slice(0, 20).flatMap((raw) => {
     if (!raw || typeof raw !== 'object') return []
     const item = raw as Record<string, unknown>
@@ -75,7 +80,7 @@ function safeClientContext(value: unknown): AIClientContext {
     const price = Number(item.price)
     if (!partId || !name || !Number.isInteger(quantity) || quantity < 1 || !Number.isFinite(price) || price < 0) return []
     return [{ partId, name, quantity: Math.min(quantity, 1000), price: Math.min(price, 100000000) }]
-  }) }
+  }), ...(kind && id && label ? { selection: { kind, id, label } } : {}) }
 }
 
 function safeGuestHistory(value: unknown): ModelMessage[] {
