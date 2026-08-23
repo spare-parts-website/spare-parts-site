@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -131,16 +132,16 @@ export function ProfileView() {
         </CardHeader>
         <CardContent className="grid sm:grid-cols-2 gap-3">
           {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
-            <Button variant="outline" onClick={() => setView({ name: 'cars' })} className="justify-start h-auto p-4"><Car className="size-5 ml-2" /><div className="text-right"><p className="font-medium">سياراتي</p><p className="text-xs text-muted-foreground">احفظ سيارتك واعرض القطع المتوافقة</p></div></Button>
+            <Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/account/cars"><Car className="ml-2 size-5" /><div className="text-right"><p className="font-medium">سياراتي</p><p className="text-xs text-muted-foreground">احفظ سيارتك واعرض القطع المتوافقة</p></div></Link></Button>
           )}
           {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
-            <Button variant="outline" onClick={() => setView({ name: 'orders' })} className="justify-start h-auto p-4">
+            <Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/account/orders">
               <ShoppingBag className="size-5 ml-2" />
               <div className="text-right">
                 <p className="font-medium">طلباتي</p>
                 <p className="text-xs text-muted-foreground">عرض ومتابعة طلباتك</p>
               </div>
-            </Button>
+            </Link></Button>
           )}
           {user.role === 'SHOP_OWNER' && (
             <Button variant="outline" onClick={() => setView({ name: 'shop-dashboard' })} className="justify-start h-auto p-4">
@@ -160,13 +161,13 @@ export function ProfileView() {
               </div>
             </Button>
           )}
-          <Button variant="outline" onClick={() => setView({ name: 'parts' })} className="justify-start h-auto p-4">
-            <StoreIcon className="size-5 ml-2" />
+          <Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/parts">
+            <StoreIcon className="ml-2 size-5" />
             <div className="text-right">
               <p className="font-medium">تصفح قطع الغيار</p>
               <p className="text-xs text-muted-foreground">استكشف المتاجر والقطع</p>
             </div>
-          </Button>
+          </Link></Button>
         </CardContent>
       </Card>
     </div>
