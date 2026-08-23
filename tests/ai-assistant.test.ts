@@ -63,7 +63,8 @@ test('automatically reserves more work only for complex requests', () => {
 })
 
 test('cleans conversational filler from current web searches', () => {
-  assert.equal(cleanWebSearchQuery('Can you please tell me how much is "BMW 328i belt"?'), 'BMW 328i belt')
+  assert.equal(cleanWebSearchQuery('Can you please tell me how much is "BMW 328i belt"?'), 'BMW 328i belt price')
+  assert.equal(cleanWebSearchQuery('What is the current price in Egypt for a BMW 328i serpentine belt? Search the internet and show me the sources'), 'BMW 328i serpentine belt price Egypt EGP')
 })
 
 test('uses one free model and removes AI image and mode paths', () => {

@@ -80,10 +80,20 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
 }
 
 export function cleanWebSearchQuery(message: string) {
-  return message
-    .replace(/(?:من فضلك|لو سمحت|ممكن|عايز أعرف|ابحث لي|دور لي|can you|please|tell me|how much is|what is the price of)/gi, ' ')
+  const egypt = /(?:\bEgypt\b|\bEgyptian\b|مصر|مصري)/i.test(message)
+  const cleaned = message
+    .replace(/(?:search|look up|browse)\s+(?:the\s+)?internet[\s\S]*$/gi, ' ')
+    .replace(/(?:ابحث|دور)\s+(?:في|على)\s+(?:الإنترنت|الانترنت|الويب)[\s\S]*$/gi, ' ')
+    .replace(/(?:من فضلك|لو سمحت|ممكن|عايز أعرف|ابحث لي|دور لي|can you|please|tell me)/gi, ' ')
+    .replace(/what is (?:the )?(?:current |latest )?(?:price|cost)(?: in (?:egypt|the egyptian market))? (?:for|of) (?:a|an|the)?/gi, ' ')
+    .replace(/how much (?:is|does) (?:a|an|the)?/gi, ' ')
+    .replace(/(?:ما هو|ايه|إيه) (?:ال)?سعر (?:الحالي )?(?:في مصر )?(?:لـ|ل)?/gi, ' ')
+    .replace(/(?:بكام|كام سعر)\s*/gi, ' ')
+    .replace(/\b(?:current|latest)\b/gi, ' ')
+    .replace(/\b(?:in egypt|egyptian market)\b/gi, ' ')
+    .replace(/(?:في مصر|السوق المصري)/gi, ' ')
     .replace(/["'؟?]/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
-    .slice(0, 160)
+  return `${cleaned} price${egypt ? ' Egypt EGP' : ''}`.replace(/\s+/g, ' ').trim().slice(0, 160)
 }

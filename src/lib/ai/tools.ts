@@ -292,17 +292,17 @@ function humanStatus(status: string) {
 export async function searchInternet(query: string): Promise<AIToolCard> {
   const normalizedQuery = query.trim().slice(0, 180)
   try {
-    const results = await Promise.any([
-      searchSearx('https://baresearch.org/', normalizedQuery),
-      searchSearx('https://search.mectov.my.id/', normalizedQuery),
-      searchSearx('https://search.hbubli.cc/', normalizedQuery),
-    ])
+    const endpoints = ['https://baresearch.org/', 'https://search.mectov.my.id/', 'https://search.hbubli.cc/']
+    const queries = globalSearchQueries(normalizedQuery)
+    const responses = await Promise.allSettled(endpoints.flatMap((endpoint) => queries.map((searchQuery) => searchSearx(endpoint, searchQuery))))
+    const results = responses.flatMap((response) => response.status === 'fulfilled' ? response.value : [])
+    if (!results.length) throw new Error('SEARCH_EMPTY')
     const ranked = rankSearchResults(normalizedQuery, results)
     if (!ranked.length) return { type: 'insight', title: 'لم أجد نتائج ويب مناسبة', description: 'جرّب ذكر موديل السيارة أو سنة الصنع أو رقم القطعة أو البلد.' }
     return {
       type: 'results',
-      title: `نتائج ويب حديثة عن «${normalizedQuery}»`,
-      description: 'نتائج خارج غيار ماركت وقد تتغير الأسعار. راجع الرابط والتوافق قبل الشراء.',
+      title: `أسعار ونتائج عالمية عن «${normalizedQuery}»`,
+      description: 'بحث من مصادر ومتاجر عالمية متعددة. الأسعار قد لا تشمل الشحن والجمارك، فراجع العملة والتوافق قبل الشراء.',
       items: ranked.map((result, index) => ({ id: `web-${index}`, title: result.title, subtitle: result.snippet, href: result.url })),
     }
   } catch (error) {
@@ -311,18 +311,33 @@ export async function searchInternet(query: string): Promise<AIToolCard> {
   }
 }
 
+function globalSearchQueries(query: string) {
+  const subject = query.replace(/\b(?:price|egypt|egp)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+  return [...new Set([
+    query,
+    `"${subject}" price`,
+    `${subject} buy price OEM aftermarket`,
+  ])].filter(Boolean)
+}
+
 function rankSearchResults(query: string, results: Array<{ title: string; snippet: string; url: string }>) {
   const tokens = query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter((token) => token.length > 2)
   const automotive = /(?:bmw|toyota|hyundai|kia|nissan|مرسيدس|بي ام|تويوتا|هيونداي|كيا|نيسان|سيارة|موتور|محرك|belt|brake|engine|car|part)/i.test(query)
-  const blocked = automotive ? /(?:microsoft|windows|onedrive|office|support\.apple|stackoverflow)/i : /$a/
+  const blocked = automotive ? /(?:microsoft|windows|onedrive|office|support\.apple|stackoverflow|dictionary|wikipedia|cambridge|definition|banking|cryptocurrency)/i : /$a/
+  const priceSignal = /(?:\$|€|£|USD|EUR|GBP|EGP|ج\.?م|price|buy|shop|sale|amazon|ebay|aliexpress|autodoc|rockauto)/i
   return results
     .filter((result) => !blocked.test(`${result.title} ${result.url}`))
-    .map((result) => ({ result, score: tokens.reduce((score, token) => score + (`${result.title} ${result.snippet} ${result.url}`.toLocaleLowerCase().includes(token) ? 1 : 0), 0) }))
-    .filter(({ score }) => score > 0 || tokens.length === 0)
+    .map((result) => {
+      const searchable = `${result.title} ${result.snippet} ${result.url}`.toLocaleLowerCase()
+      const tokenScore = tokens.reduce((score, token) => score + (searchable.includes(token) ? 2 : 0), 0)
+      const exactScore = result.title.toLocaleLowerCase().includes(query.replace(/\b(?:price|egypt|egp)\b/gi, '').trim().toLocaleLowerCase()) ? 6 : 0
+      return { result, score: tokenScore + exactScore + (priceSignal.test(searchable) ? 4 : 0) }
+    })
+    .filter(({ score }) => score >= Math.max(4, Math.min(tokens.length, 3) * 2))
     .sort((a, b) => b.score - a.score)
     .map(({ result }) => result)
     .filter((result, index, all) => all.findIndex((candidate) => new URL(candidate.url).hostname === new URL(result.url).hostname) === index)
-    .slice(0, 5)
+    .slice(0, 8)
 }
 
 async function searchSearx(baseUrl: string, query: string) {
@@ -335,7 +350,7 @@ async function searchSearx(baseUrl: string, query: string) {
   const results = (payload.results || []).flatMap((result) => {
     if (typeof result.title !== 'string' || typeof result.url !== 'string' || !/^https?:\/\//i.test(result.url)) return []
     return [{ title: result.title.trim().slice(0, 180), snippet: typeof result.content === 'string' ? result.content.replace(/\s+/g, ' ').trim().slice(0, 300) : '', url: result.url }]
-  }).filter((result, index, all) => result.title && all.findIndex((candidate) => candidate.url === result.url) === index).slice(0, 5)
+  }).filter((result, index, all) => result.title && all.findIndex((candidate) => candidate.url === result.url) === index).slice(0, 8)
   if (!results.length) throw new Error('SEARCH_EMPTY')
   return results
 }
