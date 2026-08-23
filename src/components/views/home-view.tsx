@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
-  ArrowLeft, BadgeCheck, Banknote, Car, CircleGauge, Headphones, MessageSquare, Package, RefreshCw,
+  ArrowLeft, BadgeCheck, Banknote, CircleGauge, Headphones, Package, RefreshCw,
   Search, ShieldCheck, ShoppingCart, Store as StoreIcon, Truck,
 } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
@@ -146,25 +146,16 @@ export function HomeView() {
       <section className="content-container pb-20">
         <div className="relative overflow-hidden rounded-[2rem] border bg-card text-card-foreground shadow-xl shadow-slate-900/5 dark:shadow-black/20">
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-l from-primary/10 via-transparent to-primary/[.04]" />
-          {user?.role === 'BUYER' ? <BuyerShortcuts /> : <SellerCallout />}
+          <SellerCallout isSeller={user?.role === 'SHOP_OWNER'} />
         </div>
       </section>
     </div>
   )
 }
 
-function BuyerShortcuts() {
-  const shortcuts = [
-    { href: '/parts', icon: Package, title: 'تصفح قطع الغيار', description: 'ابحث عن القطعة المناسبة لسيارتك' },
-    { href: '/account/cars', icon: Car, title: 'سياراتي', description: 'احفظ سيارتك وشاهد القطع المتوافقة' },
-    { href: '/account/orders', icon: ShoppingCart, title: 'طلباتي', description: 'تابع حالة طلباتك بسهولة' },
-    { href: '/account/messages', icon: MessageSquare, title: 'الرسائل', description: 'تواصل مع المتاجر بشأن طلباتك' },
-  ]
-  return <div className="relative grid lg:grid-cols-[1.15fr_.85fr]"><div className="border-b p-8 sm:p-12 lg:border-b-0 lg:border-l lg:p-16"><span className="eyebrow"><ShoppingCart className="size-4" /> حساب المشتري</span><h2 className="mt-4 text-3xl font-black sm:text-4xl">كل ما تحتاجه لشراء قطعك بسهولة.</h2><p className="mt-4 max-w-xl leading-8 text-muted-foreground">ابحث عن القطع، احفظ سيارتك، وتابع طلباتك ورسائلك من مكان واحد.</p><Button asChild size="lg" className="mt-7 rounded-xl px-7 shadow-lg shadow-primary/15"><Link href="/parts">ابدأ التسوق</Link></Button></div><div className="grid grid-cols-2 gap-px bg-border">{shortcuts.map(({ href, icon: Icon, title, description }) => <Link key={href} href={href} className="flex min-h-40 flex-col justify-end bg-card/95 p-6 transition-colors hover:bg-primary/[.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:p-7"><span className="grid size-12 place-items-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm"><Icon className="size-6" /></span><strong className="mt-5 text-base font-black sm:text-lg">{title}</strong><span className="mt-1 text-xs leading-5 text-muted-foreground">{description}</span></Link>)}</div></div>
-}
-
-function SellerCallout() {
-  return <div className="relative grid lg:grid-cols-[1.15fr_.85fr]"><div className="border-b p-8 sm:p-12 lg:border-b-0 lg:border-l lg:p-16"><span className="eyebrow"><StoreIcon className="size-4" /> لأصحاب محلات قطع الغيار</span><h2 className="mt-4 text-3xl font-black sm:text-4xl">حوّل مخزونك إلى متجر يصل لعملاء أكثر.</h2><p className="mt-4 max-w-xl leading-8 text-muted-foreground">اعرض قطعك، استقبل الطلبات، وتابع رسائل العملاء من لوحة واحدة واضحة.</p><Button asChild size="lg" className="mt-7 rounded-xl px-7 shadow-lg shadow-primary/15"><Link href="/register">ابدأ بيع قطعك</Link></Button></div><div className="grid grid-cols-2 gap-px bg-border">{[{ icon: Package, title: 'إدارة المخزون' }, { icon: ShoppingCart, title: 'متابعة الطلبات' }, { icon: Headphones, title: 'رسائل العملاء' }, { icon: CircleGauge, title: 'ملخص الأداء' }].map(({ icon: Icon, title }) => <div key={title} className="flex min-h-40 flex-col justify-end bg-card/95 p-6 sm:p-7"><span className="grid size-12 place-items-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm"><Icon className="size-6" /></span><strong className="mt-5 text-base font-black sm:text-lg">{title}</strong></div>)}</div></div>
+function SellerCallout({ isSeller }: { isSeller: boolean }) {
+  const shortcuts = [{ href: '/seller/parts', icon: Package, title: 'إدارة المخزون' }, { href: '/seller/orders', icon: ShoppingCart, title: 'متابعة الطلبات' }, { href: '/seller/messages', icon: Headphones, title: 'رسائل العملاء' }, { href: '/seller/analytics', icon: CircleGauge, title: 'ملخص الأداء' }]
+  return <div className="relative grid lg:grid-cols-[1.15fr_.85fr]"><div className="border-b p-8 sm:p-12 lg:border-b-0 lg:border-l lg:p-16"><span className="eyebrow"><StoreIcon className="size-4" /> لأصحاب محلات قطع الغيار</span><h2 className="mt-4 text-3xl font-black sm:text-4xl">حوّل مخزونك إلى متجر يصل لعملاء أكثر.</h2><p className="mt-4 max-w-xl leading-8 text-muted-foreground">اعرض قطعك، استقبل الطلبات، وتابع رسائل العملاء من لوحة واحدة واضحة.</p><Button asChild size="lg" className="mt-7 rounded-xl px-7 shadow-lg shadow-primary/15"><Link href={isSeller ? '/seller/parts' : '/register'}>{isSeller ? 'فتح لوحة المتجر' : 'ابدأ بيع قطعك'}</Link></Button></div><div className="grid grid-cols-2 gap-px bg-border">{shortcuts.map(({ href, icon: Icon, title }) => isSeller ? <Link key={href} href={href} className="flex min-h-40 flex-col justify-end bg-card/95 p-6 transition-colors hover:bg-primary/[.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:p-7"><span className="grid size-12 place-items-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm"><Icon className="size-6" /></span><strong className="mt-5 text-base font-black sm:text-lg">{title}</strong></Link> : <div key={href} className="flex min-h-40 flex-col justify-end bg-card/95 p-6 sm:p-7"><span className="grid size-12 place-items-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm"><Icon className="size-6" /></span><strong className="mt-5 text-base font-black sm:text-lg">{title}</strong></div>)}</div></div>
 }
 
 function SectionHeading({ eyebrow, title, description, href }: { eyebrow: string; title: string; description: string; href: string }) {
