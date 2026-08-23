@@ -221,7 +221,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
           <Sparkles className="ml-2 size-5" /> <span>اسأل غيار</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" dir="rtl" showClose={false} className="flex h-[100dvh] !w-[100dvw] !max-w-[100dvw] flex-col gap-0 overflow-hidden p-0 sm:!max-w-none lg:!w-full lg:!max-w-xl">
+      <SheetContent side="left" dir="rtl" showClose={false} className="flex h-[100dvh] min-w-0 !w-[100dvw] !max-w-[100dvw] flex-col gap-0 overflow-hidden p-0 sm:!max-w-none lg:!w-full lg:!max-w-xl">
         <SheetHeader className="border-b bg-primary/5 px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div><SheetTitle className="flex items-center gap-2 text-lg"><span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span>مساعد غيار ماركت</SheetTitle><SheetDescription className="mt-1">{role === 'GUEST' ? 'بحث ومساعدة عامة' : role === 'BUYER' ? 'مساعد المشتري' : role === 'SHOP_OWNER' ? 'مساعد المتجر' : 'مساعد الإدارة'}</SheetDescription></div>
@@ -231,8 +231,8 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
         </SheetHeader>
 
         {showHistory && user ? <HistoryPanel conversations={conversations} onSelect={selectConversation} onDelete={deleteConversation} /> : (
-          <ScrollArea className="min-h-0 flex-1 px-4">
-            <div className="space-y-4 py-5">
+          <ScrollArea className="min-h-0 min-w-0 max-w-full flex-1 overflow-x-hidden px-4 [&_[data-slot=scroll-area-viewport]]:overflow-x-hidden [&_[data-slot=scroll-area-viewport]>div]:!block [&_[data-slot=scroll-area-viewport]>div]:!w-full [&_[data-slot=scroll-area-viewport]>div]:!min-w-0">
+            <div className="w-full min-w-0 max-w-full space-y-4 overflow-hidden py-5">
               {!messages.length && <Welcome role={role} onPrompt={(prompt) => void send(prompt)} />}
               {messages.map((message) => <MessageBubble key={message.id} message={message} onProposal={setPendingProposal} onSelect={(selection) => void send(`اخترت ${selection.label}. كمل نفس الطلب السابق.`, selection)} />)}
               {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />{progress || 'جاري تنفيذ طلبك...'}</div>}
@@ -263,11 +263,11 @@ function Welcome({ role, onPrompt }: { role: keyof typeof PROMPTS; onPrompt: (pr
 }
 
 function MessageBubble({ message, onProposal, onSelect }: { message: ChatMessage; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
-  return <div className={cn('min-w-0 space-y-2', message.role === 'user' && 'mr-auto max-w-[88%]')}><div dir="auto" className={cn('min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3 text-sm leading-7', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}><ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} onSelect={onSelect} />)}</div>
+  return <div className={cn('w-full min-w-0 max-w-full space-y-2 overflow-hidden', message.role === 'user' && 'mr-auto !w-[88%]')}><div dir="auto" className={cn('min-w-0 max-w-full overflow-hidden break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3 text-sm leading-7 [&_a]:break-all [&_p]:max-w-full [&_p]:break-words [&_p]:[overflow-wrap:anywhere]', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}><ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} onSelect={onSelect} />)}</div>
 }
 
 function ToolCard({ card, onProposal, onSelect }: { card: AIToolCard; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
-  return <div className="rounded-2xl border bg-card p-3 shadow-sm"><b className="text-sm">{card.title}</b>{card.description && <p className="mt-1 text-xs leading-5 text-muted-foreground">{card.description}</p>}{card.items?.length ? <div className="mt-3 space-y-2">{card.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-3 rounded-xl bg-muted/50 p-2.5"><div className="min-w-0"><p className="truncate text-sm font-medium">{item.title}</p>{item.subtitle && <p className="truncate text-xs text-muted-foreground">{item.subtitle}</p>}</div><div className="flex shrink-0 items-center gap-2 text-left">{item.value !== undefined && <p className="text-xs font-bold text-primary">{item.value}</p>}{item.select && <Button size="sm" variant="outline" className="h-8" onClick={() => onSelect(item.select!)}>اختيار</Button>}{item.href && !item.select && <Button asChild size="sm" variant="link" className="h-auto p-0 text-xs"><Link href={item.href}>فتح</Link></Button>}</div></div>)}</div> : null}{card.proposal && <Button variant="destructive" className="mt-3 w-full" onClick={() => onProposal(card.proposal)}>مراجعة وتنفيذ</Button>}</div>
+  return <div className="w-full min-w-0 max-w-full overflow-hidden rounded-2xl border bg-card p-3 shadow-sm"><b className="block max-w-full break-words text-sm [overflow-wrap:anywhere]">{card.title}</b>{card.description && <p className="mt-1 max-w-full break-words text-xs leading-5 text-muted-foreground [overflow-wrap:anywhere]">{card.description}</p>}{card.items?.length ? <div className="mt-3 min-w-0 space-y-2">{card.items.map((item) => <div key={item.id} className="flex min-w-0 max-w-full items-center justify-between gap-3 overflow-hidden rounded-xl bg-muted/50 p-2.5"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.title}</p>{item.subtitle && <p className="truncate text-xs text-muted-foreground">{item.subtitle}</p>}</div><div className="flex shrink-0 items-center gap-2 text-left">{item.value !== undefined && <p className="text-xs font-bold text-primary">{item.value}</p>}{item.select && <Button size="sm" variant="outline" className="h-8" onClick={() => onSelect(item.select!)}>اختيار</Button>}{item.href && !item.select && <Button asChild size="sm" variant="link" className="h-auto p-0 text-xs"><Link href={item.href}>فتح</Link></Button>}</div></div>)}</div> : null}{card.proposal && <Button variant="destructive" className="mt-3 w-full" onClick={() => onProposal(card.proposal)}>مراجعة وتنفيذ</Button>}</div>
 }
 
 function HistoryPanel({ conversations, onSelect, onDelete }: { conversations: SavedConversation[]; onSelect: (conversation: SavedConversation) => void; onDelete: (id: string) => void }) {
