@@ -286,7 +286,7 @@ function humanStatus(status: string) {
   return labels[status] || status
 }
 
-async function searchInternet(query: string): Promise<AIToolCard> {
+export async function searchInternet(query: string): Promise<AIToolCard> {
   const normalizedQuery = query.trim().slice(0, 180)
   try {
     const response = await fetch(`https://html.duckduckgo.com/html/?kl=eg-ar&q=${encodeURIComponent(normalizedQuery)}`, {

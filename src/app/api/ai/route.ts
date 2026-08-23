@@ -3,6 +3,7 @@ import type { ModelMessage } from 'ai'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
+import { searchInternet } from '@/lib/ai/tools'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
 import { acquireAIConcurrency, aiMode, aiQuota, AI_MESSAGE_LIMIT, releaseAIConcurrency } from '@/lib/ai/runtime'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
@@ -23,6 +24,9 @@ export async function POST(request: Request) {
     const user = await getSession()
     const role: AIRole = user?.role || 'GUEST'
     const attachments = await loadAIAttachments(body.attachments, user?.id)
+    const selectedMode = attachments.length ? 'deep' : aiMode(body.mode)
+    const liveSearchCard = selectedMode === 'fast' && shouldPrefetchLiveSearch(message) ? await searchInternet(message) : undefined
+    const modelMessage = liveSearchCard ? `${message}\n\n${liveSearchContext(liveSearchCard)}` : message
     const address = requestAddress(request)
     const concurrencyKey = `ai:${user?.id || address}`
     const quotaKeys = user ? [`ai-hour:user:${role}:${user.id}`, `ai-hour:ip:${role}:${address}`] : [`ai-hour:guest:${address}`]
@@ -42,11 +46,11 @@ export async function POST(request: Request) {
       conversationId = conversation.id
       expiresAt = conversation.expiresAt.toISOString()
       const previous = await loadConversationMessages(conversation.id, user)
-      modelMessages = [...previous.map((item) => ({ role: item.role === 'assistant' ? 'assistant' as const : 'user' as const, content: item.content })), userMessage(message, attachments)]
+      modelMessages = [...previous.map((item) => ({ role: item.role === 'assistant' ? 'assistant' as const : 'user' as const, content: item.content })), userMessage(modelMessage, attachments)]
       await appendAIMessage({ conversationId: conversation.id, role: 'user', content: message })
     } else {
       if (attachments.length) throw new Error('AI_IMAGE_FORBIDDEN')
-      modelMessages = [...safeGuestHistory(body.history), { role: 'user', content: message }]
+      modelMessages = [...safeGuestHistory(body.history), { role: 'user', content: modelMessage }]
     }
 
     const agent = createGhyarAgent({
@@ -54,11 +58,14 @@ export async function POST(request: Request) {
       user,
       conversationId,
       clientContext: safeClientContext(body.clientContext),
-      mode: attachments.length ? 'deep' : aiMode(body.mode),
+      mode: selectedMode,
       visualAnalysis: attachments.length > 0,
     })
     const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 50_000 } })
-    const cards = result.steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)
+    const cards = [
+      ...(liveSearchCard ? [liveSearchCard] : []),
+      ...result.steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard),
+    ]
     const baseAnswer = result.text.trim() || (cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.')
     const answer = appendWebSources(baseAnswer, result.sources)
 
@@ -93,6 +100,15 @@ function appendWebSources(answer: string, sources: Array<{ sourceType: string; u
 
 function escapeMarkdownLabel(value: string) {
   return value.replace(/[\[\]]/g, '').slice(0, 120)
+}
+
+function shouldPrefetchLiveSearch(message: string) {
+  return /\b(price|cost|how much|current|latest|new price)\b|سعر|كام|بكام|احدث|أحدث|اليوم|حالي/i.test(message)
+}
+
+function liveSearchContext(card: AIToolCard) {
+  const results = card.items?.map((item) => `- ${item.title}: ${item.subtitle || ''} ${item.href || ''}`).join('\n') || ''
+  return `نتائج بحث الإنترنت الحالية (استخدمها للإجابة ولا تخترع سعراً):\n${card.description || ''}\n${results}`
 }
 
 function userMessage(message: string, attachments: Array<{ path: string; data: Uint8Array }>): ModelMessage {
