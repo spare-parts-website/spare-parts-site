@@ -12,11 +12,11 @@ const ROLE_GUIDANCE: Record<AIRole, string> = {
   ADMIN: 'ساعد المدير في الإحصاءات والتشغيل والمراجعة. اعرض بيانات شخصية مخفية فقط ولا تعرض الأدلة أو المستندات الخاصة داخل المحادثة.',
 }
 
-export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; mode: AIMode; visualAnalysis?: boolean }) {
+export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; mode: AIMode; visualAnalysis?: boolean; liveSearchProvided?: boolean }) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const openrouter = createOpenRouter({ apiKey })
-  const tools = input.visualAnalysis ? {} : createAITools(input)
+  const tools = input.visualAnalysis ? {} : createAITools({ ...input, internetSearchEnabled: !input.liveSearchProvided })
   return new ToolLoopAgent({
     model: openrouter(aiModel(input.mode)),
     instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL.

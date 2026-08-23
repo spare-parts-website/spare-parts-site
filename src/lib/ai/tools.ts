@@ -48,7 +48,7 @@ const actionSchema = z.object({
   isPrimary: z.boolean().optional(),
 })
 
-export function createAITools(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext }) {
+export function createAITools(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; internetSearchEnabled?: boolean }) {
   let internetSearches = 0
   const commonTools = {
     searchMarketplace: tool({
@@ -90,15 +90,6 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
       execute: async ({ target, fields }): Promise<AIToolCard> => {
         assertDraftAllowed(target, input.role)
         return { type: 'draft', title: 'تم تجهيز المسودة', description: 'راجعها قبل الحفظ أو الإرسال.', clientAction: { type: 'draft', target, fields } }
-      },
-    }),
-    searchInternet: tool({
-      description: 'ابحث في الويب عن معلومات حديثة خارج غيار ماركت، مثل سعر سيارة أو قطعة في السوق أو مواصفات أو أخبار جديدة. استخدمه فقط للمعلومات التي قد تتغير مع الوقت. النتائج تقديرية وروابطها تظهر للمستخدم.',
-      inputSchema: z.object({ query: z.string().min(2).max(180).describe('عبارة بحث واضحة تشمل الموديل والسنة والبلد عند الحاجة') }),
-      execute: async ({ query }): Promise<AIToolCard> => {
-        if (internetSearches >= 1) return { type: 'insight', title: 'تم استخدام بحث الإنترنت لهذه الرسالة', description: 'استخدم النتائج المتاحة للإجابة ولا تكرر البحث.' }
-        internetSearches += 1
-        return searchInternet(query)
       },
     }),
   }
@@ -254,6 +245,17 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
   } : {}
 
   const tools: ToolSet = { ...commonTools }
+  if (input.internetSearchEnabled !== false) Object.assign(tools, {
+    searchInternet: tool({
+      description: 'ابحث في الويب عن معلومات حديثة خارج غيار ماركت، مثل سعر سيارة أو قطعة في السوق أو مواصفات أو أخبار جديدة. استخدمه فقط للمعلومات التي قد تتغير مع الوقت. النتائج تقديرية وروابطها تظهر للمستخدم.',
+      inputSchema: z.object({ query: z.string().min(2).max(180).describe('عبارة بحث واضحة تشمل الموديل والسنة والبلد عند الحاجة') }),
+      execute: async ({ query }): Promise<AIToolCard> => {
+        if (internetSearches >= 1) return { type: 'insight', title: 'تم استخدام بحث الإنترنت لهذه الرسالة', description: 'استخدم النتائج المتاحة للإجابة ولا تكرر البحث.' }
+        internetSearches += 1
+        return searchInternet(query)
+      },
+    }),
+  })
   Object.assign(tools, buyerTools, actionTools, sellerTools, adminTools)
   return tools
 }
@@ -289,12 +291,11 @@ function humanStatus(status: string) {
 export async function searchInternet(query: string): Promise<AIToolCard> {
   const normalizedQuery = query.trim().slice(0, 180)
   try {
-    const response = await fetch(`https://html.duckduckgo.com/html/?kl=eg-ar&q=${encodeURIComponent(normalizedQuery)}`, {
-      headers: { 'User-Agent': 'GhyarMarket/1.0 (+https://ghyarmarket-eg.com)' },
-      signal: AbortSignal.timeout(8_000),
-    })
-    if (!response.ok) throw new Error(`SEARCH_HTTP_${response.status}`)
-    const results = parseSearchResults(await response.text())
+    const results = await Promise.any([
+      searchSearx('https://baresearch.org/', normalizedQuery),
+      searchSearx('https://search.mectov.my.id/', normalizedQuery),
+      searchSearx('https://search.hbubli.cc/', normalizedQuery),
+    ])
     if (!results.length) return { type: 'insight', title: 'لم أجد نتائج ويب مناسبة', description: 'جرّب ذكر موديل السيارة أو سنة الصنع أو رقم القطعة أو البلد.' }
     return {
       type: 'results',
@@ -308,32 +309,17 @@ export async function searchInternet(query: string): Promise<AIToolCard> {
   }
 }
 
-function parseSearchResults(html: string) {
-  const results: Array<{ title: string; snippet: string; url: string }> = []
-  const matcher = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g
-  for (const match of html.matchAll(matcher)) {
-    const url = unwrapSearchUrl(match[1])
-    const title = cleanSearchText(match[2])
-    const snippet = cleanSearchText(match[3])
-    if (url && title && !results.some((result) => result.url === url)) results.push({ url, title, snippet: snippet.slice(0, 300) })
-    if (results.length === 5) break
-  }
+async function searchSearx(baseUrl: string, query: string) {
+  const response = await fetch(`${baseUrl}search?q=${encodeURIComponent(query)}&format=json&language=all&safesearch=1`, {
+    headers: { Accept: 'application/json', 'User-Agent': 'GhyarMarket/1.0 (+https://ghyarmarket-eg.com)' },
+    signal: AbortSignal.timeout(6_000),
+  })
+  if (!response.ok) throw new Error(`SEARCH_HTTP_${response.status}`)
+  const payload = await response.json() as { results?: Array<{ title?: unknown; content?: unknown; url?: unknown }> }
+  const results = (payload.results || []).flatMap((result) => {
+    if (typeof result.title !== 'string' || typeof result.url !== 'string' || !/^https?:\/\//i.test(result.url)) return []
+    return [{ title: result.title.trim().slice(0, 180), snippet: typeof result.content === 'string' ? result.content.replace(/\s+/g, ' ').trim().slice(0, 300) : '', url: result.url }]
+  }).filter((result, index, all) => result.title && all.findIndex((candidate) => candidate.url === result.url) === index).slice(0, 5)
+  if (!results.length) throw new Error('SEARCH_EMPTY')
   return results
-}
-
-function unwrapSearchUrl(value: string) {
-  try {
-    const parsed = new URL(value, 'https://duckduckgo.com')
-    const target = parsed.searchParams.get('uddg') || parsed.href
-    return /^https?:\/\//i.test(target) ? target : undefined
-  } catch {
-    return undefined
-  }
-}
-
-function cleanSearchText(value: string) {
-  return value
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
-    .replace(/\s+/g, ' ').trim()
 }

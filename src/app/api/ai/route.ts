@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const role: AIRole = user?.role || 'GUEST'
     const attachments = await loadAIAttachments(body.attachments, user?.id)
     const selectedMode = attachments.length ? 'deep' : aiMode(body.mode)
-    const liveSearchCard = selectedMode === 'fast' && shouldPrefetchLiveSearch(message) ? await searchInternet(message) : undefined
+    const liveSearchCard = shouldPrefetchLiveSearch(message) ? await searchInternet(message) : undefined
     const modelMessage = liveSearchCard ? `${message}\n\n${liveSearchContext(liveSearchCard)}` : message
     const address = requestAddress(request)
     const concurrencyKey = `ai:${user?.id || address}`
@@ -60,6 +60,7 @@ export async function POST(request: Request) {
       clientContext: safeClientContext(body.clientContext),
       mode: selectedMode,
       visualAnalysis: attachments.length > 0,
+      liveSearchProvided: Boolean(liveSearchCard),
     })
     const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 50_000 } })
     const cards = [
