@@ -13,8 +13,10 @@ type GuestHistory = Array<{ role?: unknown; content?: unknown }>
 
 export async function POST(request: Request) {
   let concurrencyToken = ''
+  let hasImage = false
   try {
     const body = await request.json() as { message?: unknown; conversationId?: unknown; history?: unknown; clientContext?: unknown; mode?: unknown; attachments?: unknown }
+    hasImage = Array.isArray(body.attachments) && body.attachments.length > 0
     const message = typeof body.message === 'string' ? body.message.trim() : ''
     if (!message || message.length > AI_MESSAGE_LIMIT) return NextResponse.json({ error: 'اكتب رسالة صحيحة بحد أقصى 4000 حرف' }, { status: 400 })
 
@@ -47,7 +49,14 @@ export async function POST(request: Request) {
       modelMessages = [...safeGuestHistory(body.history), { role: 'user', content: message }]
     }
 
-    const agent = createGhyarAgent({ role, user, conversationId, clientContext: safeClientContext(body.clientContext), mode: attachments.length ? 'deep' : aiMode(body.mode) })
+    const agent = createGhyarAgent({
+      role,
+      user,
+      conversationId,
+      clientContext: safeClientContext(body.clientContext),
+      mode: attachments.length ? 'deep' : aiMode(body.mode),
+      visualAnalysis: attachments.length > 0,
+    })
     const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 50_000 } })
     const cards = result.steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)
     const answer = result.text.trim() || (cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.')
@@ -56,7 +65,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ conversationId, answer, cards, expiresAt })
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
-    console.error('AI request failed:', error)
+    console.error('AI request failed:', {
+      message,
+      name: error instanceof Error ? error.name : 'UnknownError',
+      cause: error instanceof Error && error.cause instanceof Error ? error.cause.message : undefined,
+      hasImage,
+    })
     if (message === 'CONVERSATION_NOT_FOUND') return NextResponse.json({ error: 'انتهت المحادثة. ابدأ محادثة جديدة.' }, { status: 410 })
     if (['ACTION_FORBIDDEN', 'NAVIGATION_FORBIDDEN', 'DRAFT_FORBIDDEN'].includes(message)) return NextResponse.json({ error: 'هذا الطلب غير متاح لصلاحية حسابك.' }, { status: 403 })
     if (['INVALID_ACTION_INPUT', 'PART_NOT_OWNED'].includes(message)) return NextResponse.json({ error: 'تعذر تجهيز الإجراء لأن البيانات غير صالحة أو لم تعد متاحة.' }, { status: 400 })

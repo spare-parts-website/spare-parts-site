@@ -12,7 +12,7 @@ const ROLE_GUIDANCE: Record<AIRole, string> = {
   ADMIN: 'ساعد المدير في الإحصاءات والتشغيل والمراجعة. اعرض بيانات شخصية مخفية فقط ولا تعرض الأدلة أو المستندات الخاصة داخل المحادثة.',
 }
 
-export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; mode: AIMode }) {
+export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; mode: AIMode; visualAnalysis?: boolean }) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const openrouter = createOpenRouter({ apiKey })
@@ -37,7 +37,10 @@ ${ROLE_GUIDANCE[input.role]}
 - لا تطلب حذفاً دائماً؛ الحذف الدائم غير متاح للمساعد.
 - وضّح أن اقتراحات الأسعار والوصف والتحليل تحتاج مراجعة بشرية.
 - إذا رفض المستخدم إجراءً فلا تحاول تكراره دون طلب جديد.`,
-    tools: createAITools(input),
+    // Some OpenRouter vision providers reject tool definitions combined with image input.
+    // Photo requests are analysis-only, so keeping the tool set empty is both compatible
+    // and ensures no state-changing action can originate from an attached image.
+    tools: input.visualAnalysis ? {} : createAITools(input),
     stopWhen: isStepCount(5),
     maxOutputTokens: 700,
     temperature: 0.2,
