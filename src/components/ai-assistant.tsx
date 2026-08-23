@@ -12,12 +12,13 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTi
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { useAppStore, type AuthUser } from '@/lib/store'
-import type { AIChatResponse, AIClientAction, AISelectedEntity, AIToolCard } from '@/lib/ai/types'
+import type { AIChatResponse, AIClientAction, AIMode, AISelectedEntity, AIToolCard } from '@/lib/ai/types'
 
 type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; cards?: AIToolCard[] }
 type SavedConversation = { id: string; title?: string | null; preview?: string | null; expiresAt: string; updatedAt: string; messages: Array<{ id: string; role: string; content: string; metadata?: { cards?: AIToolCard[] } | null }> }
 
 const GUEST_KEY = 'ghyar-ai-guest-v1'
+const AI_MODE_KEY = 'ghyar-ai-mode-v1'
 const HOUR = 60 * 60 * 1000
 
 const PROMPTS: Record<AuthUser['role'] | 'GUEST', string[]> = {
@@ -34,6 +35,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
   const role = user?.role || 'GUEST'
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
+  const [mode, setMode] = useState<AIMode>('fast')
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversationId, setConversationId] = useState<string>()
   const [expiresAt, setExpiresAt] = useState<string>()
@@ -54,6 +56,11 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
     }
     window.addEventListener('ghyar-ai-open', listener)
     return () => window.removeEventListener('ghyar-ai-open', listener)
+  }, [])
+
+  useEffect(() => {
+    const savedMode = window.localStorage.getItem(AI_MODE_KEY)
+    if (savedMode === 'deep') setMode('deep')
   }, [])
 
   useEffect(() => {
@@ -111,7 +118,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
     setLoading(true)
     try {
       const cart = useAppStore.getState().cart
-      const response = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, conversationId, history: user ? undefined : prior.map((item) => ({ role: item.role, content: item.content })).slice(-12), clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })), selection } }) })
+      const response = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, mode, conversationId, history: user ? undefined : prior.map((item) => ({ role: item.role, content: item.content })).slice(-12), clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })), selection } }) })
       const data = await response.json() as AIChatResponse & { error?: string }
       if (!response.ok) throw new Error(data.error || 'تعذر الاتصال بالمساعد')
       setConversationId(data.conversationId)
@@ -218,6 +225,14 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
         )}
 
         <div className="border-t bg-background p-4">
+          <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="سرعة المساعد">
+            <Button type="button" size="sm" variant={mode === 'fast' ? 'default' : 'outline'} disabled={loading} className="h-auto min-h-11 whitespace-normal py-2 text-right" onClick={() => { setMode('fast'); window.localStorage.setItem(AI_MODE_KEY, 'fast') }}>
+              <span><b>⚡ سريع</b><small className="mt-0.5 block font-normal opacity-80">للبحث والمساعدة اليومية</small></span>
+            </Button>
+            <Button type="button" size="sm" variant={mode === 'deep' ? 'default' : 'outline'} disabled={loading} className="h-auto min-h-11 whitespace-normal py-2 text-right" onClick={() => { setMode('deep'); window.localStorage.setItem(AI_MODE_KEY, 'deep') }}>
+              <span><b>🧠 متقدم</b><small className="mt-0.5 block font-normal opacity-80">للطلبات المعقدة وقد يتأخر</small></span>
+            </Button>
+          </div>
           <p className="mb-2 text-[11px] text-muted-foreground">اقتراحات الذكاء الاصطناعي تحتاج مراجعتك. التغييرات الحقيقية تعرض تحذيراً قبل التنفيذ.</p>
           <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); void send() }}>
             <Textarea value={input} onChange={(event) => setInput(event.target.value)} maxLength={4000} rows={2} placeholder="اكتب طلبك هنا..." className="min-h-12 resize-none" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }} />

@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { DEFAULT_AI_QUOTAS } from '@/lib/ai/policy'
-import type { AIRole } from '@/lib/ai/types'
+import type { AIMode, AIRole } from '@/lib/ai/types'
 
 const CONCURRENCY: Record<AIRole, number> = {
   GUEST: 1,
@@ -10,10 +10,22 @@ const CONCURRENCY: Record<AIRole, number> = {
   ADMIN: 3,
 }
 
-export const AI_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'stealth/ox-alpha'
+const legacyModel = process.env.OPENROUTER_MODEL?.trim()
+const AI_MODELS: Record<AIMode, string> = {
+  fast: process.env.OPENROUTER_FAST_MODEL?.trim() || 'poolside/laguna-xs-2.1:free',
+  deep: process.env.OPENROUTER_DEEP_MODEL?.trim() || legacyModel || 'stealth/ox-alpha',
+}
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
+
+export function aiMode(value: unknown): AIMode {
+  return value === 'deep' ? 'deep' : 'fast'
+}
+
+export function aiModel(mode: AIMode) {
+  return AI_MODELS[mode]
+}
 
 export function aiQuota(role: AIRole) {
   const configured = Number(process.env[`AI_QUOTA_${role}`])

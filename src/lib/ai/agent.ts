@@ -1,8 +1,8 @@
 import { ToolLoopAgent, isStepCount } from 'ai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { AI_MODEL } from '@/lib/ai/runtime'
+import { aiModel } from '@/lib/ai/runtime'
 import { createAITools } from '@/lib/ai/tools'
-import type { AIClientContext, AIRole } from '@/lib/ai/types'
+import type { AIClientContext, AIMode, AIRole } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
 const ROLE_GUIDANCE: Record<AIRole, string> = {
@@ -12,12 +12,12 @@ const ROLE_GUIDANCE: Record<AIRole, string> = {
   ADMIN: 'ساعد المدير في الإحصاءات والتشغيل والمراجعة. اعرض بيانات شخصية مخفية فقط ولا تعرض الأدلة أو المستندات الخاصة داخل المحادثة.',
 }
 
-export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext }) {
+export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; mode: AIMode }) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const openrouter = createOpenRouter({ apiKey })
   return new ToolLoopAgent({
-    model: openrouter(AI_MODEL),
+    model: openrouter(aiModel(input.mode)),
     instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL.
 ${ROLE_GUIDANCE[input.role]}
 القواعد الإلزامية:

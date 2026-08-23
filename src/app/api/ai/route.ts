@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
-import { acquireAIConcurrency, aiQuota, AI_MESSAGE_LIMIT, releaseAIConcurrency } from '@/lib/ai/runtime'
+import { acquireAIConcurrency, aiMode, aiQuota, AI_MESSAGE_LIMIT, releaseAIConcurrency } from '@/lib/ai/runtime'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
 
 export const maxDuration = 60
@@ -14,7 +14,7 @@ type GuestHistory = Array<{ role?: unknown; content?: unknown }>
 export async function POST(request: Request) {
   let concurrencyToken = ''
   try {
-    const body = await request.json() as { message?: unknown; conversationId?: unknown; history?: unknown; clientContext?: unknown }
+    const body = await request.json() as { message?: unknown; conversationId?: unknown; history?: unknown; clientContext?: unknown; mode?: unknown }
     const message = typeof body.message === 'string' ? body.message.trim() : ''
     if (!message || message.length > AI_MESSAGE_LIMIT) return NextResponse.json({ error: 'اكتب رسالة صحيحة بحد أقصى 4000 حرف' }, { status: 400 })
 
@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       modelMessages = [...safeGuestHistory(body.history), { role: 'user', content: message }]
     }
 
-    const agent = createGhyarAgent({ role, user, conversationId, clientContext: safeClientContext(body.clientContext) })
+    const agent = createGhyarAgent({ role, user, conversationId, clientContext: safeClientContext(body.clientContext), mode: aiMode(body.mode) })
     const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 50_000 } })
     const cards = result.steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)
     const answer = result.text.trim() || (cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.')
