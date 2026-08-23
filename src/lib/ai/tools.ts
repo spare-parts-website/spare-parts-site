@@ -292,17 +292,33 @@ function humanStatus(status: string) {
 export async function searchInternet(query: string): Promise<AIToolCard> {
   const normalizedQuery = query.trim().slice(0, 180)
   try {
-    const endpoints = ['https://baresearch.org/', 'https://search.mectov.my.id/', 'https://search.hbubli.cc/']
-    const queries = globalSearchQueries(normalizedQuery)
-    const responses = await Promise.allSettled(endpoints.flatMap((endpoint) => queries.map((searchQuery) => searchSearx(endpoint, searchQuery))))
-    const results = responses.flatMap((response) => response.status === 'fulfilled' ? response.value : [])
-    if (!results.length) throw new Error('SEARCH_EMPTY')
-    const ranked = rankSearchResults(normalizedQuery, results)
+    const wantsEgypt = /(?:\bEgypt\b|\bEGP\b|مصر|مصري)/i.test(normalizedQuery)
+    const subject = searchSubject(normalizedQuery)
+    let ranked: SearchResult[] = []
+    let searchedGlobally = !wantsEgypt
+
+    if (wantsEgypt) {
+      const localResults = await searchAcrossProviders([`${subject} price Egypt EGP`, `"${subject}" مصر سعر`])
+      ranked = rankSearchResults(subject, localResults).filter(isCredibleEgyptPrice)
+    }
+
+    if (!ranked.length) {
+      searchedGlobally = true
+      const worldwideQueries = globalSearchQueries(subject)
+      const [searxResults, duckResults] = await Promise.all([
+        searchAcrossProviders(worldwideQueries),
+        searchDuckDuckGo(worldwideQueries),
+      ])
+      ranked = rankSearchResults(subject, [...duckResults, ...searxResults]).filter(isLikelyProductResult)
+    }
+
     if (!ranked.length) return { type: 'insight', title: 'لم أجد نتائج ويب مناسبة', description: 'جرّب ذكر موديل السيارة أو سنة الصنع أو رقم القطعة أو البلد.' }
     return {
       type: 'results',
-      title: `أسعار ونتائج عالمية عن «${normalizedQuery}»`,
-      description: 'بحث من مصادر ومتاجر عالمية متعددة. الأسعار قد لا تشمل الشحن والجمارك، فراجع العملة والتوافق قبل الشراء.',
+      title: `${searchedGlobally && wantsEgypt ? 'لم أجد سعراً مصرياً موثوقاً؛ وسّعت البحث عالمياً' : searchedGlobally ? 'أسعار ونتائج عالمية' : 'أسعار متاحة في مصر'} عن «${subject}»`,
+      description: searchedGlobally
+        ? 'نتائج من متاجر ومصادر عالمية. حوّل العملة وأضف الشحن والجمارك، وتحقق من رقم القطعة والتوافق.'
+        : 'نتائج مصرية تتضمن إشارة سعر فعلية. راجع المتجر والتوافق قبل الشراء.',
       items: ranked.map((result, index) => ({ id: `web-${index}`, title: result.title, subtitle: result.snippet, href: result.url })),
     }
   } catch (error) {
@@ -311,20 +327,32 @@ export async function searchInternet(query: string): Promise<AIToolCard> {
   }
 }
 
-function globalSearchQueries(query: string) {
-  const subject = query.replace(/\b(?:price|egypt|egp)\b/gi, ' ').replace(/\s+/g, ' ').trim()
+type SearchResult = { title: string; snippet: string; url: string }
+
+const SEARCH_ENDPOINTS = ['https://baresearch.org/', 'https://search.mectov.my.id/', 'https://search.hbubli.cc/']
+
+function searchSubject(query: string) {
+  return query.replace(/\b(?:price|egypt|egp)\b/gi, ' ').replace(/(?:سعر|مصر|مصري)/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function globalSearchQueries(subject: string) {
   return [...new Set([
-    query,
     `"${subject}" price`,
-    `${subject} buy price OEM aftermarket`,
+    `${subject} buy OEM aftermarket price`,
+    `${subject} price ebay amazon autodoc`,
   ])].filter(Boolean)
 }
 
-function rankSearchResults(query: string, results: Array<{ title: string; snippet: string; url: string }>) {
+async function searchAcrossProviders(queries: string[]) {
+  const responses = await Promise.allSettled(SEARCH_ENDPOINTS.flatMap((endpoint) => queries.map((searchQuery) => searchSearx(endpoint, searchQuery))))
+  return responses.flatMap((response) => response.status === 'fulfilled' ? response.value : [])
+}
+
+function rankSearchResults(query: string, results: SearchResult[]) {
   const tokens = query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter((token) => token.length > 2)
   const automotive = /(?:bmw|toyota|hyundai|kia|nissan|مرسيدس|بي ام|تويوتا|هيونداي|كيا|نيسان|سيارة|موتور|محرك|belt|brake|engine|car|part)/i.test(query)
   const blocked = automotive ? /(?:microsoft|windows|onedrive|office|support\.apple|stackoverflow|dictionary|wikipedia|cambridge|definition|banking|cryptocurrency)/i : /$a/
-  const priceSignal = /(?:\$|€|£|USD|EUR|GBP|EGP|ج\.?م|price|buy|shop|sale|amazon|ebay|aliexpress|autodoc|rockauto)/i
+  const priceSignal = /(?:\$|€|£|USD|EUR|GBP|EGP|ج\.?م|price|buy|shop|sale|amazon|ebay|aliexpress|autodoc|rockauto|carparts|partsgeek)/i
   return results
     .filter((result) => !blocked.test(`${result.title} ${result.url}`))
     .map((result) => {
@@ -338,6 +366,55 @@ function rankSearchResults(query: string, results: Array<{ title: string; snippe
     .map(({ result }) => result)
     .filter((result, index, all) => all.findIndex((candidate) => new URL(candidate.url).hostname === new URL(result.url).hostname) === index)
     .slice(0, 8)
+}
+
+function isCredibleEgyptPrice(result: SearchResult) {
+  const text = `${result.title} ${result.snippet} ${result.url}`
+  const egyptian = /(?:\.eg(?:\/|$)|\.com\.eg|\bEgypt\b|\bEGP\b|مصر|مصري|ج\.?م|جنيه)/i.test(text)
+  const actualPrice = /(?:EGP|ج\.?م|جنيه|L\.?E\.?)\s*\d|\d[\d,.]*\s*(?:EGP|ج\.?م|جنيه|L\.?E\.?)/i.test(text)
+  return egyptian && actualPrice
+}
+
+function isLikelyProductResult(result: SearchResult) {
+  const text = `${result.title} ${result.snippet} ${result.url}`
+  return /(?:belt|brake|engine|motor|filter|pump|sensor|bearing|alternator|starter|سيور|حزام|فرامل|محرك|فلتر|طرمبة|حساس|\$|€|£|USD|EUR|GBP|price|buy|ebay|amazon|autodoc|rockauto|parts)/i.test(text)
+}
+
+async function searchDuckDuckGo(queries: string[]): Promise<SearchResult[]> {
+  const responses = await Promise.allSettled(queries.slice(0, 2).map(async (query) => {
+    const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
+      headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; GhyarMarket/1.0; +https://ghyarmarket-eg.com)' },
+      signal: AbortSignal.timeout(7_000),
+    })
+    if (!response.ok) throw new Error(`DUCK_HTTP_${response.status}`)
+    return parseDuckDuckGo(await response.text())
+  }))
+  return responses.flatMap((response) => response.status === 'fulfilled' ? response.value : [])
+}
+
+function parseDuckDuckGo(html: string): SearchResult[] {
+  const links = [...html.matchAll(/<a[^>]*class="[^"]*result__a[^"]*"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi)]
+  const snippets = [...html.matchAll(/<(?:a|div)[^>]*class="[^"]*result__snippet[^"]*"[^>]*>([\s\S]*?)<\/(?:a|div)>/gi)]
+  return links.slice(0, 10).flatMap((match, index) => {
+    const url = unwrapDuckUrl(decodeHtml(match[1]))
+    if (!/^https?:\/\//i.test(url)) return []
+    return [{ title: plainText(match[2]).slice(0, 180), snippet: plainText(snippets[index]?.[1] || '').slice(0, 300), url }]
+  })
+}
+
+function unwrapDuckUrl(value: string) {
+  try {
+    const url = new URL(value, 'https://duckduckgo.com')
+    return url.searchParams.get('uddg') || url.href
+  } catch { return value }
+}
+
+function plainText(value: string) {
+  return decodeHtml(value.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim())
+}
+
+function decodeHtml(value: string) {
+  return value.replace(/&amp;/g, '&').replace(/&quot;/g, '"').replace(/&#x27;|&#39;/g, "'").replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
 }
 
 async function searchSearx(baseUrl: string, query: string) {
