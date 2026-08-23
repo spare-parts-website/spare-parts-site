@@ -228,7 +228,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
           <Sparkles className="ml-2 size-5" /> <span>اسأل غيار</span>
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" dir="rtl" showClose={false} className="flex h-[100dvh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-xl">
+      <SheetContent side="left" dir="rtl" showClose={false} className="flex h-[100dvh] !w-[100dvw] !max-w-[100dvw] flex-col gap-0 overflow-hidden p-0 sm:!max-w-none lg:!w-full lg:!max-w-xl">
         <SheetHeader className="border-b bg-primary/5 px-5 py-4">
           <div className="flex items-start justify-between gap-3">
             <div><SheetTitle className="flex items-center gap-2 text-lg"><span className="grid size-9 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span>مساعد غيار ماركت</SheetTitle><SheetDescription className="mt-1">{role === 'GUEST' ? 'بحث ومساعدة عامة' : role === 'BUYER' ? 'مساعد المشتري' : role === 'SHOP_OWNER' ? 'مساعد المتجر' : 'مساعد الإدارة'}</SheetDescription></div>
@@ -281,7 +281,7 @@ function Welcome({ role, onPrompt }: { role: keyof typeof PROMPTS; onPrompt: (pr
 }
 
 function MessageBubble({ message, onProposal, onSelect }: { message: ChatMessage; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
-  return <div className={cn('space-y-2', message.role === 'user' && 'mr-auto max-w-[88%]')}><div className={cn('rounded-2xl px-4 py-3 text-sm leading-7', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}>{message.attachments?.length ? <div className="mb-2 flex flex-wrap gap-2">{message.attachments.map((attachment) => <img key={attachment} src={attachment} alt="صورة أرسلها المستخدم" className="size-20 rounded-lg border border-white/30 object-cover" />)}</div> : null}<ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} onSelect={onSelect} />)}</div>
+  return <div className={cn('min-w-0 space-y-2', message.role === 'user' && 'mr-auto max-w-[88%]')}><div dir="auto" className={cn('min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3 text-sm leading-7', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}>{message.attachments?.length ? <div className="mb-2 flex flex-wrap gap-2">{message.attachments.map((attachment) => <img key={attachment} src={attachment} alt="صورة أرسلها المستخدم" className="size-20 rounded-lg border border-white/30 object-cover" />)}</div> : null}<ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} onSelect={onSelect} />)}</div>
 }
 
 function ToolCard({ card, onProposal, onSelect }: { card: AIToolCard; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
