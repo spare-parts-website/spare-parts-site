@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_AI_QUOTAS, maskEmail, maskPhone, roleCanPrepareAction } from '../src/lib/ai/policy.ts'
+import { cleanWebSearchQuery, planAIRequest } from '../src/lib/ai/planner.ts'
 
 test('uses the requested role-specific hourly quotas', () => {
   assert.deepEqual(DEFAULT_AI_QUOTAS, { GUEST: 10, BUYER: 40, SHOP_OWNER: 100, ADMIN: 150 })
@@ -44,5 +45,33 @@ test('server-only AI tables enable RLS and revoke browser roles', () => {
   for (const table of ['AIConversation', 'AIMessage', 'AIActionProposal', 'AIRequestLease']) {
     assert.ok(migration.includes(`alter table public."${table}" enable row level security`))
     assert.ok(migration.includes(`revoke all on table public."${table}" from anon, authenticated`))
+  }
+})
+
+test('plans obvious requests with a narrow forced tool', () => {
+  assert.deepEqual(planAIRequest('غير سعر قطعة موتور BMW إلى 2500', 'SHOP_OWNER').tools, ['prepareAction'])
+  assert.equal(planAIRequest('غير سعر قطعة موتور BMW إلى 2500', 'SHOP_OWNER').forcedTool, 'prepareAction')
+  assert.equal(planAIRequest('حلل أداء متجري', 'SHOP_OWNER').forcedTool, 'getSellerInsights')
+  assert.equal(planAIRequest('دور على تيل فرامل تويوتا', 'GUEST').forcedTool, 'searchMarketplace')
+  assert.equal(planAIRequest('اعرض إحصائيات المنصة', 'ADMIN').forcedTool, 'getAdminInsights')
+})
+
+test('automatically reserves more work only for complex requests', () => {
+  assert.equal(planAIRequest('أهلاً', 'GUEST').complexity, 'quick')
+  assert.equal(planAIRequest('قارن بالتفصيل بين كل نتائج قطع الفرامل', 'BUYER').complexity, 'heavy')
+  assert.equal(planAIRequest('كم سعر BMW 328i serpentine belt حالياً؟', 'GUEST').liveSearch, true)
+})
+
+test('cleans conversational filler from current web searches', () => {
+  assert.equal(cleanWebSearchQuery('Can you please tell me how much is "BMW 328i belt"?'), 'BMW 328i belt')
+})
+
+test('uses one free model and removes AI image and mode paths', () => {
+  const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
+  const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
+  const imagePolicy = readFileSync(new URL('../src/lib/image-policy.ts', import.meta.url), 'utf8')
+  assert.match(runtime, /poolside\/laguna-s-2\.1:free/)
+  for (const removed of ['stealth/ox-alpha', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY', 'ImagePlus', "'ai'"]) {
+    assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
   }
 })

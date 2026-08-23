@@ -2,8 +2,24 @@ import type { SessionUser } from '@/lib/auth'
 
 export type AIRole = SessionUser['role'] | 'GUEST'
 
-export const AI_MODES = ['fast', 'deep'] as const
-export type AIMode = (typeof AI_MODES)[number]
+export type AIComplexity = 'quick' | 'standard' | 'heavy'
+
+export type AIToolName =
+  | 'searchMarketplace' | 'searchInternet' | 'navigate' | 'prepareDraft'
+  | 'getAccountContext' | 'findCompatibleParts' | 'prepareAction'
+  | 'getSellerInsights' | 'suggestSellerPrice' | 'getSellerWorkspace' | 'resolveSellerRecord'
+  | 'getAdminInsights' | 'lookupAdminRecords'
+
+export interface AIRequestPlan {
+  complexity: AIComplexity
+  intent: string
+  tools: AIToolName[]
+  forcedTool?: AIToolName
+  liveSearch: boolean
+  maxSteps: number
+  timeoutMs: number
+  maxOutputTokens: number
+}
 
 export const AI_ACTIONS = [
   'cart_add',

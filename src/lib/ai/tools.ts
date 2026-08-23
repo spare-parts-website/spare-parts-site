@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { isBlockedStoreName } from '@/lib/store-moderation'
 import { prepareActionProposal } from '@/lib/ai/actions'
 import { resolutionCard, resolveAdminEntity, resolveCar, resolveOrder, resolvePart, resolveSellerCoupon, resolveSellerMessage, resolveStore } from '@/lib/ai/resolver'
-import { AI_ACTIONS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
+import { AI_ACTIONS, type AIClientContext, type AIRole, type AIToolCard, type AIToolName } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
 const navigationDestinations = z.enum([
@@ -48,7 +48,7 @@ const actionSchema = z.object({
   isPrimary: z.boolean().optional(),
 })
 
-export function createAITools(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; internetSearchEnabled?: boolean }) {
+export function createAITools(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; internetSearchEnabled?: boolean; allowedTools?: AIToolName[] }) {
   let internetSearches = 0
   const commonTools = {
     searchMarketplace: tool({
@@ -257,7 +257,8 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
     }),
   })
   Object.assign(tools, buyerTools, actionTools, sellerTools, adminTools)
-  return tools
+  if (!input.allowedTools) return tools
+  return Object.fromEntries(Object.entries(tools).filter(([name]) => input.allowedTools!.includes(name as AIToolName))) as ToolSet
 }
 
 function navigationHref(destination: NavigationDestination, role: AIRole, query?: string) {
@@ -296,17 +297,32 @@ export async function searchInternet(query: string): Promise<AIToolCard> {
       searchSearx('https://search.mectov.my.id/', normalizedQuery),
       searchSearx('https://search.hbubli.cc/', normalizedQuery),
     ])
-    if (!results.length) return { type: 'insight', title: 'لم أجد نتائج ويب مناسبة', description: 'جرّب ذكر موديل السيارة أو سنة الصنع أو رقم القطعة أو البلد.' }
+    const ranked = rankSearchResults(normalizedQuery, results)
+    if (!ranked.length) return { type: 'insight', title: 'لم أجد نتائج ويب مناسبة', description: 'جرّب ذكر موديل السيارة أو سنة الصنع أو رقم القطعة أو البلد.' }
     return {
       type: 'results',
       title: `نتائج ويب حديثة عن «${normalizedQuery}»`,
       description: 'نتائج خارج غيار ماركت وقد تتغير الأسعار. راجع الرابط والتوافق قبل الشراء.',
-      items: results.map((result, index) => ({ id: `web-${index}`, title: result.title, subtitle: result.snippet, href: result.url })),
+      items: ranked.map((result, index) => ({ id: `web-${index}`, title: result.title, subtitle: result.snippet, href: result.url })),
     }
   } catch (error) {
     console.error('Internet search failed:', { message: error instanceof Error ? error.message : 'UnknownError' })
     return { type: 'insight', title: 'تعذر الوصول إلى نتائج الإنترنت الآن', description: 'يمكنني مساعدتك بسعر تقريبي من عروض غيار ماركت أو حاول مرة أخرى بعد قليل.' }
   }
+}
+
+function rankSearchResults(query: string, results: Array<{ title: string; snippet: string; url: string }>) {
+  const tokens = query.toLocaleLowerCase().split(/[^\p{L}\p{N}]+/u).filter((token) => token.length > 2)
+  const automotive = /(?:bmw|toyota|hyundai|kia|nissan|مرسيدس|بي ام|تويوتا|هيونداي|كيا|نيسان|سيارة|موتور|محرك|belt|brake|engine|car|part)/i.test(query)
+  const blocked = automotive ? /(?:microsoft|windows|onedrive|office|support\.apple|stackoverflow)/i : /$a/
+  return results
+    .filter((result) => !blocked.test(`${result.title} ${result.url}`))
+    .map((result) => ({ result, score: tokens.reduce((score, token) => score + (`${result.title} ${result.snippet} ${result.url}`.toLocaleLowerCase().includes(token) ? 1 : 0), 0) }))
+    .filter(({ score }) => score > 0 || tokens.length === 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ result }) => result)
+    .filter((result, index, all) => all.findIndex((candidate) => new URL(candidate.url).hostname === new URL(result.url).hostname) === index)
+    .slice(0, 5)
 }
 
 async function searchSearx(baseUrl: string, query: string) {

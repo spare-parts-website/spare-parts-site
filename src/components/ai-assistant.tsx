@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import ReactMarkdown from 'react-markdown'
-import { AlertTriangle, Bot, Clock3, History, ImagePlus, Loader2, MessageCirclePlus, Send, Sparkles, Trash2, X } from 'lucide-react'
+import { AlertTriangle, Bot, Clock3, History, Loader2, MessageCirclePlus, Send, Sparkles, Trash2, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { ScrollArea } from '@/components/ui/scroll-area'
@@ -12,13 +12,12 @@ import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTi
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { useAppStore, type AuthUser } from '@/lib/store'
-import type { AIChatResponse, AIClientAction, AIMode, AISelectedEntity, AIToolCard } from '@/lib/ai/types'
+import type { AIChatResponse, AIClientAction, AISelectedEntity, AIToolCard } from '@/lib/ai/types'
 
-type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; cards?: AIToolCard[]; attachments?: string[] }
+type ChatMessage = { id: string; role: 'user' | 'assistant'; content: string; cards?: AIToolCard[] }
 type SavedConversation = { id: string; title?: string | null; preview?: string | null; expiresAt: string; updatedAt: string; messages: Array<{ id: string; role: string; content: string; metadata?: { cards?: AIToolCard[] } | null }> }
 
 const GUEST_KEY = 'ghyar-ai-guest-v1'
-const AI_MODE_KEY = 'ghyar-ai-mode-v1'
 const HOUR = 60 * 60 * 1000
 
 const PROMPTS: Record<AuthUser['role'] | 'GUEST', string[]> = {
@@ -35,21 +34,18 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
   const role = user?.role || 'GUEST'
   const [open, setOpen] = useState(false)
   const [input, setInput] = useState('')
-  const [mode, setMode] = useState<AIMode>('fast')
-  const [attachments, setAttachments] = useState<Array<{ path: string; url: string }>>([])
-  const [uploadingImages, setUploadingImages] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [conversationId, setConversationId] = useState<string>()
   const [expiresAt, setExpiresAt] = useState<string>()
   const [conversations, setConversations] = useState<SavedConversation[]>([])
   const [showHistory, setShowHistory] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const [retryPrompt, setRetryPrompt] = useState('')
   const [pendingProposal, setPendingProposal] = useState<AIToolCard['proposal']>()
   const [proposalBusy, setProposalBusy] = useState(false)
   const bottomRef = useRef<HTMLDivElement>(null)
-  const imageInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const listener = (event: Event) => {
@@ -59,11 +55,6 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
     }
     window.addEventListener('ghyar-ai-open', listener)
     return () => window.removeEventListener('ghyar-ai-open', listener)
-  }, [])
-
-  useEffect(() => {
-    const savedMode = window.localStorage.getItem(AI_MODE_KEY)
-    if (savedMode === 'deep') setMode('deep')
   }, [])
 
   useEffect(() => {
@@ -110,51 +101,53 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
   }
 
   async function send(prompt?: string, selection?: AISelectedEntity) {
-    const text = (prompt ?? input).trim() || (attachments.length ? 'حلل الصور المرفقة وساعدني.' : '')
+    const text = (prompt ?? input).trim()
     if (!text || loading) return
-    const pendingAttachments = attachments
-    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text, attachments: pendingAttachments.map((attachment) => attachment.url) }
+    const userMessage: ChatMessage = { id: crypto.randomUUID(), role: 'user', content: text }
+    const assistantId = crypto.randomUUID()
     const prior = messages
     setMessages((current) => [...current, userMessage])
     setInput('')
-    setAttachments([])
     setError('')
     setRetryPrompt('')
     setLoading(true)
+    setProgress('جاري فهم طلبك...')
     try {
       const cart = useAppStore.getState().cart
-      const response = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, mode: pendingAttachments.length ? 'deep' : mode, attachments: pendingAttachments.map((attachment) => attachment.path), conversationId, history: user ? undefined : prior.map((item) => ({ role: item.role, content: item.content })).slice(-12), clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })), selection } }) })
-      const data = await response.json() as AIChatResponse & { error?: string }
-      if (!response.ok) throw new Error(data.error || 'تعذر الاتصال بالمساعد')
-      setConversationId(data.conversationId)
-      setExpiresAt(data.expiresAt)
-      setMessages((current) => [...current, { id: crypto.randomUUID(), role: 'assistant', content: data.answer, cards: data.cards }])
-      for (const card of data.cards) if (card.clientAction) applyAutomaticAction(card.clientAction)
+      const response = await fetch('/api/ai', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: text, conversationId, history: user ? undefined : prior.map((item) => ({ role: item.role, content: item.content })).slice(-10), clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })), selection } }) })
+      if (!response.ok || !response.body) {
+        const data = await response.json() as { error?: string }
+        throw new Error(data.error || 'تعذر الاتصال بالمساعد')
+      }
+      setMessages((current) => [...current, { id: assistantId, role: 'assistant', content: '' }])
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      while (true) {
+        const { value, done } = await reader.read()
+        buffer += decoder.decode(value, { stream: !done })
+        const lines = buffer.split('\n'); buffer = lines.pop() || ''
+        for (const line of lines) if (line.trim()) applyStreamEvent(JSON.parse(line), assistantId)
+        if (done) break
+      }
       if (user) void loadConversations()
     } catch (cause) {
+      setMessages((current) => current.filter((item) => item.id !== assistantId || Boolean(item.content || item.cards?.length)))
       setError(cause instanceof Error ? cause.message : 'خدمة الذكاء الاصطناعي غير متاحة حالياً')
       setRetryPrompt(text)
-    } finally { setLoading(false) }
+    } finally { setLoading(false); setProgress('') }
   }
 
-  async function attachImages(files: FileList | null) {
-    if (!files || !user || uploadingImages) return
-    const selected = Array.from(files).slice(0, 3 - attachments.length)
-    if (!selected.length) return
-    setUploadingImages(true)
-    try {
-      const uploaded = await Promise.all(selected.map(async (file) => {
-        const formData = new FormData()
-        formData.append('file', file)
-        formData.append('purpose', 'ai')
-        const response = await fetch('/api/upload', { method: 'POST', body: formData })
-        const data = await response.json() as { url?: string; path?: string; error?: string }
-        if (!response.ok || !data.url || !data.path) throw new Error(data.error || 'تعذر رفع الصورة')
-        return { url: data.url, path: data.path }
-      }))
-      setAttachments((current) => [...current, ...uploaded].slice(0, 3))
-    } catch (cause) { setError(cause instanceof Error ? cause.message : 'تعذر رفع الصورة') }
-    finally { setUploadingImages(false); if (imageInputRef.current) imageInputRef.current.value = '' }
+  function applyStreamEvent(event: { type?: string; status?: string; delta?: string; error?: string } & Partial<AIChatResponse>, assistantId: string) {
+    if (event.type === 'status' && event.status) setProgress(event.status)
+    if (event.type === 'text-delta' && event.delta) setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, content: item.content + event.delta } : item))
+    if (event.type === 'error') throw new Error(event.error || 'تعذر الاتصال بالمساعد')
+    if (event.type === 'done') {
+      setConversationId(event.conversationId)
+      setExpiresAt(event.expiresAt)
+      setMessages((current) => current.map((item) => item.id === assistantId ? { ...item, content: event.answer || item.content, cards: event.cards || [] } : item))
+      for (const card of event.cards || []) if (card.clientAction) applyAutomaticAction(card.clientAction)
+    }
   }
 
   function applyAutomaticAction(action: AIClientAction) {
@@ -242,7 +235,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
             <div className="space-y-4 py-5">
               {!messages.length && <Welcome role={role} onPrompt={(prompt) => void send(prompt)} />}
               {messages.map((message) => <MessageBubble key={message.id} message={message} onProposal={setPendingProposal} onSelect={(selection) => void send(`اخترت ${selection.label}. كمل نفس الطلب السابق.`, selection)} />)}
-              {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />جاري التفكير والتحقق من البيانات...</div>}
+              {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />{progress || 'جاري تنفيذ طلبك...'}</div>}
               {error && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><b>تعذر إكمال الطلب</b><p className="mt-1">{error}</p>{retryPrompt && <Button type="button" size="sm" variant="outline" className="mt-3" disabled={loading} onClick={() => void send(retryPrompt)}>إعادة المحاولة</Button>}</div>}
               <div ref={bottomRef} />
             </div>
@@ -250,21 +243,10 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
         )}
 
         <div className="border-t bg-background p-4">
-          <div className="mb-3 grid grid-cols-2 gap-2" role="group" aria-label="سرعة المساعد">
-            <Button type="button" size="sm" variant={mode === 'fast' ? 'default' : 'outline'} disabled={loading} className="h-auto min-h-11 whitespace-normal py-2 text-right" onClick={() => { setMode('fast'); window.localStorage.setItem(AI_MODE_KEY, 'fast') }}>
-              <span><b>⚡ سريع</b><small className="mt-0.5 block font-normal opacity-80">للبحث والمساعدة اليومية</small></span>
-            </Button>
-            <Button type="button" size="sm" variant={mode === 'deep' ? 'default' : 'outline'} disabled={loading} className="h-auto min-h-11 whitespace-normal py-2 text-right" onClick={() => { setMode('deep'); window.localStorage.setItem(AI_MODE_KEY, 'deep') }}>
-              <span><b>🧠 متقدم</b><small className="mt-0.5 block font-normal opacity-80">للطلبات المعقدة وقد يتأخر</small></span>
-            </Button>
-          </div>
-          {attachments.length > 0 && <div className="mb-2 flex flex-wrap gap-2">{attachments.map((attachment) => <div key={attachment.path} className="relative"><img src={attachment.url} alt="صورة مرفقة" className="size-14 rounded-lg border object-cover" /><Button type="button" size="icon" variant="destructive" className="absolute -left-2 -top-2 size-5 rounded-full" onClick={() => setAttachments((current) => current.filter((item) => item.path !== attachment.path))} aria-label="حذف الصورة"><X className="size-3" /></Button></div>)}</div>}
-          {attachments.length > 0 && <p className="mb-2 text-[11px] text-primary">سيتم استخدام المساعد المتقدم لتحليل الصور.</p>}
           <p className="mb-2 text-[11px] text-muted-foreground">اقتراحات الذكاء الاصطناعي تحتاج مراجعتك. التغييرات الحقيقية تعرض تحذيراً قبل التنفيذ.</p>
           <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); void send() }}>
             <Textarea value={input} onChange={(event) => setInput(event.target.value)} maxLength={4000} rows={2} placeholder="اكتب طلبك هنا..." className="min-h-12 resize-none" onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void send() } }} />
-            {user && <><input ref={imageInputRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden" onChange={(event) => void attachImages(event.target.files)} /><Button type="button" size="icon" variant="outline" className="size-12 shrink-0" disabled={loading || uploadingImages || attachments.length >= 3} onClick={() => imageInputRef.current?.click()} aria-label="إرفاق صور"><ImagePlus className="size-4" /></Button></>}
-            <Button size="icon" className="size-12 shrink-0" disabled={loading || uploadingImages || (!input.trim() && !attachments.length)} aria-label="إرسال"><Send className="size-4" /></Button>
+            <Button size="icon" className="size-12 shrink-0" disabled={loading || !input.trim()} aria-label="إرسال"><Send className="size-4" /></Button>
           </form>
         </div>
       </SheetContent>
@@ -281,7 +263,7 @@ function Welcome({ role, onPrompt }: { role: keyof typeof PROMPTS; onPrompt: (pr
 }
 
 function MessageBubble({ message, onProposal, onSelect }: { message: ChatMessage; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
-  return <div className={cn('min-w-0 space-y-2', message.role === 'user' && 'mr-auto max-w-[88%]')}><div dir="auto" className={cn('min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3 text-sm leading-7', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}>{message.attachments?.length ? <div className="mb-2 flex flex-wrap gap-2">{message.attachments.map((attachment) => <img key={attachment} src={attachment} alt="صورة أرسلها المستخدم" className="size-20 rounded-lg border border-white/30 object-cover" />)}</div> : null}<ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} onSelect={onSelect} />)}</div>
+  return <div className={cn('min-w-0 space-y-2', message.role === 'user' && 'mr-auto max-w-[88%]')}><div dir="auto" className={cn('min-w-0 break-words [overflow-wrap:anywhere] rounded-2xl px-4 py-3 text-sm leading-7', message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}><ReactMarkdown>{message.content}</ReactMarkdown></div>{message.cards?.map((card, index) => <ToolCard key={`${message.id}-${index}`} card={card} onProposal={onProposal} onSelect={onSelect} />)}</div>
 }
 
 function ToolCard({ card, onProposal, onSelect }: { card: AIToolCard; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {

@@ -1,8 +1,8 @@
-import { ToolLoopAgent, isStepCount } from 'ai'
+import { ToolLoopAgent, isStepCount, NoSuchToolError } from 'ai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { aiModel } from '@/lib/ai/runtime'
 import { createAITools } from '@/lib/ai/tools'
-import type { AIClientContext, AIMode, AIRole } from '@/lib/ai/types'
+import type { AIClientContext, AIRequestPlan, AIRole } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
 const ROLE_GUIDANCE: Record<AIRole, string> = {
@@ -12,17 +12,19 @@ const ROLE_GUIDANCE: Record<AIRole, string> = {
   ADMIN: 'ساعد المدير في الإحصاءات والتشغيل والمراجعة. اعرض بيانات شخصية مخفية فقط ولا تعرض الأدلة أو المستندات الخاصة داخل المحادثة.',
 }
 
-export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; mode: AIMode; visualAnalysis?: boolean; liveSearchProvided?: boolean }) {
+export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; plan: AIRequestPlan; liveSearchProvided?: boolean }) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const openrouter = createOpenRouter({ apiKey })
-  const tools = input.visualAnalysis ? {} : createAITools({ ...input, internetSearchEnabled: !input.liveSearchProvided })
+  const tools = createAITools({ ...input, internetSearchEnabled: !input.liveSearchProvided, allowedTools: input.plan.tools })
+  const forcedTool = input.plan.forcedTool && input.plan.forcedTool in tools ? input.plan.forcedTool : undefined
   return new ToolLoopAgent({
-    model: openrouter(aiModel(input.mode)),
+    model: openrouter(aiModel()),
     instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL.
 ${ROLE_GUIDANCE[input.role]}
+المهمة الحالية: ${input.plan.intent}. مستوى التنفيذ الداخلي: ${input.plan.complexity}.
 القواعد الإلزامية:
-- أجب بالعربية المصرية الواضحة، واختصر ما لم يطلب المستخدم تفاصيل.
+- ابدأ بالإجابة المباشرة. اجعل الرد عادة من سطرين إلى ستة أسطر، ولا تكرر ما يظهر في البطاقات.
 - استخدم الأدوات للحصول على بيانات حقيقية ولا تخترع أسعاراً أو مخزوناً أو إحصاءات.
 - لا تكشف الأسرار أو كلمات المرور أو مفاتيح API أو بيانات الدفع أو الأدلة الخاصة.
 - لا تطلب تنفيذ SQL أو تعديل كود أو GitHub أو Vercel أو Supabase أو Resend.
@@ -33,20 +35,28 @@ ${ROLE_GUIDANCE[input.role]}
 - حوّل نية المستخدم العربية بنفسك إلى الإجراء والحالة الداخليين المناسبين. لا تطلب كلمات مثل targetId أو BLOCKED أو APPROVED.
 - إذا أعادت الأداة اختيارات متعددة، اطلب من المستخدم الضغط على «اختيار» فقط. بعد اختياره أكمل نفس الطلب السابق دون إعادة الأسئلة.
 - استفد من كل المعلومات الموجودة في المحادثة ولا تطلب معلومة سبق أن ذكرها المستخدم.
-- استخدم searchInternet بنفسك عندما يسأل المستخدم عن سعر حالي خارج غيار ماركت، سعر سيارة، خبر، موديل جديد، مواصفات حديثة، أو أي معلومة زمنية قد تكون تغيرت. لا تستخدم بحث الإنترنت لأسئلة الحساب أو بيانات المنصة الداخلية.
+- إذا زُودت بنتائج ويب حديثة فاستخدمها كأدلة فقط، ولا تدّعِ سعراً دقيقاً إن لم تعرض النتائج سعراً واضحاً.
 - عند ذكر سعر من الإنترنت، اذكر أنه تقديري ومتغير، وضّح البلد والعملة وحالة المنتج إن أمكن، واستند إلى أكثر من نتيجة متاحة. لا تخترع سعراً إذا لم تجد مصدراً مناسباً.
 - ضع روابط المصادر الحقيقية في الإجابة ولا تدّعِ أن معلومة حديثة مؤكدة دون بحث.
 - اسأل سؤالاً واحداً مختصراً فقط إذا نقصت قيمة عمل أساسية لا يجوز تخمينها، مثل السعر أو الكمية أو رقم الشحنة أو سبب القرار.
 - لا تدّعِ أن إجراءً تم تنفيذه لمجرد إنشاء اقتراح.
 - لا تطلب حذفاً دائماً؛ الحذف الدائم غير متاح للمساعد.
 - وضّح أن اقتراحات الأسعار والوصف والتحليل تحتاج مراجعة بشرية.
+- لا تشرح خطواتك الداخلية ولا تقل إنك ستبحث أو ستستخدم أداة؛ نفّذ المتاح ثم اعرض النتيجة.
 - إذا رفض المستخدم إجراءً فلا تحاول تكراره دون طلب جديد.`,
-    // Some OpenRouter vision providers reject tool definitions combined with image input.
-    // Photo requests are analysis-only, so keeping the tool set empty is both compatible
-    // and ensures no state-changing action can originate from an attached image.
     tools,
-    stopWhen: isStepCount(5),
-    maxOutputTokens: 700,
-    temperature: 0.2,
+    toolChoice: forcedTool ? { type: 'tool', toolName: forcedTool } : Object.keys(tools).length ? 'auto' : 'none',
+    stopWhen: isStepCount(input.plan.maxSteps),
+    maxOutputTokens: input.plan.maxOutputTokens,
+    temperature: 0.1,
+    maxRetries: 1,
+    providerOptions: { openrouter: { reasoning: { effort: input.plan.complexity === 'heavy' ? 'medium' : input.plan.complexity === 'standard' ? 'low' : 'minimal', exclude: true } } },
+    repairToolCall: async ({ toolCall, error }) => {
+      if (NoSuchToolError.isInstance(error) || !(toolCall.toolName in tools)) return null
+      const candidate = toolCall.input.match(/\{[\s\S]*\}/)?.[0]?.replace(/,\s*([}\]])/g, '$1')
+      if (!candidate) return null
+      try { JSON.parse(candidate) } catch { return null }
+      return { ...toolCall, input: candidate }
+    },
   })
 }

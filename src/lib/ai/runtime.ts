@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { DEFAULT_AI_QUOTAS } from '@/lib/ai/policy'
-import type { AIMode, AIRole } from '@/lib/ai/types'
+import type { AIRole } from '@/lib/ai/types'
 
 const CONCURRENCY: Record<AIRole, number> = {
   GUEST: 1,
@@ -10,21 +10,13 @@ const CONCURRENCY: Record<AIRole, number> = {
   ADMIN: 3,
 }
 
-const legacyModel = process.env.OPENROUTER_MODEL?.trim()
-const AI_MODELS: Record<AIMode, string> = {
-  fast: process.env.OPENROUTER_FAST_MODEL?.trim() || 'poolside/laguna-xs-2.1:free',
-  deep: process.env.OPENROUTER_DEEP_MODEL?.trim() || legacyModel || 'stealth/ox-alpha',
-}
+const AI_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'poolside/laguna-s-2.1:free'
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
 
-export function aiMode(value: unknown): AIMode {
-  return value === 'deep' ? 'deep' : 'fast'
-}
-
-export function aiModel(mode: AIMode) {
-  return AI_MODELS[mode]
+export function aiModel() {
+  return AI_MODEL
 }
 
 export function aiQuota(role: AIRole) {
@@ -35,7 +27,7 @@ export function aiQuota(role: AIRole) {
 export async function acquireAIConcurrency(key: string, role: AIRole) {
   const token = randomUUID()
   const now = new Date()
-  const expiresAt = new Date(now.getTime() + 35_000)
+  const expiresAt = new Date(now.getTime() + 65_000)
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${key}))`
     await tx.aIRequestLease.deleteMany({ where: { OR: [{ expiresAt: { lte: now } }, { key, role: { not: role } }] } })
