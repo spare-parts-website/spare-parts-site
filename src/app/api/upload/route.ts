@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const input = Buffer.from(await file.arrayBuffer())
     const policy = IMAGE_PURPOSES[purpose]
-    const isPrivate = purpose === 'evidence' || purpose === 'verification'
+    const isPrivate = purpose === 'ai' || purpose === 'evidence' || purpose === 'verification'
     const bucket = isPrivate ? PRIVATE_BUCKET : PUBLIC_BUCKET
     let output = await sharp(input, { limitInputPixels: 25_000_000, failOn: 'error' })
       .rotate()
@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     }
 
     const url = isPrivate ? `/api/private-image?path=${encodeURIComponent(filename)}` : `${supabaseUrl.replace(/\/$/, '')}/storage/v1/object/public/${PUBLIC_BUCKET}/${filename}`
-    return NextResponse.json({ url, bytes: output.length })
+    return NextResponse.json({ url, bytes: output.length, ...(purpose === 'ai' ? { path: filename } : {}) })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })

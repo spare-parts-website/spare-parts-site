@@ -14,12 +14,13 @@ type GuestHistory = Array<{ role?: unknown; content?: unknown }>
 export async function POST(request: Request) {
   let concurrencyToken = ''
   try {
-    const body = await request.json() as { message?: unknown; conversationId?: unknown; history?: unknown; clientContext?: unknown; mode?: unknown }
+    const body = await request.json() as { message?: unknown; conversationId?: unknown; history?: unknown; clientContext?: unknown; mode?: unknown; attachments?: unknown }
     const message = typeof body.message === 'string' ? body.message.trim() : ''
     if (!message || message.length > AI_MESSAGE_LIMIT) return NextResponse.json({ error: 'اكتب رسالة صحيحة بحد أقصى 4000 حرف' }, { status: 400 })
 
     const user = await getSession()
     const role: AIRole = user?.role || 'GUEST'
+    const attachments = await loadAIAttachments(body.attachments, user?.id)
     const address = requestAddress(request)
     const concurrencyKey = `ai:${user?.id || address}`
     const quotaKeys = user ? [`ai-hour:user:${role}:${user.id}`, `ai-hour:ip:${role}:${address}`] : [`ai-hour:guest:${address}`]
@@ -39,13 +40,14 @@ export async function POST(request: Request) {
       conversationId = conversation.id
       expiresAt = conversation.expiresAt.toISOString()
       const previous = await loadConversationMessages(conversation.id, user)
-      modelMessages = [...previous.map((item) => ({ role: item.role === 'assistant' ? 'assistant' as const : 'user' as const, content: item.content })), { role: 'user', content: message }]
+      modelMessages = [...previous.map((item) => ({ role: item.role === 'assistant' ? 'assistant' as const : 'user' as const, content: item.content })), userMessage(message, attachments)]
       await appendAIMessage({ conversationId: conversation.id, role: 'user', content: message })
     } else {
+      if (attachments.length) throw new Error('AI_IMAGE_FORBIDDEN')
       modelMessages = [...safeGuestHistory(body.history), { role: 'user', content: message }]
     }
 
-    const agent = createGhyarAgent({ role, user, conversationId, clientContext: safeClientContext(body.clientContext), mode: aiMode(body.mode) })
+    const agent = createGhyarAgent({ role, user, conversationId, clientContext: safeClientContext(body.clientContext), mode: attachments.length ? 'deep' : aiMode(body.mode) })
     const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 50_000 } })
     const cards = result.steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)
     const answer = result.text.trim() || (cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.')
@@ -58,10 +60,33 @@ export async function POST(request: Request) {
     if (message === 'CONVERSATION_NOT_FOUND') return NextResponse.json({ error: 'انتهت المحادثة. ابدأ محادثة جديدة.' }, { status: 410 })
     if (['ACTION_FORBIDDEN', 'NAVIGATION_FORBIDDEN', 'DRAFT_FORBIDDEN'].includes(message)) return NextResponse.json({ error: 'هذا الطلب غير متاح لصلاحية حسابك.' }, { status: 403 })
     if (['INVALID_ACTION_INPUT', 'PART_NOT_OWNED'].includes(message)) return NextResponse.json({ error: 'تعذر تجهيز الإجراء لأن البيانات غير صالحة أو لم تعد متاحة.' }, { status: 400 })
+    if (['AI_IMAGE_FORBIDDEN', 'AI_IMAGE_INVALID'].includes(message)) return NextResponse.json({ error: 'تعذر استخدام الصورة. ارفعها من زر الصور داخل المحادثة.' }, { status: 400 })
     return NextResponse.json({ error: 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.' }, { status: 503 })
   } finally {
     if (concurrencyToken) await releaseAIConcurrency(concurrencyToken).catch((error) => console.error('AI concurrency release error:', error))
   }
+}
+
+function userMessage(message: string, attachments: Array<{ path: string; data: Uint8Array }>): ModelMessage {
+  if (!attachments.length) return { role: 'user', content: message }
+  return { role: 'user', content: [{ type: 'text', text: message }, ...attachments.map((attachment) => ({ type: 'file' as const, mediaType: 'image/webp', filename: attachment.path, data: { type: 'data' as const, data: attachment.data } }))] }
+}
+
+async function loadAIAttachments(value: unknown, userId?: string) {
+  if (!Array.isArray(value) || !value.length) return []
+  if (!userId || value.length > 3) throw new Error('AI_IMAGE_FORBIDDEN')
+  const base = process.env.SUPABASE_URL?.replace(/\/$/, '')
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!base || !key) throw new Error('AI_UNAVAILABLE')
+  const paths = value.flatMap((item) => typeof item === 'string' ? [item] : [])
+  if (paths.length !== value.length || new Set(paths).size !== paths.length || paths.some((path) => !/^ai-[A-Za-z0-9._-]+\.webp$/.test(path) || !path.includes(`-${userId}-`))) throw new Error('AI_IMAGE_INVALID')
+  return Promise.all(paths.map(async (path) => {
+    const response = await fetch(`${base}/storage/v1/object/protected-uploads/${encodeURIComponent(path)}`, { headers: { Authorization: `Bearer ${key}`, apikey: key }, signal: AbortSignal.timeout(10_000) })
+    if (!response.ok) throw new Error('AI_IMAGE_INVALID')
+    const data = new Uint8Array(await response.arrayBuffer())
+    if (!data.length || data.length > 1024 * 1024) throw new Error('AI_IMAGE_INVALID')
+    return { path, data }
+  }))
 }
 
 function safeClientContext(value: unknown): AIClientContext {
