@@ -122,7 +122,6 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [imageUploading, setImageUploading] = useState(false)
   const [storeImageUploading, setStoreImageUploading] = useState(false)
   const partFormRef = useRef<HTMLDivElement>(null)
-  const csvInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     return subscribeAIDraft('listing', (draft) => {
@@ -277,8 +276,6 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     }
   }
 
-  const bulkRestock = async () => { const value = Number(window.prompt('الكمية الجديدة لكل القطع منخفضة المخزون')); if (!Number.isInteger(value) || value < 0) return; const items = parts.filter((part) => part.stock <= 3).map((part) => ({ id: part.id, price: part.price, stock: value })); if (!items.length) return toast({ title: 'لا توجد قطع منخفضة المخزون' }); const response = await fetch('/api/shop/inventory', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) }); if (response.ok) { toast({ title: `تم تحديث ${items.length} قطعة` }); loadAllParts() } }
-  const importCsv = async (file: File) => { const form = new FormData(); form.append('file', file); const response = await fetch('/api/shop/inventory', { method: 'POST', body: form }); const data = await response.json(); toast({ title: response.ok ? `تم تحديث ${data.updated} قطعة` : 'فشل الاستيراد', description: data.error, variant: response.ok ? 'default' : 'destructive' }); if (response.ok) loadAllParts() }
 
   const handleEditPart = (part: Part) => {
     setEditPart(part)
@@ -409,7 +406,6 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
               <Plus className="size-4 ml-1" />
               إضافة قطعة
             </Button>
-            <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={bulkRestock}>تحديث المخزون المنخفض ({parts.filter((part) => part.stock <= 3).length})</Button><Button variant="outline" onClick={() => window.open('/api/shop/inventory')}>تصدير CSV</Button><Button variant="outline" onClick={() => csvInputRef.current?.click()}>استيراد CSV</Button><input ref={csvInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) importCsv(file); event.currentTarget.value = '' }} /></div>
           </div>
 
           {/* Add/Edit form */}
