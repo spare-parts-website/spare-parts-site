@@ -59,7 +59,8 @@ export async function POST(request: Request) {
     })
     const result = await agent.generate({ messages: modelMessages, timeout: { totalMs: 50_000 } })
     const cards = result.steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)
-    const answer = result.text.trim() || (cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.')
+    const baseAnswer = result.text.trim() || (cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.')
+    const answer = appendWebSources(baseAnswer, result.sources)
 
     if (user && conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { cards } })
     return NextResponse.json({ conversationId, answer, cards, expiresAt })
@@ -79,6 +80,19 @@ export async function POST(request: Request) {
   } finally {
     if (concurrencyToken) await releaseAIConcurrency(concurrencyToken).catch((error) => console.error('AI concurrency release error:', error))
   }
+}
+
+function appendWebSources(answer: string, sources: Array<{ sourceType: string; url?: string; title?: string }>) {
+  const uniqueSources = [...new Map(sources
+    .filter((source): source is { sourceType: string; url: string; title?: string } => source.sourceType === 'url' && typeof source.url === 'string' && /^https?:\/\//i.test(source.url))
+    .map((source) => [source.url, source])).values()].slice(0, 5)
+  if (!uniqueSources.length) return answer
+  const links = uniqueSources.map((source, index) => `- [${escapeMarkdownLabel(source.title?.trim() || `مصدر ${index + 1}`)}](${source.url})`).join('\n')
+  return `${answer}\n\nالمصادر:\n\n${links}`
+}
+
+function escapeMarkdownLabel(value: string) {
+  return value.replace(/[\[\]]/g, '').slice(0, 120)
 }
 
 function userMessage(message: string, attachments: Array<{ path: string; data: Uint8Array }>): ModelMessage {

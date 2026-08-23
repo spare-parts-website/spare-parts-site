@@ -16,6 +16,14 @@ export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const openrouter = createOpenRouter({ apiKey })
+  const tools = input.visualAnalysis ? {} : {
+    ...createAITools(input),
+    webSearch: openrouter.tools.webSearch({
+      engine: 'exa',
+      maxResults: 5,
+      searchPrompt: 'ابحث عن معلومات حديثة وموثوقة، وفضّل مصادر السوق المصري عند السؤال عن أسعار السيارات أو قطع الغيار في مصر.',
+    }),
+  }
   return new ToolLoopAgent({
     model: openrouter(aiModel(input.mode)),
     instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL.
@@ -32,6 +40,9 @@ ${ROLE_GUIDANCE[input.role]}
 - حوّل نية المستخدم العربية بنفسك إلى الإجراء والحالة الداخليين المناسبين. لا تطلب كلمات مثل targetId أو BLOCKED أو APPROVED.
 - إذا أعادت الأداة اختيارات متعددة، اطلب من المستخدم الضغط على «اختيار» فقط. بعد اختياره أكمل نفس الطلب السابق دون إعادة الأسئلة.
 - استفد من كل المعلومات الموجودة في المحادثة ولا تطلب معلومة سبق أن ذكرها المستخدم.
+- استخدم webSearch بنفسك عندما يسأل المستخدم عن سعر حالي خارج غيار ماركت، سعر سيارة، خبر، موديل جديد، مواصفات حديثة، أو أي معلومة زمنية قد تكون تغيرت. لا تستخدم بحث الإنترنت لأسئلة الحساب أو بيانات المنصة الداخلية.
+- عند ذكر سعر من الإنترنت، اذكر أنه تقديري ومتغير، وضّح البلد والعملة وحالة المنتج إن أمكن، واستند إلى أكثر من نتيجة متاحة. لا تخترع سعراً إذا لم تجد مصدراً مناسباً.
+- ضع روابط المصادر الحقيقية في الإجابة ولا تدّعِ أن معلومة حديثة مؤكدة دون بحث.
 - اسأل سؤالاً واحداً مختصراً فقط إذا نقصت قيمة عمل أساسية لا يجوز تخمينها، مثل السعر أو الكمية أو رقم الشحنة أو سبب القرار.
 - لا تدّعِ أن إجراءً تم تنفيذه لمجرد إنشاء اقتراح.
 - لا تطلب حذفاً دائماً؛ الحذف الدائم غير متاح للمساعد.
@@ -40,7 +51,7 @@ ${ROLE_GUIDANCE[input.role]}
     // Some OpenRouter vision providers reject tool definitions combined with image input.
     // Photo requests are analysis-only, so keeping the tool set empty is both compatible
     // and ensures no state-changing action can originate from an attached image.
-    tools: input.visualAnalysis ? {} : createAITools(input),
+    tools,
     stopWhen: isStepCount(5),
     maxOutputTokens: 700,
     temperature: 0.2,
