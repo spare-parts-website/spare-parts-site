@@ -49,6 +49,7 @@ const actionSchema = z.object({
 })
 
 export function createAITools(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext }) {
+  let internetSearches = 0
   const commonTools = {
     searchMarketplace: tool({
       description: 'ابحث في قطع الغيار والمتاجر العامة. استخدمها قبل اقتراح منتجات أو متاجر.',
@@ -89,6 +90,15 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
       execute: async ({ target, fields }): Promise<AIToolCard> => {
         assertDraftAllowed(target, input.role)
         return { type: 'draft', title: 'تم تجهيز المسودة', description: 'راجعها قبل الحفظ أو الإرسال.', clientAction: { type: 'draft', target, fields } }
+      },
+    }),
+    searchInternet: tool({
+      description: 'ابحث في الويب عن معلومات حديثة خارج غيار ماركت، مثل سعر سيارة أو قطعة في السوق أو مواصفات أو أخبار جديدة. استخدمه فقط للمعلومات التي قد تتغير مع الوقت. النتائج تقديرية وروابطها تظهر للمستخدم.',
+      inputSchema: z.object({ query: z.string().min(2).max(180).describe('عبارة بحث واضحة تشمل الموديل والسنة والبلد عند الحاجة') }),
+      execute: async ({ query }): Promise<AIToolCard> => {
+        if (internetSearches >= 1) return { type: 'insight', title: 'تم استخدام بحث الإنترنت لهذه الرسالة', description: 'استخدم النتائج المتاحة للإجابة ولا تكرر البحث.' }
+        internetSearches += 1
+        return searchInternet(query)
       },
     }),
   }
@@ -274,4 +284,56 @@ function humanStatus(status: string) {
     PENDING: 'قيد الانتظار', APPROVED: 'تمت الموافقة', REJECTED: 'مرفوض', PAID: 'مدفوع', SHIPPED: 'تم الشحن', DELIVERED: 'تم التسليم', RETURNED: 'مرتجع', CANCELLED: 'ملغي', UNPAID: 'غير مدفوع', REFUNDED: 'تم رد المبلغ', OPEN: 'مفتوح', REVIEWED: 'تمت المراجعة', DISMISSED: 'مرفوض', BLOCKED: 'محظور', ACTIVE: 'نشط', VERIFIED: 'معتمد', UNVERIFIED: 'غير معتمد', RESOLVED_BUYER: 'حُسم للمشتري', RESOLVED_SELLER: 'حُسم للبائع',
   }
   return labels[status] || status
+}
+
+async function searchInternet(query: string): Promise<AIToolCard> {
+  const normalizedQuery = query.trim().slice(0, 180)
+  try {
+    const response = await fetch(`https://html.duckduckgo.com/html/?kl=eg-ar&q=${encodeURIComponent(normalizedQuery)}`, {
+      headers: { 'User-Agent': 'GhyarMarket/1.0 (+https://ghyarmarket-eg.com)' },
+      signal: AbortSignal.timeout(8_000),
+    })
+    if (!response.ok) throw new Error(`SEARCH_HTTP_${response.status}`)
+    const results = parseSearchResults(await response.text())
+    if (!results.length) return { type: 'insight', title: 'لم أجد نتائج ويب مناسبة', description: 'جرّب ذكر موديل السيارة أو سنة الصنع أو رقم القطعة أو البلد.' }
+    return {
+      type: 'results',
+      title: `نتائج ويب حديثة عن «${normalizedQuery}»`,
+      description: 'نتائج خارج غيار ماركت وقد تتغير الأسعار. راجع الرابط والتوافق قبل الشراء.',
+      items: results.map((result, index) => ({ id: `web-${index}`, title: result.title, subtitle: result.snippet, href: result.url })),
+    }
+  } catch (error) {
+    console.error('Internet search failed:', { message: error instanceof Error ? error.message : 'UnknownError' })
+    return { type: 'insight', title: 'تعذر الوصول إلى نتائج الإنترنت الآن', description: 'يمكنني مساعدتك بسعر تقريبي من عروض غيار ماركت أو حاول مرة أخرى بعد قليل.' }
+  }
+}
+
+function parseSearchResults(html: string) {
+  const results: Array<{ title: string; snippet: string; url: string }> = []
+  const matcher = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g
+  for (const match of html.matchAll(matcher)) {
+    const url = unwrapSearchUrl(match[1])
+    const title = cleanSearchText(match[2])
+    const snippet = cleanSearchText(match[3])
+    if (url && title && !results.some((result) => result.url === url)) results.push({ url, title, snippet: snippet.slice(0, 300) })
+    if (results.length === 5) break
+  }
+  return results
+}
+
+function unwrapSearchUrl(value: string) {
+  try {
+    const parsed = new URL(value, 'https://duckduckgo.com')
+    const target = parsed.searchParams.get('uddg') || parsed.href
+    return /^https?:\/\//i.test(target) ? target : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function cleanSearchText(value: string) {
+  return value
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&amp;/g, '&').replace(/&#x27;/g, "'").replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
+    .replace(/\s+/g, ' ').trim()
 }
