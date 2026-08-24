@@ -3,6 +3,7 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_AI_QUOTAS, maskEmail, maskPhone, roleCanPrepareAction } from '../src/lib/ai/policy.ts'
 import { cleanWebSearchQuery, planAIRequest } from '../src/lib/ai/planner.ts'
+import { presentAIResponse } from '../src/lib/ai/presentation.ts'
 
 test('uses the requested role-specific hourly quotas', () => {
   assert.deepEqual(DEFAULT_AI_QUOTAS, { GUEST: 10, BUYER: 40, SHOP_OWNER: 100, ADMIN: 150 })
@@ -75,4 +76,21 @@ test('uses one free model and removes AI image and mode paths', () => {
   for (const removed of ['stealth/ox-alpha', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY', 'ImagePlus', "'ai'"]) {
     assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
   }
+})
+
+test('renders normal tool results inside the reply and keeps only important cards', () => {
+  const insight = { type: 'insight' as const, title: 'أداء المتجر', description: '12 طلب • 700 ج.م مبيعات' }
+  const choice = { type: 'results' as const, title: 'اختر القطعة', items: [
+    { id: '1', title: 'قطعة أولى', select: { kind: 'part' as const, id: '1', label: 'قطعة أولى' } },
+    { id: '2', title: 'قطعة ثانية', select: { kind: 'part' as const, id: '2', label: 'قطعة ثانية' } },
+  ] }
+  const result = presentAIResponse('سأقوم بتحليل أداء متجرك الآن.', [insight, choice])
+  assert.match(result.answer, /12 طلب/)
+  assert.equal(result.answer.includes('سأقوم'), false)
+  assert.deepEqual(result.cards, [choice])
+})
+
+test('always keeps confirmation proposals as interactive cards', () => {
+  const proposal = { type: 'proposal' as const, title: 'تأكيد', proposal: { id: 'p1', action: 'cart_add' as const, summary: 'إضافة القطعة', expiresAt: new Date().toISOString() } }
+  assert.deepEqual(presentAIResponse('', [proposal]).cards, [proposal])
 })

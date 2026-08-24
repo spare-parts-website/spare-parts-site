@@ -7,6 +7,7 @@ import { searchInternet } from '@/lib/ai/tools'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
 import { acquireAIConcurrency, aiQuota, AI_MESSAGE_LIMIT, releaseAIConcurrency } from '@/lib/ai/runtime'
 import { cleanWebSearchQuery, planAIRequest } from '@/lib/ai/planner'
+import { presentAIResponse } from '@/lib/ai/presentation'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
 
 export const maxDuration = 60
@@ -63,14 +64,19 @@ export async function POST(request: Request) {
           for await (const delta of result.textStream) { answer += delta; send({ type: 'text-delta', delta }) }
           const steps = await result.steps
           cards = dedupeCards([...cards, ...steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)])
-          const fallback = cards.length ? 'جهزت لك النتائج المطلوبة. راجع التفاصيل بالأسفل.' : 'تعذر إنشاء إجابة كاملة حالياً. حاول مرة أخرى بعد قليل.'
-          answer = appendWebSources(answer.trim() || fallback, await result.sources)
+          const fallback = cards.length ? '' : 'تعذر إنشاء إجابة كاملة حالياً. حاول مرة أخرى بعد قليل.'
+          const presented = presentAIResponse(answer.trim() || fallback, cards)
+          answer = appendWebSources(presented.answer, await result.sources)
+          cards = presented.cards
           if (user && conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { cards } })
           send({ type: 'done', conversationId, answer, cards, expiresAt })
           console.info('AI request completed:', { role, intent: plan.intent, complexity: plan.complexity, tools: plan.tools, durationMs: Date.now() - startedAt, cards: cards.length })
         } catch (error) {
           console.error('AI stream failed:', { role, intent: plan.intent, complexity: plan.complexity, durationMs: Date.now() - startedAt, message: error instanceof Error ? error.message : 'UnknownError' })
-          if (cards.length) send({ type: 'done', conversationId, answer: answer.trim() || 'وصلت لبعض النتائج قبل توقف الخدمة. راجعها بالأسفل.', cards, expiresAt, partial: true })
+          if (cards.length) {
+            const presented = presentAIResponse(answer.trim(), cards)
+            send({ type: 'done', conversationId, answer: presented.answer, cards: presented.cards, expiresAt, partial: true })
+          }
           else send({ type: 'error', error: 'خدمة الذكاء الاصطناعي غير متاحة حالياً. حاول لاحقاً.' })
         } finally {
           await releaseAIConcurrency(token).catch((error) => console.error('AI concurrency release error:', error))
