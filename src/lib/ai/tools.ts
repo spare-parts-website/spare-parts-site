@@ -144,20 +144,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
     getSellerInsights: tool({
       description: 'اعرض أداء متجر البائع الحالي ومخزونه وطلباته فقط.',
       inputSchema: z.object({}),
-      execute: async (): Promise<AIToolCard> => {
-        const store = await db.store.findUnique({ where: { ownerId: input.user!.id }, select: { id: true, name: true } })
-        if (!store) return { type: 'insight', title: 'لا يوجد متجر مرتبط بالحساب' }
-        const [parts, orders, reviews] = await Promise.all([
-          db.part.findMany({ where: { storeId: store.id }, select: { id: true, name: true, price: true, stock: true }, orderBy: { stock: 'asc' }, take: 100 }),
-          db.order.findMany({ where: { storeId: store.id }, select: { status: true, paymentStatus: true, totalPrice: true, quantity: true } }),
-          db.productReview.findMany({ where: { part: { storeId: store.id }, blocked: false }, select: { rating: true } }),
-        ])
-        const completed = orders.filter((order) => order.status === 'DELIVERED')
-        const revenue = completed.reduce((sum, order) => sum + order.totalPrice, 0)
-        const rating = reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0
-        const lowStock = parts.filter((part) => part.stock <= 3)
-        return { type: 'insight', title: `أداء ${store.name}`, description: `${parts.length} قطعة • ${orders.length} طلب • ${revenue.toFixed(0)} ج.م مبيعات مكتملة • تقييم ${rating.toFixed(1)}`, items: lowStock.slice(0, 8).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `مخزون منخفض: ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
-      },
+      execute: async (): Promise<AIToolCard> => getSellerInsightsCard(input.user!),
     }),
     suggestSellerPrice: tool<{ partId?: string; entityName?: string; partNumber?: string; oemNumber?: string }, AIToolCard, Record<string, never>>({
       description: 'اقترح نطاق سعر لقطعة يملكها البائع باستخدام اسمها أو رقمها، ولا تطلب معرّف القطعة. الاقتراح غير ملزم.',
@@ -259,6 +246,22 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
   Object.assign(tools, buyerTools, actionTools, sellerTools, adminTools)
   if (!input.allowedTools) return tools
   return Object.fromEntries(Object.entries(tools).filter(([name]) => input.allowedTools!.includes(name as AIToolName))) as ToolSet
+}
+
+export async function getSellerInsightsCard(user: SessionUser): Promise<AIToolCard> {
+  if (user.role !== 'SHOP_OWNER') throw new Error('ACTION_FORBIDDEN')
+  const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true, name: true } })
+  if (!store) return { type: 'insight', title: 'لا يوجد متجر مرتبط بالحساب' }
+  const [parts, orders, reviews] = await Promise.all([
+    db.part.findMany({ where: { storeId: store.id }, select: { id: true, name: true, price: true, stock: true }, orderBy: { stock: 'asc' }, take: 100 }),
+    db.order.findMany({ where: { storeId: store.id }, select: { status: true, paymentStatus: true, totalPrice: true, quantity: true } }),
+    db.productReview.findMany({ where: { part: { storeId: store.id }, blocked: false }, select: { rating: true } }),
+  ])
+  const completed = orders.filter((order) => order.status === 'DELIVERED')
+  const revenue = completed.reduce((sum, order) => sum + order.totalPrice, 0)
+  const rating = reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0
+  const lowStock = parts.filter((part) => part.stock <= 3)
+  return { type: 'insight', title: `أداء ${store.name}`, description: `${parts.length} قطعة • ${orders.length} طلب • ${revenue.toFixed(0)} ج.م مبيعات مكتملة • تقييم ${rating.toFixed(1)}`, items: lowStock.slice(0, 8).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `مخزون منخفض: ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
 }
 
 function navigationHref(destination: NavigationDestination, role: AIRole, query?: string) {

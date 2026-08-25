@@ -3,7 +3,7 @@ import type { ModelMessage } from 'ai'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
-import { searchInternet } from '@/lib/ai/tools'
+import { getSellerInsightsCard, searchInternet } from '@/lib/ai/tools'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
 import { acquireAIConcurrency, aiQuota, AI_MESSAGE_LIMIT, releaseAIConcurrency } from '@/lib/ai/runtime'
 import { cleanWebSearchQuery, planAIRequest } from '@/lib/ai/planner'
@@ -48,7 +48,9 @@ export async function POST(request: Request) {
       await appendAIMessage({ conversationId: conversation.id, role: 'user', content: message })
     } else modelMessages = [...safeGuestHistory(body.history), { role: 'user', content: modelMessage }]
 
-    const agent = createGhyarAgent({ role, user, conversationId, clientContext: safeClientContext(body.clientContext), plan, liveSearchProvided: Boolean(liveSearchCard) })
+    const clientContext = safeClientContext(body.clientContext)
+    const directCard = plan.forcedTool === 'getSellerInsights' && user?.role === 'SHOP_OWNER' ? await getSellerInsightsCard(user) : undefined
+    const agent = directCard ? undefined : createGhyarAgent({ role, user, conversationId, clientContext, plan, liveSearchProvided: Boolean(liveSearchCard) })
     const token = lease
     streamOwnsLease = true
     const encoder = new TextEncoder()
@@ -57,9 +59,19 @@ export async function POST(request: Request) {
       async start(controller) {
         const send = (event: unknown) => controller.enqueue(encoder.encode(`${JSON.stringify(event)}\n`))
         let answer = ''
-        let cards: AIToolCard[] = liveSearchCard ? [liveSearchCard] : []
+        let cards: AIToolCard[] = [...(liveSearchCard ? [liveSearchCard] : []), ...(directCard ? [directCard] : [])]
         try {
           send({ type: 'status', status: plan.complexity === 'heavy' ? 'جاري تحليل الطلب بعناية...' : plan.liveSearch ? 'جاري التحقق من أحدث النتائج...' : 'جاري تنفيذ طلبك...' })
+          if (directCard) {
+            const presented = presentAIResponse('', cards)
+            answer = presented.answer
+            cards = presented.cards
+            if (user && conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { cards } })
+            send({ type: 'done', conversationId, answer, cards, expiresAt })
+            console.info('AI request completed:', { role, intent: plan.intent, complexity: 'direct', tools: plan.tools, durationMs: Date.now() - startedAt, cards: cards.length })
+            return
+          }
+          if (!agent) throw new Error('AI_UNAVAILABLE')
           const result = await agent.stream({ messages: modelMessages, timeout: { totalMs: plan.timeoutMs } })
           for await (const delta of result.textStream) { answer += delta; send({ type: 'text-delta', delta }) }
           const steps = await result.steps
