@@ -1,8 +1,7 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area"
 import { cn } from "@/lib/utils"
 
-export function Suggestions({ className, children }: React.HTMLAttributes<HTMLDivElement>) { return <ScrollArea className="w-full whitespace-nowrap"><div className={cn("flex w-max gap-2", className)}>{children}</div><ScrollBar orientation="horizontal" className="hidden" /></ScrollArea> }
-export function Suggestion({ suggestion, onClick }: { suggestion: string; onClick: (value: string) => void }) { return <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => onClick(suggestion)}>{suggestion}</Button> }
+export function Suggestions({ className, children }: React.HTMLAttributes<HTMLDivElement>) { return <div className={cn("flex w-full min-w-0 flex-wrap justify-center gap-2 px-1", className)}>{children}</div> }
+export function Suggestion({ suggestion, onClick }: { suggestion: string; onClick: (value: string) => void }) { return <Button type="button" variant="outline" size="sm" className="h-auto max-w-full whitespace-normal rounded-full py-2 text-center leading-5" onClick={() => onClick(suggestion)}>{suggestion}</Button> }
