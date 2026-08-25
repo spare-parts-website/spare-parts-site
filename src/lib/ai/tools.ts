@@ -322,7 +322,11 @@ export async function searchInternet(query: string): Promise<AIToolCard> {
       description: searchedGlobally
         ? 'نتائج من متاجر ومصادر عالمية. حوّل العملة وأضف الشحن والجمارك، وتحقق من رقم القطعة والتوافق.'
         : 'نتائج مصرية تتضمن إشارة سعر فعلية. راجع المتجر والتوافق قبل الشراء.',
-      items: ranked.map((result, index) => ({ id: `web-${index}`, title: result.title, subtitle: result.snippet, href: result.url })),
+      items: ranked.map((result, index) => {
+        const price = extractPrice(result)
+        const condition = extractCondition(result)
+        return { id: `web-${index}`, title: result.title, subtitle: [condition, result.snippet].filter(Boolean).join(' • '), href: result.url, ...(price ? { value: price } : {}) }
+      }),
     }
   } catch (error) {
     console.error('Internet search failed:', { message: error instanceof Error ? error.message : 'UnknownError' })
@@ -381,6 +385,32 @@ function isCredibleEgyptPrice(result: SearchResult) {
 function isLikelyProductResult(result: SearchResult) {
   const text = `${result.title} ${result.snippet} ${result.url}`
   return /(?:belt|brake|engine|motor|filter|pump|sensor|bearing|alternator|starter|سيور|حزام|فرامل|محرك|فلتر|طرمبة|حساس|\$|€|£|USD|EUR|GBP|price|buy|ebay|amazon|autodoc|rockauto|parts)/i.test(text)
+}
+
+function extractPrice(result: SearchResult) {
+  const text = `${result.title} ${result.snippet}`.replace(/\s+/g, ' ')
+  const patterns = [
+    /(?:EGP|ج\.?م|جنيه|L\.?E\.?)\s*([\d,.]{2,})/i,
+    /([\d,.]{2,})\s*(?:EGP|ج\.?م|جنيه|L\.?E\.?)/i,
+    /([$€£])\s*([\d,.]{2,})/,
+    /([\d,.]{2,})\s*(USD|EUR|GBP)/i,
+  ]
+  for (const pattern of patterns) {
+    const match = text.match(pattern)
+    if (!match) continue
+    if (match[1] && /^[\d,.]+$/.test(match[1])) return `${match[1]} ج.م`
+    if (match[1] === '$' || match[1] === '€' || match[1] === '£') return `${match[1]}${match[2]}`
+    if (match[1] && match[2]) return `${match[1]} ${match[2].toUpperCase()}`
+  }
+  return undefined
+}
+
+function extractCondition(result: SearchResult) {
+  const text = `${result.title} ${result.snippet}`
+  if (/(?:used|pre-owned|second hand|مستعمل)/i.test(text)) return 'مستعمل'
+  if (/(?:new|brand new|جديد)/i.test(text)) return 'جديد'
+  if (/(?:remanufactured|refurbished|مجدد)/i.test(text)) return 'مجدّد'
+  return undefined
 }
 
 async function searchDuckDuckGo(queries: string[]): Promise<SearchResult[]> {

@@ -1,6 +1,8 @@
 import { db } from '@/lib/db'
 import { AI_HISTORY_TTL_MS } from '@/lib/ai/runtime'
 import type { SessionUser } from '@/lib/auth'
+import { deleteUploadedFiles } from '@/lib/storage'
+import { attachmentUrls, storedMessageToUIMessage } from '@/lib/ai/messages'
 
 export function nextConversationExpiry() {
   return new Date(Date.now() + AI_HISTORY_TTL_MS)
@@ -8,9 +10,20 @@ export function nextConversationExpiry() {
 
 export async function purgeExpiredAIData() {
   const now = new Date()
+  const expired = await db.aIConversation.findMany({ where: { expiresAt: { lte: now } }, include: { messages: true } })
+  const urls = expired.flatMap((conversation) => attachmentUrls(conversation.messages.map(storedMessageToUIMessage)))
+  if (urls.length) await deleteUploadedFiles(urls)
   await db.aIRequestLease.deleteMany({ where: { expiresAt: { lte: now } } })
   await db.aIActionProposal.deleteMany({ where: { expiresAt: { lte: now } } })
   return db.aIConversation.deleteMany({ where: { expiresAt: { lte: now } } })
+}
+
+export async function deleteAIConversation(id: string, user: SessionUser) {
+  const conversation = await db.aIConversation.findFirst({ where: { id, userId: user.id }, include: { messages: true } })
+  if (!conversation) return false
+  await deleteUploadedFiles(attachmentUrls(conversation.messages.map(storedMessageToUIMessage)))
+  const deleted = await db.aIConversation.deleteMany({ where: { id, userId: user.id } })
+  return deleted.count > 0
 }
 
 export async function getOrCreateConversation(input: {

@@ -18,7 +18,11 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
   let forcedTool: AIToolName | undefined
   const liveSearch = CURRENT.test(text) && !ACTION.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|my store|my account|my orders|inventory|platform)/i.test(text)
 
-  if (GREETING.test(text)) {
+  if (liveSearch) {
+    intent = 'web_search'
+    tools.add('searchInternet')
+    forcedTool = 'searchInternet'
+  } else if (GREETING.test(text)) {
     intent = 'greeting'
   } else if (ACTION.test(text)) {
     intent = 'protected_action'

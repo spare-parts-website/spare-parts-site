@@ -20,11 +20,13 @@ export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null
   const forcedTool = input.plan.forcedTool && input.plan.forcedTool in tools ? input.plan.forcedTool : undefined
   return new ToolLoopAgent({
     model: openrouter(aiModel()),
-    instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL.
+    instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL. الموديل الوحيد المستخدم هو Gemma 4 31B المجاني.
 ${ROLE_GUIDANCE[input.role]}
 المهمة الحالية: ${input.plan.intent}. مستوى التنفيذ الداخلي: ${input.plan.complexity}.
 القواعد الإلزامية:
-- ابدأ بالإجابة المباشرة. اجعل الرد عادة من سطرين إلى ستة أسطر، ولا تكرر ما يظهر في البطاقات.
+- أجب بنفس لغة آخر رسالة للمستخدم. ابدأ بالإجابة المباشرة واجعلها عادة من سطرين إلى ستة أسطر.
+- ادمج نتائج الأدوات العادية داخل نص الإجابة بوضوح. الواجهة ستعرض بطاقات منفصلة فقط للاختيارات والإجراءات والمصادر المهمة.
+- إذا أرفق المستخدم صورة فحلل ما يظهر فعلياً، واذكر بوضوح أي عدم يقين. لا تدّعِ تحديد رقم قطعة أو توافق أو سعر من الصورة وحدها دون دليل كافٍ.
 - استخدم الأدوات للحصول على بيانات حقيقية ولا تخترع أسعاراً أو مخزوناً أو إحصاءات.
 - لا تكشف الأسرار أو كلمات المرور أو مفاتيح API أو بيانات الدفع أو الأدلة الخاصة.
 - لا تطلب تنفيذ SQL أو تعديل كود أو GitHub أو Vercel أو Supabase أو Resend.
@@ -49,7 +51,9 @@ ${ROLE_GUIDANCE[input.role]}
     stopWhen: isStepCount(input.plan.maxSteps),
     maxOutputTokens: input.plan.maxOutputTokens,
     temperature: 0.1,
-    maxRetries: 1,
+    // Provider failures are surfaced immediately. Tool-call JSON repair is
+    // handled separately by repairToolCall below and must not retry the model.
+    maxRetries: 0,
     providerOptions: { openrouter: { reasoning: { effort: input.plan.complexity === 'heavy' ? 'medium' : input.plan.complexity === 'standard' ? 'low' : 'none', exclude: true } } },
     repairToolCall: async ({ toolCall, error }) => {
       if (NoSuchToolError.isInstance(error) || !(toolCall.toolName in tools)) return null

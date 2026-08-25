@@ -55,6 +55,7 @@ test('plans obvious requests with a narrow forced tool', () => {
   assert.equal(planAIRequest('حلل أداء متجري', 'SHOP_OWNER').forcedTool, 'getSellerInsights')
   assert.equal(planAIRequest('دور على تيل فرامل تويوتا', 'GUEST').forcedTool, 'searchMarketplace')
   assert.equal(planAIRequest('اعرض إحصائيات المنصة', 'ADMIN').forcedTool, 'getAdminInsights')
+  assert.equal(planAIRequest('كم سعر BMW 328i serpentine belt حالياً؟', 'GUEST').forcedTool, 'searchInternet')
 })
 
 test('automatically reserves more work only for complex requests', () => {
@@ -69,12 +70,13 @@ test('cleans conversational filler from current web searches', () => {
   assert.equal(cleanWebSearchQuery('What is the current price in Egypt for a BMW 328i serpentine belt? Search the internet and show me the sources'), 'BMW 328i serpentine belt price Egypt EGP')
 })
 
-test('uses one free model and removes AI image and mode paths', () => {
+test('uses one free Gemma model, enables images, and removes mode paths', () => {
   const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
   const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
   const imagePolicy = readFileSync(new URL('../src/lib/image-policy.ts', import.meta.url), 'utf8')
   assert.match(runtime, /google\/gemma-4-31b-it:free/)
-  for (const removed of ['stealth/ox-alpha', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY', 'ImagePlus', "'ai'"]) {
+  assert.match(assistant, /PromptInputAttachmentsButton/)
+  for (const removed of ['stealth/ox-alpha', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY']) {
     assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
   }
 })

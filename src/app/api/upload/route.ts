@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     const input = Buffer.from(await file.arrayBuffer())
     const policy = IMAGE_PURPOSES[purpose]
-    const isPrivate = purpose === 'evidence' || purpose === 'verification'
+    const isPrivate = purpose === 'evidence' || purpose === 'verification' || purpose === 'chat'
     const bucket = isPrivate ? PRIVATE_BUCKET : PUBLIC_BUCKET
     let output = await sharp(input, { limitInputPixels: 25_000_000, failOn: 'error' })
       .rotate()
@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
         Authorization: `Bearer ${serviceRoleKey}`,
         apikey: serviceRoleKey,
         'Content-Type': 'image/webp',
-        'Cache-Control': 'public, max-age=31536000, immutable',
+        'Cache-Control': isPrivate ? 'private, max-age=3600' : 'public, max-age=31536000, immutable',
         'x-upsert': 'false',
       },
       body: new Uint8Array(output),
