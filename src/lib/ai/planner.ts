@@ -81,7 +81,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
     forcedTool,
     liveSearch,
     maxSteps: complexity === 'heavy' ? 5 : complexity === 'standard' ? 3 : 1,
-    timeoutMs: complexity === 'heavy' ? 50_000 : complexity === 'standard' ? 45_000 : 35_000,
+    timeoutMs: 55_000,
     maxOutputTokens: complexity === 'heavy' ? 650 : complexity === 'standard' ? 420 : 240,
   }
 }
