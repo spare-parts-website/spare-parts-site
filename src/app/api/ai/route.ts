@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
-import { createAgentUIStream, createUIMessageStream, createUIMessageStreamResponse, isToolUIPart, readUIMessageStream, type UIMessageChunk } from 'ai'
+import { createAgentUIStream, createUIMessageStream, createUIMessageStreamResponse, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
@@ -121,7 +121,10 @@ type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 's
 function providerModelName(provider: AIProviderTarget) { return provider === 'openrouter' ? 'openrouter/free' : provider === 'gateway' ? `google/${aiModel()}` : aiModel() }
 function attemptTimeout(complexity: 'quick' | 'standard' | 'heavy', hasImage: boolean) { return hasImage || complexity === 'heavy' ? 20_000 : complexity === 'standard' ? 15_000 : 10_000 }
 function hasUsefulAIOutput(message: GhyarAIMessage) {
-  return message.parts.some((part) => part.type === 'text' ? Boolean(part.text.trim()) : isToolUIPart(part) && (part.state === 'output-available' || part.state === 'output-error'))
+  // A tool result alone is not a user-visible answer in every client renderer.
+  // Require final visible text so a tool-only completion fails over instead of
+  // leaving an empty assistant bubble that appears to load forever.
+  return message.parts.some((part) => part.type === 'text' && Boolean(part.text.trim()))
 }
 function safeErrorCategory(error: unknown) {
   const message = errorMessage(error)

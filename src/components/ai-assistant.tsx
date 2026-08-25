@@ -71,6 +71,13 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
   }, [busy])
 
   useEffect(() => {
+    if (!busy || requestAgeSeconds < 50) return
+    manualStopRef.current = true
+    stop()
+    setLocalError('انتهى الحد الزمني للطلب. أوقفناه حتى لا تظل المحادثة معلقة؛ اضغط إعادة المحاولة.')
+  }, [busy, requestAgeSeconds, stop])
+
+  useEffect(() => {
     const listener = (event: Event) => { const detail = (event as CustomEvent<{ prompt?: string }>).detail; setOpen(true); if (detail?.prompt) setInput(detail.prompt) }
     window.addEventListener('ghyar-ai-open', listener); return () => window.removeEventListener('ghyar-ai-open', listener)
   }, [])

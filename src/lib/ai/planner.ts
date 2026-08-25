@@ -17,6 +17,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
   let intent = 'conversation'
   let forcedTool: AIToolName | undefined
   const liveSearch = CURRENT.test(text) && !ACTION.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|my store|my account|my orders|inventory|platform)/i.test(text)
+  const asksForAnalysis = /(?:حل[ّ]?ل|تحليل|أداء|إحصائ|analytics|analy[sz]e|performance|statistics|insights)/i.test(text)
 
   if (liveSearch) {
     intent = 'web_search'
@@ -24,6 +25,16 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
     forcedTool = 'searchInternet'
   } else if (GREETING.test(text)) {
     intent = 'greeting'
+  } else if (role === 'SHOP_OWNER' && asksForAnalysis && ANALYTICS.test(text)) {
+    // Composite requests often continue with a price/offer suggestion. Start with
+    // authoritative store data instead of forcing a one-step generative action.
+    intent = 'seller_insights'
+    tools.add('getSellerInsights')
+    forcedTool = 'getSellerInsights'
+  } else if (role === 'ADMIN' && asksForAnalysis && ANALYTICS.test(text)) {
+    intent = 'admin_insights'
+    tools.add('getAdminInsights')
+    forcedTool = 'getAdminInsights'
   } else if (ACTION.test(text)) {
     intent = 'protected_action'
     tools.add('prepareAction')
@@ -80,7 +91,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
     tools: [...tools],
     forcedTool,
     liveSearch,
-    maxSteps: complexity === 'heavy' ? 5 : complexity === 'standard' ? 3 : 1,
+    maxSteps: complexity === 'heavy' ? 5 : complexity === 'standard' ? 3 : forcedTool ? 2 : 1,
     timeoutMs: 110_000,
     maxOutputTokens: complexity === 'heavy' ? 650 : complexity === 'standard' ? 420 : 240,
   }
