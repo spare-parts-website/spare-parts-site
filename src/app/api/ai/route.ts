@@ -8,8 +8,8 @@ import { appendAIMessage, getOrCreateConversation, loadConversationMessages, pur
 import { acquireAIConcurrency, aiModel, aiProviderTargets, aiQuota, releaseAIConcurrency, type AIProviderTarget } from '@/lib/ai/runtime'
 import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
-import { AI_ENTITY_KINDS, type AIClientContext, type AIRole } from '@/lib/ai/types'
-import { buildSellerPerformancePlan, executeDirectAITool } from '@/lib/ai/tools'
+import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
+import { buildSellerMessagePlan, buildSellerPerformancePlan, executeDirectAITool } from '@/lib/ai/tools'
 
 export const maxDuration = 120
 
@@ -39,19 +39,16 @@ export async function POST(request: Request) {
     } else uiMessages = [...safeGuestHistory(body.messages.slice(0, -1)), current]
 
     const clientContext = safeClientContext(body.clientContext)
+    if (role === 'SHOP_OWNER' && plan.intent === 'seller_message_workflow' && user && conversationId) {
+      const result = await buildSellerMessagePlan({ user, conversationId, selection: clientContext.selection })
+      await appendDirectResult({ result, conversationId, expiresAt, requestId, event: 'ai.seller_message_plan.completed', startedAt })
+      return directResultResponse(result, { conversationId, expiresAt, requestId, provider: 'deterministic' })
+    }
     const comprehensiveSellerRequest = role === 'SHOP_OWNER' && plan.intent === 'seller_insights' && /(?:اقترح|سعر|خصم|عرض|suggest|price|discount|offer)/i.test(message)
     if (comprehensiveSellerRequest && user && conversationId) {
       const result = await buildSellerPerformancePlan({ user, conversationId })
-      const parts: GhyarAIMessage['parts'] = [{ type: 'text', text: result.answer }]
-      result.cards.forEach((card, index) => parts.push({ type: 'dynamic-tool', toolName: 'prepareAction', toolCallId: `${requestId}-${index}`, state: 'output-available', input: {}, output: card } as GhyarAIMessage['parts'][number]))
-      await appendAIMessage({ conversationId, role: 'assistant', content: result.answer, metadata: { parts } })
-      console.info(JSON.stringify({ event: 'ai.seller_plan.completed', requestId, role, intent: plan.intent, cards: result.cards.length, durationMs: Date.now() - startedAt }))
-      const stream = createUIMessageStream<GhyarAIMessage>({ execute: ({ writer }) => {
-        writer.write({ type: 'start', messageMetadata: { conversationId, expiresAt, requestId, provider: 'deterministic' } })
-        writer.write({ type: 'text-start', id: requestId }); writer.write({ type: 'text-delta', id: requestId, delta: result.answer }); writer.write({ type: 'text-end', id: requestId })
-        result.cards.forEach((card, index) => { const toolCallId = `${requestId}-${index}`; writer.write({ type: 'tool-input-available', toolCallId, toolName: 'prepareAction', input: {}, dynamic: true }); writer.write({ type: 'tool-output-available', toolCallId, output: card, dynamic: true }) })
-      } })
-      return createUIMessageStreamResponse({ stream })
+      await appendDirectResult({ result, conversationId, expiresAt, requestId, event: 'ai.seller_plan.completed', startedAt })
+      return directResultResponse(result, { conversationId, expiresAt, requestId, provider: 'deterministic' })
     }
     const directCard = await executeDirectAITool({ toolName: plan.forcedTool, role, user, conversationId, clientContext, message })
     if (directCard) {
@@ -165,6 +162,22 @@ function terminalFallback(message: string, hasImage: boolean, requestId: string)
 function textUIResponse(text: string, metadata: GhyarAIMessage['metadata']) {
   const id = randomUUID()
   const stream = createUIMessageStream<GhyarAIMessage>({ execute: ({ writer }) => { writer.write({ type: 'start', messageMetadata: metadata }); writer.write({ type: 'text-start', id }); writer.write({ type: 'text-delta', id, delta: text }); writer.write({ type: 'text-end', id }) } })
+  return createUIMessageStreamResponse({ stream })
+}
+type DirectResult = { answer: string; cards: AIToolCard[] }
+async function appendDirectResult(input: { result: DirectResult; conversationId: string; expiresAt?: string; requestId: string; event: string; startedAt: number }) {
+  const parts: GhyarAIMessage['parts'] = [{ type: 'text', text: input.result.answer }]
+  input.result.cards.forEach((card, index) => parts.push({ type: 'dynamic-tool', toolName: 'prepareAction', toolCallId: `${input.requestId}-${index}`, state: 'output-available', input: {}, output: card } as GhyarAIMessage['parts'][number]))
+  await appendAIMessage({ conversationId: input.conversationId, role: 'assistant', content: input.result.answer, metadata: { parts } })
+  console.info(JSON.stringify({ event: input.event, requestId: input.requestId, cards: input.result.cards.length, durationMs: Date.now() - input.startedAt }))
+}
+function directResultResponse(result: DirectResult, metadata: GhyarAIMessage['metadata']) {
+  const requestId = metadata?.requestId || randomUUID()
+  const stream = createUIMessageStream<GhyarAIMessage>({ execute: ({ writer }) => {
+    writer.write({ type: 'start', messageMetadata: metadata })
+    writer.write({ type: 'text-start', id: requestId }); writer.write({ type: 'text-delta', id: requestId, delta: result.answer }); writer.write({ type: 'text-end', id: requestId })
+    result.cards.forEach((card, index) => { const toolCallId = `${requestId}-${index}`; writer.write({ type: 'tool-input-available', toolCallId, toolName: 'prepareAction', input: {}, dynamic: true }); writer.write({ type: 'tool-output-available', toolCallId, output: card, dynamic: true }) })
+  } })
   return createUIMessageStreamResponse({ stream })
 }
 function cardToDirectAnswer(card: { title: string; description?: string; items?: Array<{ title: string; subtitle?: string; value?: string | number }> }) {

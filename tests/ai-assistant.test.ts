@@ -112,7 +112,9 @@ test('executes safe obvious tools directly without a model', () => {
   assert.match(route, /executeDirectAITool/)
   assert.match(route, /ai\.direct_tool\.completed/)
   assert.match(tools, /buildSellerPerformancePlan/)
+  assert.match(tools, /buildSellerMessagePlan/)
   assert.match(route, /ai\.seller_plan\.completed/)
+  assert.match(route, /ai\.seller_message_plan\.completed/)
 })
 
 test('renders normal tool results inside the reply and keeps only important cards', () => {

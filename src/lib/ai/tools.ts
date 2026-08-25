@@ -303,6 +303,47 @@ export async function buildSellerPerformancePlan(input: { user: SessionUser; con
   return { answer, cards }
 }
 
+export async function buildSellerMessagePlan(input: { user: SessionUser; conversationId: string; selection?: AIClientContext['selection'] }): Promise<{ answer: string; cards: AIToolCard[] }> {
+  if (input.user.role !== 'SHOP_OWNER') throw new Error('ACTION_FORBIDDEN')
+  const store = await db.store.findUnique({ where: { ownerId: input.user.id }, select: { id: true, name: true } })
+  if (!store) return { answer: 'لا يوجد متجر مرتبط بهذا الحساب.', cards: [] }
+  const selectedId = input.selection?.kind === 'message' ? input.selection.id : undefined
+  const message = await db.productMessage.findFirst({
+    where: { part: { storeId: store.id }, receiverId: input.user.id, ...(selectedId ? { id: selectedId } : {}) },
+    include: { sender: { select: { name: true } }, part: { select: { id: true, name: true, price: true, stock: true, category: true, brand: true } } },
+    orderBy: { createdAt: 'desc' },
+  })
+  if (!message) return { answer: 'لم أجد رسالة واردة من عميل داخل متجرك حالياً.', cards: [] }
+  const comparisons = await db.part.findMany({
+    where: { id: { not: message.part.id }, blocked: false, category: message.part.category || undefined, ...(message.part.brand ? { brand: message.part.brand } : {}) },
+    select: { price: true }, take: 30,
+  })
+  const prices = comparisons.map((part) => part.price).filter((price) => price > 0).sort((a, b) => a - b)
+  const suggestedPrice = prices.length ? Math.max(1, Math.round(prices[Math.floor(prices.length / 2)])) : undefined
+  const suggestedStock = message.part.stock <= 3 ? Math.max(5, message.part.stock + 5) : undefined
+  const changePrice = suggestedPrice !== undefined && suggestedPrice !== Math.round(message.part.price)
+  const cards: AIToolCard[] = []
+  if (changePrice || suggestedStock !== undefined) {
+    cards.push(await prepareActionProposal({
+      conversationId: input.conversationId,
+      user: input.user,
+      proposal: { action: 'seller_part_update', targetId: message.part.id, ...(changePrice ? { price: suggestedPrice } : {}), ...(suggestedStock !== undefined ? { stock: suggestedStock } : {}) },
+    }))
+  }
+  const compatibilityRequest = /(?:ينفع|يركب|متوافق|موديل|سيارة|عربي|fit|compatible|car|model)/i.test(message.message)
+  const reply = compatibilityRequest
+    ? `أهلاً ${message.sender.name}، شكراً لسؤالك عن ${message.part.name}. السعر الحالي ${message.part.price.toLocaleString('ar-EG')} ج.م والمتاح ${message.part.stock}. للتأكد من التوافق أرسل ماركة السيارة والموديل وسنة الصنع أو رقم الشاسيه/القطعة، وسأراجعها لك قبل الشراء.`
+    : `أهلاً ${message.sender.name}، شكراً لتواصلك بخصوص ${message.part.name}. السعر الحالي ${message.part.price.toLocaleString('ar-EG')} ج.م والمتاح ${message.part.stock}. أخبرني بموديل السيارة وسنة الصنع إن كان سؤالك عن التوافق، وسأساعدك قبل الشراء.`
+  const comparison = suggestedPrice === undefined
+    ? 'لم أجد عروضاً مشابهة كافية، لذلك لم أخترع سعراً بديلاً.'
+    : `وسيط ${prices.length} عرض مشابه هو ${suggestedPrice.toLocaleString('ar-EG')} ج.م، مقابل ${message.part.price.toLocaleString('ar-EG')} ج.م حالياً.`
+  const stock = suggestedStock === undefined ? `المخزون الحالي ${message.part.stock} ولا يحتاج تنبيه نقص آلياً.` : `المخزون منخفض (${message.part.stock})؛ المقترح رفعه إلى ${suggestedStock}.`
+  return {
+    answer: `**أحدث رسالة واردة**\n${message.sender.name} عن ${message.part.name}: «${message.message.slice(0, 500)}»\n\n**مسودة الرد**\n${reply}\n\n**مقارنة السعر**\n${comparison}\n\n**المخزون**\n${stock}\n\n${cards.length ? 'جهزت التغيير المقترح بالأسفل. لن يتغير السعر أو المخزون إلا بعد مراجعتك والضغط على التأكيد.' : 'لا يوجد تغيير موثوق يحتاج تأكيداً حالياً.'}`,
+    cards,
+  }
+}
+
 function directToolInput(toolName: AIToolName | undefined, message: string): Record<string, unknown> | undefined {
   if (['getAccountContext', 'getSellerInsights', 'getAdminInsights'].includes(String(toolName))) return {}
   if (toolName === 'searchMarketplace') return { query: message.slice(0, 120), limit: 6 }
