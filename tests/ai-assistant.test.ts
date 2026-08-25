@@ -73,7 +73,7 @@ test('uses one free model and removes AI image and mode paths', () => {
   const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
   const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
   const imagePolicy = readFileSync(new URL('../src/lib/image-policy.ts', import.meta.url), 'utf8')
-  assert.match(runtime, /poolside\/laguna-s-2\.1:free/)
+  assert.match(runtime, /google\/gemma-4-31b-it:free/)
   for (const removed of ['stealth/ox-alpha', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY', 'ImagePlus', "'ai'"]) {
     assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
   }

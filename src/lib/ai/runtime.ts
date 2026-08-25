@@ -10,7 +10,7 @@ const CONCURRENCY: Record<AIRole, number> = {
   ADMIN: 3,
 }
 
-const AI_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'poolside/laguna-xs-2.1:free'
+const AI_MODEL = 'google/gemma-4-31b-it:free'
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
