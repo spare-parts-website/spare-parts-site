@@ -54,7 +54,7 @@ ${ROLE_GUIDANCE[input.role]}
     // Provider failures are surfaced immediately. Tool-call JSON repair is
     // handled separately by repairToolCall below and must not retry the model.
     maxRetries: 0,
-    providerOptions: { google: { thinkingConfig: { thinkingLevel: input.plan.complexity === 'heavy' ? 'medium' : input.plan.complexity === 'standard' ? 'low' : 'minimal', includeThoughts: false } } },
+    providerOptions: { google: { thinkingConfig: { thinkingLevel: input.plan.complexity === 'heavy' ? 'medium' : 'low', includeThoughts: false } } },
     repairToolCall: async ({ toolCall, error }) => {
       if (NoSuchToolError.isInstance(error) || !(toolCall.toolName in tools)) return null
       const candidate = toolCall.input.match(/\{[\s\S]*\}/)?.[0]?.replace(/,\s*([}\]])/g, '$1')
