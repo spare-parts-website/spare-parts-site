@@ -10,7 +10,7 @@ import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole } from '@/lib/ai/types'
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 export async function POST(request: Request) {
   const requestId = randomUUID(); const startedAt = Date.now(); let lease = ''; let streamOwnsLease = false
