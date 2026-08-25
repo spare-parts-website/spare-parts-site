@@ -59,6 +59,7 @@ test('plans obvious requests with a narrow forced tool', () => {
 
 test('automatically reserves more work only for complex requests', () => {
   assert.equal(planAIRequest('أهلاً', 'GUEST').complexity, 'quick')
+  assert.equal(planAIRequest('hi', 'SHOP_OWNER').intent, 'greeting')
   assert.equal(planAIRequest('قارن بالتفصيل بين كل نتائج قطع الفرامل', 'BUYER').complexity, 'heavy')
   assert.equal(planAIRequest('كم سعر BMW 328i serpentine belt حالياً؟', 'GUEST').liveSearch, true)
 })

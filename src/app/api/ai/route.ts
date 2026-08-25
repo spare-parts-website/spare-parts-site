@@ -50,7 +50,9 @@ export async function POST(request: Request) {
 
     const clientContext = safeClientContext(body.clientContext)
     const directCard = plan.forcedTool === 'getSellerInsights' && user?.role === 'SHOP_OWNER' ? await getSellerInsightsCard(user) : undefined
-    const agent = directCard ? undefined : createGhyarAgent({ role, user, conversationId, clientContext, plan, liveSearchProvided: Boolean(liveSearchCard) })
+    const directAnswer = plan.intent === 'greeting' ? 'أهلاً بيك! أقدر أساعدك في البحث عن قطع الغيار، الأسعار، الطلبات، أو إدارة متجرك.' : undefined
+    const agentInput = { role, user, conversationId, clientContext, plan, liveSearchProvided: Boolean(liveSearchCard) }
+    const agent = directCard || directAnswer ? undefined : createGhyarAgent(agentInput)
     const token = lease
     streamOwnsLease = true
     const encoder = new TextEncoder()
@@ -62,8 +64,8 @@ export async function POST(request: Request) {
         let cards: AIToolCard[] = [...(liveSearchCard ? [liveSearchCard] : []), ...(directCard ? [directCard] : [])]
         try {
           send({ type: 'status', status: plan.complexity === 'heavy' ? 'جاري تحليل الطلب بعناية...' : plan.liveSearch ? 'جاري التحقق من أحدث النتائج...' : 'جاري تنفيذ طلبك...' })
-          if (directCard) {
-            const presented = presentAIResponse('', cards)
+          if (directCard || directAnswer) {
+            const presented = presentAIResponse(directAnswer || '', cards)
             answer = presented.answer
             cards = presented.cards
             if (user && conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { cards } })
@@ -72,13 +74,29 @@ export async function POST(request: Request) {
             return
           }
           if (!agent) throw new Error('AI_UNAVAILABLE')
-          const result = await agent.stream({ messages: modelMessages, timeout: { totalMs: plan.timeoutMs } })
-          for await (const delta of result.textStream) { answer += delta; send({ type: 'text-delta', delta }) }
-          const steps = await result.steps
-          cards = dedupeCards([...cards, ...steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard)])
+          const runAgent = async (currentAgent: ReturnType<typeof createGhyarAgent>, timeoutMs: number) => {
+            let attemptAnswer = ''
+            const result = await currentAgent.stream({ messages: modelMessages, timeout: { totalMs: timeoutMs } })
+            for await (const delta of result.textStream) { attemptAnswer += delta; send({ type: 'text-delta', delta }) }
+            const steps = await result.steps
+            return { answer: attemptAnswer, cards: steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard), sources: await result.sources }
+          }
+          let outcome: Awaited<ReturnType<typeof runAgent>> | undefined
+          let primaryError: unknown
+          try {
+            outcome = await runAgent(agent, Math.min(18_000, plan.timeoutMs))
+          } catch (error) { primaryError = error }
+          if (!outcome?.answer.trim() && !outcome?.cards.length) {
+            console.warn('AI primary unavailable, using free fallback:', { intent: plan.intent, message: primaryError instanceof Error ? primaryError.message : 'empty_response' })
+            const elapsed = Date.now() - startedAt
+            const fallbackAgent = createGhyarAgent({ ...agentInput, fallback: true })
+            outcome = await runAgent(fallbackAgent, Math.max(8_000, plan.timeoutMs - elapsed))
+          }
+          answer = outcome.answer
+          cards = dedupeCards([...cards, ...outcome.cards])
           const fallback = cards.length ? '' : 'تعذر إنشاء إجابة كاملة حالياً. حاول مرة أخرى بعد قليل.'
           const presented = presentAIResponse(answer.trim() || fallback, cards)
-          answer = appendWebSources(presented.answer, await result.sources)
+          answer = appendWebSources(presented.answer, outcome.sources)
           cards = presented.cards
           if (user && conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { cards } })
           send({ type: 'done', conversationId, answer, cards, expiresAt })

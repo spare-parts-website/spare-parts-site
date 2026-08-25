@@ -9,6 +9,7 @@ const ANALYTICS = /(?:تحليل|أداء|إحصائ|مبيعات|مخزون ق�
 const RECORDS = /(?:طلب|طلبات|رسال|كوبون|تقييم|قطعة|مخزون|order|message|coupon|review|listing|stock)/i
 const ADMIN_RECORDS = /(?:مستخدم|متجر|بلاغ|توثيق|نزاع|طلب|قطعة|user|store|report|verification|dispute|order|part)/i
 const DRAFT = /(?:اكتب|جهز|حض[ّ]?ر|صياغة|وصف|رد|مسودة|draft|write|reply|description)/i
+const GREETING = /^(?:hi|hello|hey|أهلا|اهلا|أهلًا|مرحبا|مرحباً|السلام عليكم|صباح الخير|مساء الخير)[!.,،؟?\s]*$/i
 
 export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
   const text = message.replace(/\s+/g, ' ').trim()
@@ -17,7 +18,9 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
   let forcedTool: AIToolName | undefined
   const liveSearch = CURRENT.test(text) && !ACTION.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|my store|my account|my orders|inventory|platform)/i.test(text)
 
-  if (ACTION.test(text)) {
+  if (GREETING.test(text)) {
+    intent = 'greeting'
+  } else if (ACTION.test(text)) {
     intent = 'protected_action'
     tools.add('prepareAction')
     forcedTool = 'prepareAction'
@@ -74,7 +77,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
     forcedTool,
     liveSearch,
     maxSteps: complexity === 'heavy' ? 5 : complexity === 'standard' ? 3 : 1,
-    timeoutMs: complexity === 'heavy' ? 48_000 : 45_000,
+    timeoutMs: complexity === 'heavy' ? 50_000 : complexity === 'standard' ? 45_000 : 35_000,
     maxOutputTokens: complexity === 'heavy' ? 650 : complexity === 'standard' ? 420 : 240,
   }
 }

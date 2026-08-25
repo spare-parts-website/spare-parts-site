@@ -11,12 +11,17 @@ const CONCURRENCY: Record<AIRole, number> = {
 }
 
 const AI_MODEL = process.env.OPENROUTER_MODEL?.trim() || 'poolside/laguna-s-2.1:free'
+const AI_FALLBACK_MODEL = 'nvidia/nemotron-3.5-lightning:free'
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
 
 export function aiModel() {
   return AI_MODEL
+}
+
+export function aiFallbackModel() {
+  return AI_FALLBACK_MODEL
 }
 
 export function aiQuota(role: AIRole) {
