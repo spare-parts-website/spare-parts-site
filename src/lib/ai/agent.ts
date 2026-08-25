@@ -1,6 +1,6 @@
 import { ToolLoopAgent, isStepCount, NoSuchToolError } from 'ai'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
-import { aiFallbackModel, aiModel } from '@/lib/ai/runtime'
+import { aiModel } from '@/lib/ai/runtime'
 import { createAITools } from '@/lib/ai/tools'
 import type { AIClientContext, AIRequestPlan, AIRole } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
@@ -12,14 +12,14 @@ const ROLE_GUIDANCE: Record<AIRole, string> = {
   ADMIN: 'ساعد المدير في الإحصاءات والتشغيل والمراجعة. اعرض بيانات شخصية مخفية فقط ولا تعرض الأدلة أو المستندات الخاصة داخل المحادثة.',
 }
 
-export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; plan: AIRequestPlan; liveSearchProvided?: boolean; fallback?: boolean }) {
+export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; plan: AIRequestPlan; liveSearchProvided?: boolean }) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const openrouter = createOpenRouter({ apiKey })
   const tools = createAITools({ ...input, internetSearchEnabled: !input.liveSearchProvided, allowedTools: input.plan.tools })
   const forcedTool = input.plan.forcedTool && input.plan.forcedTool in tools ? input.plan.forcedTool : undefined
   return new ToolLoopAgent({
-    model: openrouter(input.fallback ? aiFallbackModel() : aiModel()),
+    model: openrouter(aiModel()),
     instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL.
 ${ROLE_GUIDANCE[input.role]}
 المهمة الحالية: ${input.plan.intent}. مستوى التنفيذ الداخلي: ${input.plan.complexity}.

@@ -50,9 +50,8 @@ export async function POST(request: Request) {
 
     const clientContext = safeClientContext(body.clientContext)
     const directCard = plan.forcedTool === 'getSellerInsights' && user?.role === 'SHOP_OWNER' ? await getSellerInsightsCard(user) : undefined
-    const directAnswer = plan.intent === 'greeting' ? 'أهلاً بيك! أقدر أساعدك في البحث عن قطع الغيار، الأسعار، الطلبات، أو إدارة متجرك.' : undefined
     const agentInput = { role, user, conversationId, clientContext, plan, liveSearchProvided: Boolean(liveSearchCard) }
-    const agent = directCard || directAnswer ? undefined : createGhyarAgent(agentInput)
+    const agent = directCard ? undefined : createGhyarAgent(agentInput)
     const token = lease
     streamOwnsLease = true
     const encoder = new TextEncoder()
@@ -64,8 +63,8 @@ export async function POST(request: Request) {
         let cards: AIToolCard[] = [...(liveSearchCard ? [liveSearchCard] : []), ...(directCard ? [directCard] : [])]
         try {
           send({ type: 'status', status: plan.complexity === 'heavy' ? 'جاري تحليل الطلب بعناية...' : plan.liveSearch ? 'جاري التحقق من أحدث النتائج...' : 'جاري تنفيذ طلبك...' })
-          if (directCard || directAnswer) {
-            const presented = presentAIResponse(directAnswer || '', cards)
+          if (directCard) {
+            const presented = presentAIResponse('', cards)
             answer = presented.answer
             cards = presented.cards
             if (user && conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { cards } })
@@ -81,17 +80,8 @@ export async function POST(request: Request) {
             const steps = await result.steps
             return { answer: attemptAnswer, cards: steps.flatMap((step) => step.toolResults.map((toolResult) => toolResult.output)).filter(isToolCard), sources: await result.sources }
           }
-          let outcome: Awaited<ReturnType<typeof runAgent>> | undefined
-          let primaryError: unknown
-          try {
-            outcome = await runAgent(agent, Math.min(18_000, plan.timeoutMs))
-          } catch (error) { primaryError = error }
-          if (!outcome?.answer.trim() && !outcome?.cards.length) {
-            console.warn('AI primary unavailable, using free fallback:', { intent: plan.intent, message: primaryError instanceof Error ? primaryError.message : 'empty_response' })
-            const elapsed = Date.now() - startedAt
-            const fallbackAgent = createGhyarAgent({ ...agentInput, fallback: true })
-            outcome = await runAgent(fallbackAgent, Math.max(8_000, plan.timeoutMs - elapsed))
-          }
+          const outcome = await runAgent(agent, plan.timeoutMs)
+          if (!outcome.answer.trim() && !outcome.cards.length) throw new Error('AI_EMPTY_RESPONSE')
           answer = outcome.answer
           cards = dedupeCards([...cards, ...outcome.cards])
           const fallback = cards.length ? '' : 'تعذر إنشاء إجابة كاملة حالياً. حاول مرة أخرى بعد قليل.'
