@@ -78,9 +78,12 @@ test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
   const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
   const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
   const imagePolicy = readFileSync(new URL('../src/lib/image-policy.ts', import.meta.url), 'utf8')
-  assert.match(runtime, /gemini-2\.5-flash-lite/)
-  assert.match(runtime, /'gateway'[\s\S]*'google'[\s\S]*'openrouter'/)
+  assert.match(runtime, /gemini-3\.5-flash-lite/)
+  assert.match(runtime, /'gateway'[\s\S]*'google'[\s\S]*'openrouter-gemma'[\s\S]*'openrouter'/)
   assert.match(agent, /openrouter\/free/)
+  assert.match(agent, /google\/gemma-4-31b-it:free/)
+  assert.match(agent, /nvidia\/nemotron-3\.5-lightning:free/)
+  assert.match(agent, /poolside\/laguna-xs-2\.1:free/)
   assert.match(agent, /alibaba\/qwen3-vl-instruct/)
   assert.match(route, /EMPTY_AI_RESPONSE/)
   assert.match(route, /part\.type === 'text' && Boolean\(part\.text\.trim\(\)\)/)
@@ -89,9 +92,17 @@ test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
   assert.match(assistant, /PromptInputAttachmentsButton/)
   assert.match(assistant, /isAbort.*isDisconnect.*isError/)
   assert.match(assistant, /current\.filter\(\(item\) => item\.id !== message\.id\)/)
-  for (const removed of ['stealth/ox-alpha', 'google/gemma-4-31b-it:free', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY']) {
+  for (const removed of ['stealth/ox-alpha', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY']) {
     assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
   }
+})
+
+test('plans compound seller message requests with all required tools instead of web search', () => {
+  const plan = planAIRequest('ابحث عن آخر رسالة وصلتني واكتب رداً وقارن السعر واعرض التغيير للتأكيد', 'SHOP_OWNER')
+  assert.equal(plan.intent, 'seller_message_workflow')
+  assert.equal(plan.liveSearch, false)
+  for (const tool of ['resolveSellerRecord', 'getSellerWorkspace', 'prepareDraft', 'suggestSellerPrice', 'prepareAction']) assert.ok(plan.tools.includes(tool as never))
+  assert.equal(plan.complexity, 'heavy')
 })
 
 test('executes safe obvious tools directly without a model', () => {

@@ -73,11 +73,17 @@ function providerModel(provider: AIProviderTarget) {
   }
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
-  return createOpenRouter({ apiKey })('openrouter/free')
+  const models: Partial<Record<AIProviderTarget, string>> = {
+    'openrouter-gemma': 'google/gemma-4-31b-it:free',
+    'openrouter-nemotron': 'nvidia/nemotron-3.5-lightning:free',
+    'openrouter-poolside': 'poolside/laguna-xs-2.1:free',
+    openrouter: 'openrouter/free',
+  }
+  return createOpenRouter({ apiKey })(models[provider] || 'openrouter/free')
 }
 
 function providerOptions(input: { provider: AIProviderTarget; user: SessionUser | null; plan: AIRequestPlan }): ProviderOptions | undefined {
-  if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-2.5-flash', 'alibaba/qwen3-vl-instruct'], user: input.user?.id || 'guest', tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`] } }
+  if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-3-flash', 'alibaba/qwen3-vl-instruct'], user: input.user?.id || 'guest', tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`] } }
   if (input.provider === 'google') return { google: { thinkingConfig: { thinkingBudget: input.plan.complexity === 'heavy' ? 512 : 0, includeThoughts: false } } }
   return undefined
 }

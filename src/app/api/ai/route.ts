@@ -72,13 +72,13 @@ export async function POST(request: Request) {
     const modelMessages = await materializePrivateImages(compactConversationContext(uiMessages), user)
     const hasImage = current.parts.some((part) => part.type === 'file')
     const attempts: AIProviderAttempt[] = []
-    for (const [index, provider] of aiProviderTargets().entries()) {
+    for (const [index, provider] of aiProviderTargets({ hasImage }).entries()) {
       const attemptStarted = Date.now(); let stepCount = 0; let clientStream: ReadableStream<UIMessageChunk> | undefined
       try {
         console.info(JSON.stringify({ event: 'ai.provider.started', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, images: hasImage ? 1 : 0 }))
         const agent = createGhyarAgent({ role, user, conversationId, clientContext, plan, provider })
         const source = await createAgentUIStream({
-          agent, uiMessages: modelMessages, timeout: { totalMs: attemptTimeout(plan.complexity, hasImage) }, sendReasoning: false, sendSources: true,
+          agent, uiMessages: modelMessages, timeout: { totalMs: attemptTimeout(plan.complexity, hasImage, provider) }, sendReasoning: false, sendSources: true,
           messageMetadata: () => ({ conversationId, expiresAt, requestId, provider, fallbackCount: index }),
           onStepEnd: () => { stepCount += 1 },
           onError: (error) => errorMessage(error),
@@ -132,8 +132,15 @@ function safeClientContext(value: unknown): AIClientContext {
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
 type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 'success' | 'failed'; durationMs: number; stepCount: number; error?: string }
-function providerModelName(provider: AIProviderTarget) { return provider === 'openrouter' ? 'openrouter/free' : provider === 'gateway' ? `google/${aiModel()}` : aiModel() }
-function attemptTimeout(complexity: 'quick' | 'standard' | 'heavy', hasImage: boolean) { return hasImage || complexity === 'heavy' ? 20_000 : complexity === 'standard' ? 15_000 : 10_000 }
+function providerModelName(provider: AIProviderTarget) {
+  const openRouterModels: Partial<Record<AIProviderTarget, string>> = { 'openrouter-gemma': 'google/gemma-4-31b-it:free', 'openrouter-nemotron': 'nvidia/nemotron-3.5-lightning:free', 'openrouter-poolside': 'poolside/laguna-xs-2.1:free', openrouter: 'openrouter/free' }
+  return openRouterModels[provider] || (provider === 'gateway' ? `google/${aiModel()}` : aiModel())
+}
+function attemptTimeout(_complexity: 'quick' | 'standard' | 'heavy', hasImage: boolean, provider?: AIProviderTarget) {
+  if (provider === 'gateway') return 6_000
+  if (provider === 'google') return hasImage ? 12_000 : 10_000
+  return hasImage ? 10_000 : 7_000
+}
 function hasUsefulAIOutput(message: GhyarAIMessage) {
   // A tool result alone is not a user-visible answer in every client renderer.
   // Require final visible text so a tool-only completion fails over instead of

@@ -16,10 +16,18 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
   const tools = new Set<AIToolName>()
   let intent = 'conversation'
   let forcedTool: AIToolName | undefined
-  const liveSearch = CURRENT.test(text) && !ACTION.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|my store|my account|my orders|inventory|platform)/i.test(text)
+  const liveSearch = CURRENT.test(text) && !ACTION.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|رسال|عميل|داخل المتجر|my store|my account|my orders|inventory|platform|message|customer)/i.test(text)
   const asksForAnalysis = /(?:حل[ّ]?ل|تحليل|أداء|إحصائ|analytics|analy[sz]e|performance|statistics|insights)/i.test(text)
+  const sellerMessageWorkflow = role === 'SHOP_OWNER' && /(?:رسال|message)/i.test(text) && /(?:رد|reply|answer)/i.test(text)
 
-  if (liveSearch) {
+  if (sellerMessageWorkflow) {
+    intent = 'seller_message_workflow'
+    tools.add('resolveSellerRecord')
+    tools.add('getSellerWorkspace')
+    tools.add('prepareDraft')
+    if (/(?:سعر|price|خصم|discount)/i.test(text)) tools.add('suggestSellerPrice')
+    if (ACTION.test(text) || /(?:تأكيد|confirm)/i.test(text)) tools.add('prepareAction')
+  } else if (liveSearch) {
     intent = 'web_search'
     tools.add('searchInternet')
     forcedTool = 'searchInternet'
@@ -82,7 +90,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
     forcedTool = 'searchMarketplace'
   }
 
-  const heavy = /(?:قارن|حلل بالتفصيل|خطة|كل|شامل|compare|detailed|plan|all|comprehensive)/i.test(text) || text.length > 700
+  const heavy = sellerMessageWorkflow || /(?:قارن|حلل بالتفصيل|خطة|كل|شامل|compare|detailed|plan|all|comprehensive)/i.test(text) || text.length > 700
   const standard = heavy || tools.size > 1 || intent === 'protected_action' || liveSearch
   const complexity = heavy ? 'heavy' : standard ? 'standard' : 'quick'
   return {

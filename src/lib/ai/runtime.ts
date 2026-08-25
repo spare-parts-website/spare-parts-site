@@ -10,8 +10,8 @@ const CONCURRENCY: Record<AIRole, number> = {
   ADMIN: 3,
 }
 
-const AI_MODEL = 'gemini-2.5-flash-lite'
-export type AIProviderTarget = 'gateway' | 'google' | 'openrouter'
+const AI_MODEL = 'gemini-3.5-flash-lite'
+export type AIProviderTarget = 'gateway' | 'google' | 'openrouter-gemma' | 'openrouter-nemotron' | 'openrouter-poolside' | 'openrouter'
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
@@ -20,10 +20,14 @@ export function aiModel() {
   return AI_MODEL
 }
 
-export function aiProviderTargets(): AIProviderTarget[] {
+export function aiProviderTargets(options?: { hasImage?: boolean }): AIProviderTarget[] {
   const targets: AIProviderTarget[] = ['gateway']
   if (process.env.GEMINI_API_KEY) targets.push('google')
-  if (process.env.OPENROUTER_API_KEY) targets.push('openrouter')
+  if (process.env.OPENROUTER_API_KEY) {
+    targets.push('openrouter-gemma')
+    if (!options?.hasImage) targets.push('openrouter-nemotron', 'openrouter-poolside')
+    targets.push('openrouter')
+  }
   return targets
 }
 
