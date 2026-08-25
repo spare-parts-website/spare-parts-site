@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
-import { createAgentUIStreamResponse } from 'ai'
+import { createAgentUIStreamResponse, createUIMessageStream, createUIMessageStreamResponse } from 'ai'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
@@ -9,6 +9,7 @@ import { acquireAIConcurrency, aiModel, aiQuota, releaseAIConcurrency } from '@/
 import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole } from '@/lib/ai/types'
+import { getSellerInsightsCard } from '@/lib/ai/tools'
 
 export const maxDuration = 120
 
@@ -38,6 +39,21 @@ export async function POST(request: Request) {
     } else uiMessages = [...safeGuestHistory(body.messages.slice(0, -1)), current]
 
     const clientContext = safeClientContext(body.clientContext)
+    if (plan.forcedTool === 'getSellerInsights' && user?.role === 'SHOP_OWNER') {
+      const card = await getSellerInsightsCard(user)
+      const answer = cardToDirectAnswer(card)
+      if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { parts: [{ type: 'text', text: answer }] } })
+      console.info(JSON.stringify({ event: 'ai.direct_tool.completed', requestId, role, intent: plan.intent, durationMs: Date.now() - startedAt }))
+      const stream = createUIMessageStream<GhyarAIMessage>({
+        execute: ({ writer }) => {
+          writer.write({ type: 'start', messageMetadata: { conversationId, expiresAt, requestId } })
+          writer.write({ type: 'text-start', id: requestId })
+          writer.write({ type: 'text-delta', id: requestId, delta: answer })
+          writer.write({ type: 'text-end', id: requestId })
+        },
+      })
+      return createUIMessageStreamResponse({ stream })
+    }
     const agent = createGhyarAgent({ role, user, conversationId, clientContext, plan })
     const modelMessages = await materializePrivateImages(compactConversationContext(uiMessages), user)
     const token = lease; let released = false; let stepCount = 0
@@ -90,6 +106,10 @@ function safeClientContext(value: unknown): AIClientContext {
 }
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
+function cardToDirectAnswer(card: { title: string; description?: string; items?: Array<{ title: string; subtitle?: string; value?: string | number }> }) {
+  const items = card.items?.map((item) => `• ${item.title}${item.subtitle ? ` — ${item.subtitle}` : ''}${item.value !== undefined ? ` — ${item.value}` : ''}`).join('\n')
+  return [card.title, card.description, items].filter(Boolean).join('\n')
+}
 function friendlyAIError(error: unknown, requestId: string) {
   const message = errorMessage(error)
   if (/429|rate.?limit|resource.?exhausted/i.test(message)) return `وصل Gemini إلى حد الاستخدام المجاني للمشروع حالياً. حاول بعد قليل. رقم الطلب: ${requestId}`

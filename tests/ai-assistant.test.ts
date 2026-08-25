@@ -53,6 +53,7 @@ test('plans obvious requests with a narrow forced tool', () => {
   assert.deepEqual(planAIRequest('غير سعر قطعة موتور BMW إلى 2500', 'SHOP_OWNER').tools, ['prepareAction'])
   assert.equal(planAIRequest('غير سعر قطعة موتور BMW إلى 2500', 'SHOP_OWNER').forcedTool, 'prepareAction')
   assert.equal(planAIRequest('حلل أداء متجري', 'SHOP_OWNER').forcedTool, 'getSellerInsights')
+  assert.equal(planAIRequest('ايه القطع اللي مخزونها قليل؟', 'SHOP_OWNER').forcedTool, 'getSellerInsights')
   assert.equal(planAIRequest('دور على تيل فرامل تويوتا', 'GUEST').forcedTool, 'searchMarketplace')
   assert.equal(planAIRequest('اعرض إحصائيات المنصة', 'ADMIN').forcedTool, 'getAdminInsights')
   assert.equal(planAIRequest('كم سعر BMW 328i serpentine belt حالياً؟', 'GUEST').forcedTool, 'searchInternet')
