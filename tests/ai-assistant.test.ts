@@ -100,6 +100,8 @@ test('executes safe obvious tools directly without a model', () => {
   for (const name of ['getAccountContext', 'getSellerInsights', 'getAdminInsights', 'searchMarketplace', 'findCompatibleParts', 'getSellerWorkspace']) assert.match(tools, new RegExp(name))
   assert.match(route, /executeDirectAITool/)
   assert.match(route, /ai\.direct_tool\.completed/)
+  assert.match(tools, /buildSellerPerformancePlan/)
+  assert.match(route, /ai\.seller_plan\.completed/)
 })
 
 test('renders normal tool results inside the reply and keeps only important cards', () => {

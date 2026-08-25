@@ -258,6 +258,51 @@ export async function executeDirectAITool(input: { toolName?: AIToolName; role: 
   return result && typeof result === 'object' ? result as AIToolCard : undefined
 }
 
+export async function buildSellerPerformancePlan(input: { user: SessionUser; conversationId: string }): Promise<{ answer: string; cards: AIToolCard[] }> {
+  if (input.user.role !== 'SHOP_OWNER') throw new Error('ACTION_FORBIDDEN')
+  const store = await db.store.findUnique({ where: { ownerId: input.user.id }, select: { id: true, name: true } })
+  if (!store) return { answer: 'لا يوجد متجر مرتبط بهذا الحساب.', cards: [] }
+  const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+  const [parts, orders] = await Promise.all([
+    db.part.findMany({ where: { storeId: store.id, blocked: false }, select: { id: true, name: true, price: true, stock: true, category: true, brand: true } }),
+    db.order.findMany({ where: { storeId: store.id, createdAt: { gte: since }, status: { notIn: ['CANCELLED', 'REJECTED', 'RETURNED'] } }, select: { partId: true, quantity: true, totalPrice: true, paymentStatus: true } }),
+  ])
+  if (!parts.length) return { answer: `تحليل آخر 30 يوماً لمتجر ${store.name}: لا توجد منتجات نشطة لتحليلها حالياً.`, cards: [] }
+  const sales = new Map<string, { quantity: number; revenue: number }>()
+  for (const order of orders) {
+    const current = sales.get(order.partId) || { quantity: 0, revenue: 0 }
+    current.quantity += order.quantity
+    if (order.paymentStatus === 'PAID') current.revenue += order.totalPrice
+    sales.set(order.partId, current)
+  }
+  const ranked = parts.map((part) => ({ ...part, sold: sales.get(part.id)?.quantity || 0, revenue: sales.get(part.id)?.revenue || 0 })).sort((a, b) => a.sold - b.sold || a.stock - b.stock)
+  const weakest = ranked[0]
+  const lowStock = ranked.filter((part) => part.stock <= 3)
+  const comparisons = await db.part.findMany({
+    where: { id: { not: weakest.id }, blocked: false, category: weakest.category || undefined, ...(weakest.brand ? { brand: weakest.brand } : {}) },
+    select: { price: true }, take: 30,
+  })
+  const comparisonPrices = comparisons.map((part) => part.price).filter((price) => price > 0).sort((a, b) => a - b)
+  const median = comparisonPrices.length ? comparisonPrices[Math.floor(comparisonPrices.length / 2)] : undefined
+  const suggestedPrice = median === undefined ? undefined : Math.max(1, Math.round(median))
+  const discountPercent = 10
+  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  const code = `AI10-${Date.now().toString(36).slice(-6).toUpperCase()}`
+  const cards: AIToolCard[] = []
+  if (suggestedPrice !== undefined && suggestedPrice !== Math.round(weakest.price)) {
+    cards.push(await prepareActionProposal({ conversationId: input.conversationId, user: input.user, proposal: { action: 'seller_part_update', targetId: weakest.id, price: suggestedPrice } }))
+  }
+  cards.push(await prepareActionProposal({ conversationId: input.conversationId, user: input.user, proposal: { action: 'seller_coupon_create', code, discountPercent, maxUses: 20, expiresAt: expiresAt.toISOString() } }))
+  const totalRevenue = ranked.reduce((sum, part) => sum + part.revenue, 0)
+  const weakLines = ranked.slice(0, 5).map((part) => `- ${part.name}: بيع ${part.sold}، مخزون ${part.stock}، السعر ${part.price.toLocaleString('ar-EG')} ج.م`).join('\n')
+  const stockLine = lowStock.length ? lowStock.map((part) => `${part.name} (${part.stock})`).join('، ') : 'لا يوجد مخزون عند 3 قطع أو أقل.'
+  const priceLine = suggestedPrice === undefined
+    ? `لم أجد عروضاً مشابهة كافية لـ${weakest.name}، لذلك لم أقترح تغيير سعر غير موثوق.`
+    : `السعر المقترح لـ${weakest.name}: ${suggestedPrice.toLocaleString('ar-EG')} ج.م مقابل ${weakest.price.toLocaleString('ar-EG')} ج.م حالياً، بناءً على وسيط ${comparisonPrices.length} عرض مشابه.`
+  const answer = `**تحليل ${store.name} — آخر 30 يوماً**\n${orders.length} طلبات محتسبة، ومبيعات مدفوعة ${totalRevenue.toLocaleString('ar-EG')} ج.م.\n\n**الأضعف مبيعاً**\n${weakLines}\n\n**المخزون المنخفض**\n${stockLine}\n\n**التسعير**\n${priceLine}\n\n**العرض المقترح**\nكوبون ${code} بخصم ${discountPercent}% لمدة 7 أيام وبحد 20 استخداماً. الكوبون يطبق على المتجر كله لأن نظام الكوبونات الحالي لا يربطه بمنتج واحد. راجع كل اقتراح بالأسفل؛ لم يُنفذ أي تغيير.`
+  return { answer, cards }
+}
+
 function directToolInput(toolName: AIToolName | undefined, message: string): Record<string, unknown> | undefined {
   if (['getAccountContext', 'getSellerInsights', 'getAdminInsights'].includes(String(toolName))) return {}
   if (toolName === 'searchMarketplace') return { query: message.slice(0, 120), limit: 6 }
