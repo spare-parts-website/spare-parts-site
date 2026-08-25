@@ -248,6 +248,27 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
   return Object.fromEntries(Object.entries(tools).filter(([name]) => input.allowedTools!.includes(name as AIToolName))) as ToolSet
 }
 
+export async function executeDirectAITool(input: { toolName?: AIToolName; role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; message: string }): Promise<AIToolCard | undefined> {
+  const toolInput = directToolInput(input.toolName, input.message)
+  if (!input.toolName || !toolInput) return undefined
+  const tools = createAITools({ ...input, allowedTools: [input.toolName] })
+  const selected = tools[input.toolName] as { execute?: (value: Record<string, unknown>, options: { toolCallId: string; messages: []; abortSignal: AbortSignal }) => PromiseLike<unknown> | unknown } | undefined
+  if (!selected?.execute) return undefined
+  const result = await selected.execute(toolInput, { toolCallId: `direct-${input.toolName}`, messages: [], abortSignal: new AbortController().signal })
+  return result && typeof result === 'object' ? result as AIToolCard : undefined
+}
+
+function directToolInput(toolName: AIToolName | undefined, message: string): Record<string, unknown> | undefined {
+  if (['getAccountContext', 'getSellerInsights', 'getAdminInsights'].includes(String(toolName))) return {}
+  if (toolName === 'searchMarketplace') return { query: message.slice(0, 120), limit: 6 }
+  if (toolName === 'findCompatibleParts') return { carDescription: message.slice(0, 160) }
+  if (toolName === 'getSellerWorkspace') {
+    const query = /(?:طلب|order)/i.test(message) ? 'orders' : /(?:كوبون|coupon)/i.test(message) ? 'coupons' : /(?:رسال|message)/i.test(message) ? 'messages' : /(?:تقييم|review)/i.test(message) ? 'reviews' : 'parts'
+    return { query }
+  }
+  return undefined
+}
+
 export async function getSellerInsightsCard(user: SessionUser): Promise<AIToolCard> {
   if (user.role !== 'SHOP_OWNER') throw new Error('ACTION_FORBIDDEN')
   const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true, name: true } })

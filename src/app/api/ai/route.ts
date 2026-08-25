@@ -1,15 +1,15 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
-import { createAgentUIStreamResponse, createUIMessageStream, createUIMessageStreamResponse } from 'ai'
+import { createAgentUIStream, createUIMessageStream, createUIMessageStreamResponse, isToolUIPart, readUIMessageStream, type UIMessageChunk } from 'ai'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
-import { acquireAIConcurrency, aiModel, aiQuota, releaseAIConcurrency } from '@/lib/ai/runtime'
+import { acquireAIConcurrency, aiModel, aiProviderTargets, aiQuota, releaseAIConcurrency, type AIProviderTarget } from '@/lib/ai/runtime'
 import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole } from '@/lib/ai/types'
-import { getSellerInsightsCard } from '@/lib/ai/tools'
+import { executeDirectAITool } from '@/lib/ai/tools'
 
 export const maxDuration = 120
 
@@ -39,11 +39,12 @@ export async function POST(request: Request) {
     } else uiMessages = [...safeGuestHistory(body.messages.slice(0, -1)), current]
 
     const clientContext = safeClientContext(body.clientContext)
-    if (plan.forcedTool === 'getSellerInsights' && user?.role === 'SHOP_OWNER') {
-      const card = await getSellerInsightsCard(user)
+    const directCard = await executeDirectAITool({ toolName: plan.forcedTool, role, user, conversationId, clientContext, message })
+    if (directCard) {
+      const card = directCard
       const answer = cardToDirectAnswer(card)
       if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { parts: [{ type: 'text', text: answer }] } })
-      console.info(JSON.stringify({ event: 'ai.direct_tool.completed', requestId, role, intent: plan.intent, durationMs: Date.now() - startedAt }))
+      console.info(JSON.stringify({ event: 'ai.direct_tool.completed', requestId, role, intent: plan.intent, tool: plan.forcedTool, durationMs: Date.now() - startedAt }))
       const stream = createUIMessageStream<GhyarAIMessage>({
         execute: ({ writer }) => {
           writer.write({ type: 'start', messageMetadata: { conversationId, expiresAt, requestId } })
@@ -54,29 +55,39 @@ export async function POST(request: Request) {
       })
       return createUIMessageStreamResponse({ stream })
     }
-    const agent = createGhyarAgent({ role, user, conversationId, clientContext, plan })
     const modelMessages = await materializePrivateImages(compactConversationContext(uiMessages), user)
-    const token = lease; let released = false; let stepCount = 0
-    const release = async () => { if (!released) { released = true; await releaseAIConcurrency(token) } }
-    streamOwnsLease = true
-    console.info(JSON.stringify({ event: 'ai.request.started', requestId, model: aiModel(), role, intent: plan.intent, complexity: plan.complexity, images: current.parts.filter((part) => part.type === 'file').length }))
-    return await createAgentUIStreamResponse({
-      agent, uiMessages: modelMessages, timeout: { totalMs: plan.timeoutMs }, sendReasoning: false, sendSources: true,
-      messageMetadata: () => ({ conversationId, expiresAt, requestId }),
-      onStepEnd: () => { stepCount += 1 },
-      onEnd: async ({ responseMessage, finishReason, isAborted }) => {
-        try {
-          const answer = textFromMessage(responseMessage)
-          if (!isAborted && conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { parts: responseMessage.parts } })
-          console.info(JSON.stringify({ event: 'ai.request.completed', requestId, model: aiModel(), role, intent: plan.intent, complexity: plan.complexity, finishReason, aborted: isAborted, stepCount, durationMs: Date.now() - startedAt, answerChars: answer.length }))
-        } finally { await release() }
-      },
-      onError: (error) => {
-        console.error(JSON.stringify({ event: 'ai.provider.failed', requestId, model: aiModel(), role, intent: plan.intent, complexity: plan.complexity, stepCount, durationMs: Date.now() - startedAt, error: errorMessage(error) }))
-        void release().catch(() => undefined)
-        return friendlyAIError(error, requestId)
-      },
-    })
+    const hasImage = current.parts.some((part) => part.type === 'file')
+    const attempts: AIProviderAttempt[] = []
+    for (const [index, provider] of aiProviderTargets().entries()) {
+      const attemptStarted = Date.now(); let stepCount = 0; let clientStream: ReadableStream<UIMessageChunk> | undefined
+      try {
+        console.info(JSON.stringify({ event: 'ai.provider.started', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, images: hasImage ? 1 : 0 }))
+        const agent = createGhyarAgent({ role, user, conversationId, clientContext, plan, provider })
+        const source = await createAgentUIStream({
+          agent, uiMessages: modelMessages, timeout: { totalMs: attemptTimeout(plan.complexity, hasImage) }, sendReasoning: false, sendSources: true,
+          messageMetadata: () => ({ conversationId, expiresAt, requestId, provider, fallbackCount: index }),
+          onStepEnd: () => { stepCount += 1 },
+          onError: (error) => errorMessage(error),
+        })
+        const branches = source.tee(); const probe = branches[0]; clientStream = branches[1]
+        let responseMessage: GhyarAIMessage | undefined
+        for await (const snapshot of readUIMessageStream<GhyarAIMessage>({ stream: probe, terminateOnError: true })) responseMessage = snapshot
+        if (!responseMessage || !hasUsefulAIOutput(responseMessage)) throw new Error('EMPTY_AI_RESPONSE')
+        const answer = textFromMessage(responseMessage)
+        if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { parts: responseMessage.parts } })
+        attempts.push({ provider, model: providerModelName(provider), status: 'success', durationMs: Date.now() - attemptStarted, stepCount })
+        console.info(JSON.stringify({ event: 'ai.request.completed', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, fallbackCount: index, stepCount, durationMs: Date.now() - startedAt, answerChars: answer.length }))
+        return createUIMessageStreamResponse({ stream: clientStream })
+      } catch (error) {
+        await clientStream?.cancel().catch(() => undefined)
+        attempts.push({ provider, model: providerModelName(provider), status: 'failed', durationMs: Date.now() - attemptStarted, stepCount, error: safeErrorCategory(error) })
+        console.warn(JSON.stringify({ event: 'ai.provider.failed', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, stepCount, durationMs: Date.now() - attemptStarted, error: safeErrorCategory(error) }))
+      }
+    }
+    const fallback = terminalFallback(message, hasImage, requestId)
+    if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: fallback, metadata: { parts: [{ type: 'text', text: fallback }] } })
+    console.error(JSON.stringify({ event: 'ai.all_providers_failed', requestId, role, intent: plan.intent, complexity: plan.complexity, durationMs: Date.now() - startedAt, attempts }))
+    return textUIResponse(fallback, { conversationId, expiresAt, requestId, provider: 'deterministic', fallbackCount: attempts.length })
   } catch (error) {
     const message = errorMessage(error); console.error(JSON.stringify({ event: 'ai.request.failed', requestId, durationMs: Date.now() - startedAt, error: message }))
     if (message === 'CONVERSATION_NOT_FOUND') return NextResponse.json({ error: 'انتهت المحادثة. ابدأ محادثة جديدة.', requestId }, { status: 410 })
@@ -106,6 +117,32 @@ function safeClientContext(value: unknown): AIClientContext {
 }
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
+type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 'success' | 'failed'; durationMs: number; stepCount: number; error?: string }
+function providerModelName(provider: AIProviderTarget) { return provider === 'openrouter' ? 'openrouter/free' : provider === 'gateway' ? `google/${aiModel()}` : aiModel() }
+function attemptTimeout(complexity: 'quick' | 'standard' | 'heavy', hasImage: boolean) { return hasImage || complexity === 'heavy' ? 20_000 : complexity === 'standard' ? 15_000 : 10_000 }
+function hasUsefulAIOutput(message: GhyarAIMessage) {
+  return message.parts.some((part) => part.type === 'text' ? Boolean(part.text.trim()) : isToolUIPart(part) && (part.state === 'output-available' || part.state === 'output-error'))
+}
+function safeErrorCategory(error: unknown) {
+  const message = errorMessage(error)
+  if (/402|payment|required|credit/i.test(message)) return 'credits_exhausted'
+  if (/429|rate.?limit|resource.?exhausted/i.test(message)) return 'rate_limited'
+  if (/timeout|timed out|abort/i.test(message)) return 'timeout'
+  if (/empty_ai_response/i.test(message)) return 'empty'
+  if (/tool|schema|json/i.test(message)) return 'invalid_tool_output'
+  if (/5\d\d|unavailable|high demand/i.test(message)) return 'provider_unavailable'
+  return 'provider_error'
+}
+function terminalFallback(message: string, hasImage: boolean, requestId: string) {
+  const english = /[A-Za-z]/.test(message) && !/[\u0600-\u06FF]/.test(message)
+  if (english) return hasImage ? `I couldn't safely analyze this image because all free AI services are busy right now. Your image was not guessed or misidentified. Please retry shortly. Request: ${requestId}` : `All free AI services are busy right now. Your request was kept intact; please retry shortly. Request: ${requestId}`
+  return hasImage ? `تعذر تحليل الصورة بأمان لأن كل خدمات الذكاء الاصطناعي المجانية مشغولة حالياً. لم أخمّن محتوى الصورة أو أحددها بشكل خاطئ. أعد المحاولة بعد قليل. رقم الطلب: ${requestId}` : `كل خدمات الذكاء الاصطناعي المجانية مشغولة حالياً. احتفظنا بطلبك دون اختلاق إجابة؛ أعد المحاولة بعد قليل. رقم الطلب: ${requestId}`
+}
+function textUIResponse(text: string, metadata: GhyarAIMessage['metadata']) {
+  const id = randomUUID()
+  const stream = createUIMessageStream<GhyarAIMessage>({ execute: ({ writer }) => { writer.write({ type: 'start', messageMetadata: metadata }); writer.write({ type: 'text-start', id }); writer.write({ type: 'text-delta', id, delta: text }); writer.write({ type: 'text-end', id }) } })
+  return createUIMessageStreamResponse({ stream })
+}
 function cardToDirectAnswer(card: { title: string; description?: string; items?: Array<{ title: string; subtitle?: string; value?: string | number }> }) {
   const items = card.items?.map((item) => `• ${item.title}${item.subtitle ? ` — ${item.subtitle}` : ''}${item.value !== undefined ? ` — ${item.value}` : ''}`).join('\n')
   return [card.title, card.description, items].filter(Boolean).join('\n')

@@ -1,6 +1,8 @@
-import { ToolLoopAgent, isStepCount, NoSuchToolError } from 'ai'
+import { ToolLoopAgent, gateway, isStepCount, NoSuchToolError } from 'ai'
 import { createGoogle } from '@ai-sdk/google'
-import { aiModel } from '@/lib/ai/runtime'
+import { createOpenRouter } from '@openrouter/ai-sdk-provider'
+import type { ProviderOptions } from '@ai-sdk/provider-utils'
+import { aiModel, type AIProviderTarget } from '@/lib/ai/runtime'
 import { createAITools } from '@/lib/ai/tools'
 import type { AIClientContext, AIRequestPlan, AIRole } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
@@ -12,15 +14,12 @@ const ROLE_GUIDANCE: Record<AIRole, string> = {
   ADMIN: 'ساعد المدير في الإحصاءات والتشغيل والمراجعة. اعرض بيانات شخصية مخفية فقط ولا تعرض الأدلة أو المستندات الخاصة داخل المحادثة.',
 }
 
-export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; plan: AIRequestPlan; liveSearchProvided?: boolean }) {
-  const apiKey = process.env.GEMINI_API_KEY
-  if (!apiKey) throw new Error('AI_UNAVAILABLE')
-  const google = createGoogle({ apiKey })
+export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; plan: AIRequestPlan; liveSearchProvided?: boolean; provider: AIProviderTarget }) {
   const tools = createAITools({ ...input, internetSearchEnabled: !input.liveSearchProvided, allowedTools: input.plan.tools })
   const forcedTool = input.plan.forcedTool && input.plan.forcedTool in tools ? input.plan.forcedTool : undefined
   return new ToolLoopAgent({
-    model: google(aiModel()),
-    instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL. الموديل الوحيد المستخدم هو Google Gemini 3.7 Flash عبر Gemini API.
+    model: providerModel(input.provider),
+    instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL.
 ${ROLE_GUIDANCE[input.role]}
 المهمة الحالية: ${input.plan.intent}. مستوى التنفيذ الداخلي: ${input.plan.complexity}.
 القواعد الإلزامية:
@@ -54,7 +53,7 @@ ${ROLE_GUIDANCE[input.role]}
     // Provider failures are surfaced immediately. Tool-call JSON repair is
     // handled separately by repairToolCall below and must not retry the model.
     maxRetries: 0,
-    providerOptions: { google: { thinkingConfig: { thinkingLevel: input.plan.complexity === 'heavy' ? 'medium' : 'low', includeThoughts: false } } },
+    providerOptions: providerOptions(input),
     repairToolCall: async ({ toolCall, error }) => {
       if (NoSuchToolError.isInstance(error) || !(toolCall.toolName in tools)) return null
       const candidate = toolCall.input.match(/\{[\s\S]*\}/)?.[0]?.replace(/,\s*([}\]])/g, '$1')
@@ -63,4 +62,22 @@ ${ROLE_GUIDANCE[input.role]}
       return { ...toolCall, input: candidate }
     },
   })
+}
+
+function providerModel(provider: AIProviderTarget) {
+  if (provider === 'gateway') return gateway(`google/${aiModel()}`)
+  if (provider === 'google') {
+    const apiKey = process.env.GEMINI_API_KEY
+    if (!apiKey) throw new Error('AI_UNAVAILABLE')
+    return createGoogle({ apiKey })(aiModel())
+  }
+  const apiKey = process.env.OPENROUTER_API_KEY
+  if (!apiKey) throw new Error('AI_UNAVAILABLE')
+  return createOpenRouter({ apiKey })('openrouter/free')
+}
+
+function providerOptions(input: { provider: AIProviderTarget; user: SessionUser | null; plan: AIRequestPlan }): ProviderOptions | undefined {
+  if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-2.5-flash', 'alibaba/qwen3-vl-instruct'], user: input.user?.id || 'guest', tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`] } }
+  if (input.provider === 'google') return { google: { thinkingConfig: { thinkingBudget: input.plan.complexity === 'heavy' ? 512 : 0, includeThoughts: false } } }
+  return undefined
 }

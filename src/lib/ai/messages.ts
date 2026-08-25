@@ -11,6 +11,8 @@ export type AIMessageMetadata = {
   expiresAt?: string
   requestId?: string
   progress?: string
+  provider?: string
+  fallbackCount?: number
 }
 
 export type GhyarAIMessage = UIMessage<AIMessageMetadata>

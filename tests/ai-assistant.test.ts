@@ -71,17 +71,32 @@ test('cleans conversational filler from current web searches', () => {
   assert.equal(cleanWebSearchQuery('What is the current price in Egypt for a BMW 328i serpentine belt? Search the internet and show me the sources'), 'BMW 328i serpentine belt price Egypt EGP')
 })
 
-test('uses one free Gemini model, enables images, and removes legacy mode paths', () => {
+test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
   const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
+  const agent = readFileSync(new URL('../src/lib/ai/agent.ts', import.meta.url), 'utf8')
+  const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
   const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
   const imagePolicy = readFileSync(new URL('../src/lib/image-policy.ts', import.meta.url), 'utf8')
-  assert.match(runtime, /gemini-3\.7-flash/)
+  assert.match(runtime, /gemini-2\.5-flash-lite/)
+  assert.match(runtime, /'gateway'[\s\S]*'google'[\s\S]*'openrouter'/)
+  assert.match(agent, /openrouter\/free/)
+  assert.match(agent, /alibaba\/qwen3-vl-instruct/)
+  assert.match(route, /EMPTY_AI_RESPONSE/)
+  assert.match(route, /terminalFallback/)
   assert.match(assistant, /PromptInputAttachmentsButton/)
   assert.match(assistant, /isAbort.*isDisconnect.*isError/)
   assert.match(assistant, /current\.filter\(\(item\) => item\.id !== message\.id\)/)
   for (const removed of ['stealth/ox-alpha', 'google/gemma-4-31b-it:free', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY']) {
     assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
   }
+})
+
+test('executes safe obvious tools directly without a model', () => {
+  const tools = readFileSync(new URL('../src/lib/ai/tools.ts', import.meta.url), 'utf8')
+  const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
+  for (const name of ['getAccountContext', 'getSellerInsights', 'getAdminInsights', 'searchMarketplace', 'findCompatibleParts', 'getSellerWorkspace']) assert.match(tools, new RegExp(name))
+  assert.match(route, /executeDirectAITool/)
+  assert.match(route, /ai\.direct_tool\.completed/)
 })
 
 test('renders normal tool results inside the reply and keeps only important cards', () => {
