@@ -77,6 +77,8 @@ test('uses one free Gemini model, enables images, and removes legacy mode paths'
   const imagePolicy = readFileSync(new URL('../src/lib/image-policy.ts', import.meta.url), 'utf8')
   assert.match(runtime, /gemini-3\.7-flash/)
   assert.match(assistant, /PromptInputAttachmentsButton/)
+  assert.match(assistant, /isAbort.*isDisconnect.*isError/)
+  assert.match(assistant, /current\.filter\(\(item\) => item\.id !== message\.id\)/)
   for (const removed of ['stealth/ox-alpha', 'google/gemma-4-31b-it:free', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY']) {
     assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
   }

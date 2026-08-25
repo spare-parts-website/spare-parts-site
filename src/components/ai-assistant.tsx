@@ -32,7 +32,7 @@ const PROMPTS: Record<AuthUser['role'] | 'GUEST', string[]> = {
 
 export function AIAssistant({ user }: { user: AuthUser | null }) {
   const router = useRouter(); const addToCart = useAppStore((state) => state.addToCart); const setFavoriteStores = useAppStore((state) => state.setFavoriteStores)
-  const role = user?.role || 'GUEST'; const conversationRef = useRef<string | undefined>(undefined); const selectionRef = useRef<AISelectedEntity | undefined>(undefined); const handledActions = useRef(new Set<string>())
+  const role = user?.role || 'GUEST'; const conversationRef = useRef<string | undefined>(undefined); const selectionRef = useRef<AISelectedEntity | undefined>(undefined); const handledActions = useRef(new Set<string>()); const manualStopRef = useRef(false)
   const [open, setOpen] = useState(false); const [input, setInput] = useState(''); const [conversationId, setConversationId] = useState<string>(); const [expiresAt, setExpiresAt] = useState<string>()
   const [conversations, setConversations] = useState<SavedConversation[]>([]); const [showHistory, setShowHistory] = useState(false); const [attachments, setAttachments] = useState<PromptAttachment[]>([]); const [uploading, setUploading] = useState(false)
   const [localError, setLocalError] = useState(''); const [pendingProposal, setPendingProposal] = useState<AIToolCard['proposal']>(); const [proposalBusy, setProposalBusy] = useState(false)
@@ -48,11 +48,19 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
 
   const { messages, setMessages, sendMessage, regenerate, stop, status, error, clearError } = useChat<GhyarAIMessage>({
     transport,
-    onFinish: ({ message }) => {
+    onFinish: ({ message, isAbort, isDisconnect, isError }) => {
       if (message.metadata?.conversationId) { setConversationId(message.metadata.conversationId); setExpiresAt(message.metadata.expiresAt) }
+      const empty = !message.parts.some((part) => part.type === 'text' ? Boolean(part.text.trim()) : part.type === 'source-url' || isToolUIPart(part))
+      if (empty || isAbort || isDisconnect || isError) {
+        queueMicrotask(() => setMessages((current) => current.filter((item) => item.id !== message.id)))
+        if (!manualStopRef.current) setLocalError(isDisconnect ? 'انقطع الاتصال قبل وصول الرد. أعد المحاولة.' : 'لم يصل رد من Gemini بسبب الضغط الحالي على الخدمة. أعد المحاولة بعد قليل.')
+        manualStopRef.current = false
+        return
+      }
       applyToolClientActions(message)
       if (user) void loadConversations()
     },
+    onError: (cause) => setLocalError(normalizeChatError(cause.message) || 'تعذر استلام رد Gemini. أعد المحاولة.'),
   })
   const busy = status === 'submitted' || status === 'streaming'
 
@@ -139,7 +147,8 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
     finally { setProposalBusy(false); setPendingProposal(undefined) }
   }
 
-  function newChat() { stop(); setConversationId(undefined); setExpiresAt(undefined); setMessages([]); setShowHistory(false); setLocalError(''); clearError(); clearAttachmentState(); if (!user) window.sessionStorage.removeItem(GUEST_KEY) }
+  function stopChat() { manualStopRef.current = true; stop() }
+  function newChat() { stopChat(); setConversationId(undefined); setExpiresAt(undefined); setMessages([]); setShowHistory(false); setLocalError(''); clearError(); clearAttachmentState(); if (!user) window.sessionStorage.removeItem(GUEST_KEY) }
   function selectConversation(conversation: SavedConversation) { setConversationId(conversation.id); setExpiresAt(conversation.expiresAt); setMessages(conversation.messages); setShowHistory(false); setLocalError(''); clearError() }
   async function deleteConversation(id: string) { const response = await fetch(`/api/ai/conversations?id=${encodeURIComponent(id)}`, { method: 'DELETE' }); if (response.ok) { if (conversationId === id) newChat(); setConversations((current) => current.filter((item) => item.id !== id)) } }
 
@@ -150,7 +159,7 @@ export function AIAssistant({ user }: { user: AuthUser | null }) {
     <SheetContent side="left" dir="rtl" showClose={false} className="flex h-[100dvh] !w-[100dvw] !max-w-[100dvw] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:!max-w-none lg:!w-[min(560px,100vw)] lg:!max-w-[560px]">
       <SheetHeader className="shrink-0 border-b bg-primary/5 px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><SheetTitle className="flex items-center gap-2 text-lg"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span><span className="truncate">مساعد غيار ماركت</span></SheetTitle><SheetDescription className="mt-1">{roleLabel(role)}</SheetDescription></div><div className="flex shrink-0 gap-1"><Button size="icon" variant="ghost" onClick={newChat} title="محادثة جديدة"><MessageCirclePlus className="size-4" /></Button>{user && <Button size="icon" variant="ghost" onClick={() => setShowHistory((value) => !value)} title="السجل"><History className="size-4" /></Button>}<SheetClose asChild><Button size="icon" variant="ghost" aria-label="إغلاق"><X className="size-4" /></Button></SheetClose></div></div><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Clock3 className="size-3" />{expiryLabel}</p></SheetHeader>
       {showHistory && user ? <HistoryPanel conversations={conversations} onSelect={selectConversation} onDelete={deleteConversation} /> : <Conversation className="min-w-0"><ConversationContent className="min-w-0 max-w-full overflow-x-hidden"><Welcome visible={!messages.length} role={role} onPrompt={(prompt) => void submit(prompt)} />{messages.map((message) => <MessageView key={message.id} message={message} onProposal={setPendingProposal} onSelect={(selection) => void submit(`اخترت ${selection.label}. أكمل نفس الطلب السابق.`, selection)} />)}{busy && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />{uploading ? 'جاري تجهيز الصورة بأمان...' : status === 'submitted' ? 'جاري إرسال الطلب إلى Gemini...' : 'Gemini يكتب الرد...'}</div>}{shownError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><b>تعذر إكمال الطلب</b><p className="mt-1 break-words">{shownError}</p><Button type="button" size="sm" variant="outline" className="mt-3" disabled={busy} onClick={() => { setLocalError(''); clearError(); void regenerate() }}>إعادة المحاولة</Button></div>}</ConversationContent><ConversationScrollButton /></Conversation>}
-      <div className="shrink-0 border-t bg-background p-3"><p className="mb-2 text-[11px] text-muted-foreground">اقتراحات الذكاء الاصطناعي تحتاج مراجعتك. أي تغيير حقيقي يتطلب تأكيداً.</p>{attachments.length > 0 && <Attachments className="mb-2">{attachments.map((item) => <Attachment key={item.id} data={item as AttachmentData} onRemove={clearAttachmentState} />)}</Attachments>}<PromptInput onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void submit() }}><PromptInputTextarea value={input} onChange={(event) => setInput(event.target.value)} maxLength={4000} placeholder="اكتب طلبك هنا..." onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} /><PromptInputFooter><PromptInputAttachmentsButton accept={IMAGE_UPLOAD_ACCEPT} disabled={busy || attachments.length > 0} onFiles={addAttachments} /><PromptInputSubmit status={status} disabled={uploading || (!busy && !input.trim() && !attachments.length)} onStop={stop} /></PromptInputFooter></PromptInput></div>
+      <div className="shrink-0 border-t bg-background p-3"><p className="mb-2 text-[11px] text-muted-foreground">اقتراحات الذكاء الاصطناعي تحتاج مراجعتك. أي تغيير حقيقي يتطلب تأكيداً.</p>{attachments.length > 0 && <Attachments className="mb-2">{attachments.map((item) => <Attachment key={item.id} data={item as AttachmentData} onRemove={clearAttachmentState} />)}</Attachments>}<PromptInput onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void submit() }}><PromptInputTextarea value={input} onChange={(event) => setInput(event.target.value)} maxLength={4000} placeholder="اكتب طلبك هنا..." onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} /><PromptInputFooter><PromptInputAttachmentsButton accept={IMAGE_UPLOAD_ACCEPT} disabled={busy || attachments.length > 0} onFiles={addAttachments} /><PromptInputSubmit status={status} disabled={uploading || (!busy && !input.trim() && !attachments.length)} onStop={stopChat} /></PromptInputFooter></PromptInput></div>
     </SheetContent>
     <AlertDialog open={!!pendingProposal} onOpenChange={(value) => { if (!value && !proposalBusy) setPendingProposal(undefined) }}><AlertDialogContent dir="rtl"><AlertDialogHeader><AlertDialogTitle className="flex items-center gap-2 text-destructive"><AlertTriangle className="size-5" />تأكيد تغيير حقيقي</AlertDialogTitle><AlertDialogDescription className="leading-7">{pendingProposal?.summary}<br />سيعيد الخادم فحص صلاحيتك وملكية البيانات وحالتها الحالية قبل التنفيذ.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={proposalBusy} onClick={() => void decideProposal(false)}>رفض</AlertDialogCancel><AlertDialogAction disabled={proposalBusy} onClick={(event) => { event.preventDefault(); void decideProposal(true) }}>{proposalBusy ? 'جاري التحقق...' : 'تأكيد التنفيذ'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </Sheet>
