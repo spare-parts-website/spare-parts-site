@@ -92,7 +92,8 @@ function safeClientContext(value: unknown): AIClientContext {
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
 function friendlyAIError(error: unknown, requestId: string) {
   const message = errorMessage(error)
-  if (/429|rate.?limit/i.test(message)) return `موديل Gemma المجاني وصل لحد الاستخدام لدى المزود حالياً. حاول بعد قليل. رقم الطلب: ${requestId}`
-  if (/timeout|timed out|abort/i.test(message)) return `استغرق Gemma وقتاً أطول من الحد المتاح. اختصر الطلب أو حاول مرة أخرى. رقم الطلب: ${requestId}`
-  return `تعذر على Gemma إكمال الطلب حالياً، ولم يتم استخدام موديل بديل. رقم الطلب: ${requestId}`
+  if (/429|rate.?limit|resource.?exhausted/i.test(message)) return `وصل Gemini إلى حد الاستخدام المجاني للمشروع حالياً. حاول بعد قليل. رقم الطلب: ${requestId}`
+  if (/timeout|timed out|abort/i.test(message)) return `استغرق Gemini وقتاً أطول من الحد المتاح. اختصر الطلب أو حاول مرة أخرى. رقم الطلب: ${requestId}`
+  if (message === 'AI_UNAVAILABLE') return `مفتاح Gemini غير مضاف إلى الخادم بعد. رقم الطلب: ${requestId}`
+  return `تعذر على Gemini إكمال الطلب حالياً، ولم يتم استخدام موديل بديل. رقم الطلب: ${requestId}`
 }

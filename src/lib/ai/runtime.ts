@@ -10,7 +10,7 @@ const CONCURRENCY: Record<AIRole, number> = {
   ADMIN: 3,
 }
 
-const AI_MODEL = 'google/gemma-4-31b-it:free'
+const AI_MODEL = 'gemini-3.7-flash'
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000

@@ -1,5 +1,5 @@
 import { ToolLoopAgent, isStepCount, NoSuchToolError } from 'ai'
-import { createOpenRouter } from '@openrouter/ai-sdk-provider'
+import { createGoogle } from '@ai-sdk/google'
 import { aiModel } from '@/lib/ai/runtime'
 import { createAITools } from '@/lib/ai/tools'
 import type { AIClientContext, AIRequestPlan, AIRole } from '@/lib/ai/types'
@@ -13,14 +13,14 @@ const ROLE_GUIDANCE: Record<AIRole, string> = {
 }
 
 export function createGhyarAgent(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; plan: AIRequestPlan; liveSearchProvided?: boolean }) {
-  const apiKey = process.env.OPENROUTER_API_KEY
+  const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
-  const openrouter = createOpenRouter({ apiKey })
+  const google = createGoogle({ apiKey })
   const tools = createAITools({ ...input, internetSearchEnabled: !input.liveSearchProvided, allowedTools: input.plan.tools })
   const forcedTool = input.plan.forcedTool && input.plan.forcedTool in tools ? input.plan.forcedTool : undefined
   return new ToolLoopAgent({
-    model: openrouter(aiModel()),
-    instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL. الموديل الوحيد المستخدم هو Gemma 4 31B المجاني.
+    model: google(aiModel()),
+    instructions: `أنت مساعد غيار ماركت الذكي داخل سوق قطع غيار مصري بواجهة عربية RTL. الموديل الوحيد المستخدم هو Google Gemini 3.7 Flash عبر Gemini API.
 ${ROLE_GUIDANCE[input.role]}
 المهمة الحالية: ${input.plan.intent}. مستوى التنفيذ الداخلي: ${input.plan.complexity}.
 القواعد الإلزامية:
@@ -54,7 +54,7 @@ ${ROLE_GUIDANCE[input.role]}
     // Provider failures are surfaced immediately. Tool-call JSON repair is
     // handled separately by repairToolCall below and must not retry the model.
     maxRetries: 0,
-    providerOptions: { openrouter: { reasoning: { effort: input.plan.complexity === 'heavy' ? 'medium' : input.plan.complexity === 'standard' ? 'low' : 'none', exclude: true } } },
+    providerOptions: { google: { thinkingConfig: { thinkingLevel: input.plan.complexity === 'heavy' ? 'medium' : input.plan.complexity === 'standard' ? 'low' : 'minimal', includeThoughts: false } } },
     repairToolCall: async ({ toolCall, error }) => {
       if (NoSuchToolError.isInstance(error) || !(toolCall.toolName in tools)) return null
       const candidate = toolCall.input.match(/\{[\s\S]*\}/)?.[0]?.replace(/,\s*([}\]])/g, '$1')
