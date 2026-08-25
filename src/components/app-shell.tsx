@@ -3,8 +3,8 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import dynamic from 'next/dynamic'
 import { LockKeyhole, ShieldX } from 'lucide-react'
+import { AIAssistant } from '@/components/ai-assistant'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { CartDrawer } from '@/components/cart-drawer'
@@ -12,8 +12,6 @@ import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { setAppNavigator, useAppStore, type AuthUser, type CartItem, type View } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { PwaInstaller } from '@/components/pwa-installer'
-
-const AIAssistant = dynamic(() => import('@/components/ai-assistant').then((module) => module.AIAssistant), { ssr: false })
 
 const CART_STORAGE_KEY = 'ghyar-market-cart-v1'
 const CART_UPDATED_KEY = 'ghyar-market-cart-updated-v1'
