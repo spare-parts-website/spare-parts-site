@@ -130,7 +130,7 @@ function safeClientContext(value: unknown): AIClientContext {
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
 type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 'success' | 'failed'; durationMs: number; stepCount: number; error?: string }
 function providerModelName(provider: AIProviderTarget) {
-  const openRouterModels: Partial<Record<AIProviderTarget, string>> = { 'openrouter-text-pool': 'openrouter/free-tool-pool', 'openrouter-vision-pool': 'openrouter/free-vision-pool', openrouter: 'openrouter/free' }
+  const openRouterModels: Partial<Record<AIProviderTarget, string>> = { 'openrouter-text-pool-a': 'openrouter/free-tool-pool-a', 'openrouter-text-pool-b': 'openrouter/free-tool-pool-b', 'openrouter-vision-pool': 'openrouter/free-vision-pool', openrouter: 'openrouter/free' }
   return openRouterModels[provider] || (provider === 'gateway' ? `google/${aiModel()}` : aiModel())
 }
 function attemptTimeout(_complexity: 'quick' | 'standard' | 'heavy', hasImage: boolean, provider?: AIProviderTarget) {

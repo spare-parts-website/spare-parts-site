@@ -74,7 +74,8 @@ function providerModel(provider: AIProviderTarget) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const models: Partial<Record<AIProviderTarget, string>> = {
-    'openrouter-text-pool': 'inclusionai/ling-3.0-flash-fin:free',
+    'openrouter-text-pool-a': 'inclusionai/ling-3.0-flash-fin:free',
+    'openrouter-text-pool-b': 'nvidia/nemotron-3.5-lightning:free',
     'openrouter-vision-pool': 'minimax/minimax-m3:free',
     openrouter: 'openrouter/free',
   }
@@ -83,16 +84,23 @@ function providerModel(provider: AIProviderTarget) {
 
 function providerOptions(input: { provider: AIProviderTarget; user: SessionUser | null; plan: AIRequestPlan }): ProviderOptions | undefined {
   if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-3-flash', 'alibaba/qwen3-vl-instruct'], user: input.user?.id || 'guest', tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`] } }
-  // Gemini 2.5 Flash-Lite already chooses a compatible thinking budget. The
-  // former explicit zero-budget payload was rejected by the direct API.
+  // Let the current Gemini model choose a compatible thinking configuration.
+  // The former explicit zero-budget payload was rejected by the direct API.
   if (input.provider === 'google') return undefined
-  if (input.provider === 'openrouter-text-pool') return {
+  if (input.provider === 'openrouter-text-pool-a') return {
     openrouter: {
       models: [
         'google/gemma-4-26b-a4b-it:free',
         'z-ai/glm-5.2:free',
         'minimax/minimax-m3:free',
-        'nvidia/nemotron-3.5-lightning:free',
+      ],
+      user: input.user?.id || 'guest',
+      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput' },
+    },
+  }
+  if (input.provider === 'openrouter-text-pool-b') return {
+    openrouter: {
+      models: [
         'poolside/laguna-s-2.1:free',
         'poolside/laguna-xs-2.1:free',
         'google/gemma-4-31b-it:free',
