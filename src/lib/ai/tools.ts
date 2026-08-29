@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { isBlockedStoreName } from '@/lib/store-moderation'
 import { prepareActionProposal } from '@/lib/ai/actions'
 import { planDeterministicRequest } from '@/lib/ai/deterministic'
+import { presentSellerInventory } from '@/lib/ai/deterministic-presenters'
 import { presentAIResponse } from '@/lib/ai/presentation'
 import { resolutionCard, resolveAdminEntity, resolveCar, resolveOrder, resolvePart, resolveSellerCoupon, resolveSellerMessage, resolveStore } from '@/lib/ai/resolver'
 import { AI_ACTIONS, type AIClientContext, type AIRole, type AIToolCard, type AIToolName } from '@/lib/ai/types'
@@ -57,20 +58,21 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
       description: 'ابحث في قطع الغيار والمتاجر العامة. استخدمها قبل اقتراح منتجات أو متاجر.',
       inputSchema: z.object({ query: z.string().min(1).max(120), limit: z.number().int().min(1).max(10).default(6) }),
       execute: async ({ query, limit }): Promise<AIToolCard> => {
-        const terms = [...new Set(query.split(/\s+/).map((term) => term.trim()).filter((term) => term.length >= 2))].slice(0, 6)
+        const terms: string[] = [...new Set<string>(query.split(/\s+/).map((term: string) => term.trim()).filter((term: string) => term.length >= 2))].slice(0, 6)
         const partSearch = (terms.length ? terms : [query]).flatMap((term) => [{ name: { contains: term } }, { description: { contains: term } }, { brand: { contains: term } }, { partNumber: { contains: term } }, { oemNumber: { contains: term } }, { searchAliases: { contains: term } }, { compatibilities: { some: { OR: [{ make: { contains: term } }, { model: { contains: term } }] } } }])
         const storeSearch = (terms.length ? terms : [query]).flatMap((term) => [{ name: { contains: term } }, { description: { contains: term } }])
         const [parts, stores] = await Promise.all([
           db.part.findMany({
             where: { blocked: false, OR: partSearch },
-            select: { id: true, name: true, price: true, stock: true, brand: true, store: { select: { name: true } } },
+            select: { id: true, name: true, price: true, stock: true, brand: true, description: true, partNumber: true, oemNumber: true, searchAliases: true, store: { select: { name: true } } },
             take: limit,
             orderBy: { createdAt: 'desc' },
           }),
-          db.store.findMany({ where: { OR: storeSearch }, select: { id: true, name: true, verified: true }, take: Math.min(4, limit) }),
+          db.store.findMany({ where: { OR: storeSearch }, select: { id: true, name: true, description: true, verified: true }, take: Math.min(4, limit) }),
         ])
-        const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name))
-        const visibleStores = stores.filter((store) => !isBlockedStoreName(store.name))
+        const relevance = (value: string) => terms.reduce((score, term) => score + (value.toLocaleLowerCase().includes(term.toLocaleLowerCase()) ? 1 : 0), 0)
+        const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name)).sort((a, b) => relevance([b.name, b.brand, b.description, b.partNumber, b.oemNumber, b.searchAliases].filter(Boolean).join(' ')) - relevance([a.name, a.brand, a.description, a.partNumber, a.oemNumber, a.searchAliases].filter(Boolean).join(' ')))
+        const visibleStores = stores.filter((store) => !isBlockedStoreName(store.name)).sort((a, b) => relevance(`${b.name} ${b.description || ''}`) - relevance(`${a.name} ${a.description || ''}`))
         const prices = visibleParts.map((part) => part.price)
         const priceSummary = prices.length ? ` • الأسعار من ${Math.min(...prices).toLocaleString('ar-EG')} إلى ${Math.max(...prices).toLocaleString('ar-EG')} ج.م` : ''
         return {
@@ -104,21 +106,29 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
   }
 
   const buyerTools = input.user && input.user.role !== 'ADMIN' ? {
-    getAccountContext: tool({
-      description: 'اعرض ملخص حساب المشتري الحالي: السيارات والمفضلة والطلبات الأخيرة فقط.',
-      inputSchema: z.object({}),
-      execute: async (): Promise<AIToolCard> => {
+    getAccountContext: tool<{ focus: 'overview' | 'orders' | 'cart' | 'cars' | 'favorites'; orderStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED' }, AIToolCard, Record<string, never>>({
+      description: 'اعرض الجزء المطلوب فقط من حساب المشتري: ملخص أو سيارات أو متاجر مفضلة أو طلبات أو سلة.',
+      inputSchema: z.object({ focus: z.enum(['overview', 'orders', 'cart', 'cars', 'favorites']).default('overview'), orderStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']).optional() }),
+      execute: async ({ focus, orderStatus }): Promise<AIToolCard> => {
         const [cars, favorites, orders, carCount, favoriteCount, orderCount, wishlistCount] = await Promise.all([
           db.userCar.findMany({ where: { userId: input.user!.id }, select: { id: true, brand: true, model: true, year: true, engine: true, nickname: true, isPrimary: true }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }], take: 5 }),
           db.storeWishlist.findMany({ where: { userId: input.user!.id }, include: { store: { select: { id: true, name: true } } }, take: 10 }),
-          db.order.findMany({ where: { buyerId: input.user!.id }, include: { part: { select: { name: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
+          db.order.findMany({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) }, include: { part: { select: { name: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
           db.userCar.count({ where: { userId: input.user!.id } }),
           db.storeWishlist.count({ where: { userId: input.user!.id } }),
-          db.order.count({ where: { buyerId: input.user!.id } }),
+          db.order.count({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) } }),
           db.wishlist.count({ where: { userId: input.user!.id } }),
         ])
         const cartTotal = input.clientContext.cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-        return { type: 'insight', title: 'ملخص حسابك', description: `${carCount} سيارة محفوظة • ${orderCount} طلب إجمالي • ${favoriteCount} متجر مفضل • ${wishlistCount} قطعة محفوظة • ${input.clientContext.cart.length} عناصر في السلة بقيمة ${cartTotal.toLocaleString('ar-EG')} ج.م. تظهر أدناه أحدث السجلات فقط.`, items: [...input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `في السلة • الكمية ${item.quantity}`, value: `${(item.price * item.quantity).toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: item.partId, label: item.name } })), ...cars.map((car) => ({ id: `car-${car.id}`, title: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model} ${car.year || ''}${car.engine ? ` • ${car.engine}` : ''}${car.isPrimary ? ' • السيارة الأساسية' : ''}`, select: { kind: 'car' as const, id: car.id, label: car.nickname || `${car.brand} ${car.model}` } })), ...favorites.map((favorite) => ({ id: `store-${favorite.store.id}`, title: favorite.store.name, subtitle: 'متجر محفوظ في المفضلة', select: { kind: 'store' as const, id: favorite.store.id, label: favorite.store.name } })), ...orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${order.store.name} • ${humanStatus(order.status)}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } }))] }
+        const cartItems = input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `الكمية ${item.quantity} • سعر الوحدة ${item.price.toLocaleString('ar-EG')} ج.م`, value: `${(item.price * item.quantity).toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: item.partId, label: item.name } }))
+        const carItems = cars.map((car) => ({ id: `car-${car.id}`, title: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model}${car.year ? ` ${car.year}` : ''}${car.engine ? ` • ${car.engine}` : ''}${car.isPrimary ? ' • السيارة الأساسية' : ''}`, select: { kind: 'car' as const, id: car.id, label: car.nickname || `${car.brand} ${car.model}` } }))
+        const favoriteItems = favorites.map((favorite) => ({ id: `store-${favorite.store.id}`, title: favorite.store.name, subtitle: 'متجر محفوظ في المفضلة', select: { kind: 'store' as const, id: favorite.store.id, label: favorite.store.name } }))
+        const orderItems = orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${order.store.name} • ${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } }))
+        if (focus === 'cart') return { type: 'insight', title: 'سلة مشترياتك', description: cartItems.length ? `${cartItems.length} عناصر بقيمة إجمالية ${cartTotal.toLocaleString('ar-EG')} ج.م. الأسعار والمخزون قد يتغيران حتى إتمام الطلب.` : 'سلة مشترياتك فارغة حالياً.', items: cartItems }
+        if (focus === 'cars') return { type: 'insight', title: 'سياراتك المحفوظة', description: carCount ? `لديك ${carCount} سيارة محفوظة. أعرض أحدث 5 سيارات، والسيارة الأساسية مميزة بوضوح.` : 'لم تحفظ سيارة بعد. أضف الماركة والموديل والسنة للحصول على نتائج توافق أفضل.', items: carItems }
+        if (focus === 'favorites') return { type: 'insight', title: 'المفضلة', description: favoriteCount || wishlistCount ? `${favoriteCount} متجر مفضل${wishlistCount ? ` • ${wishlistCount} قطعة محفوظة في البيانات القديمة` : ''}. أعرض أحدث المتاجر المحفوظة.` : 'لا توجد متاجر محفوظة في المفضلة حالياً.', items: favoriteItems }
+        if (focus === 'orders') return { type: 'insight', title: orderStatus ? `طلباتك — ${humanStatus(orderStatus)}` : 'طلباتك', description: orderCount ? `لديك ${orderCount} ${orderStatus ? `طلبات بحالة «${humanStatus(orderStatus)}»` : 'طلب إجمالاً'}. أعرض أحدث ${orders.length} مع الحالة والكمية والتاريخ والسعر.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'في حسابك'} حالياً.`, items: orderItems }
+        return { type: 'insight', title: 'ملخص حسابك', description: `${carCount} سيارة محفوظة • ${orderCount} طلب إجمالي • ${favoriteCount} متجر مفضل • ${input.clientContext.cart.length} عناصر في السلة بقيمة ${cartTotal.toLocaleString('ar-EG')} ج.م.`, items: [...orderItems.slice(0, 2), ...cartItems.slice(0, 2), ...carItems.slice(0, 2)] }
       },
     }),
     findCompatibleParts: tool<{ carId?: string; carDescription?: string; query?: string }, AIToolCard, Record<string, never>>({
@@ -156,9 +166,9 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
 
   const sellerTools = input.user?.role === 'SHOP_OWNER' ? {
     getSellerInsights: tool({
-      description: 'اعرض أداء متجر البائع الحالي ومخزونه وطلباته فقط.',
-      inputSchema: z.object({}),
-      execute: async (): Promise<AIToolCard> => getSellerInsightsCard(input.user!),
+      description: 'اعرض الجزء المطلوب فقط من أداء متجر البائع: نظرة عامة أو المخزون المنخفض أو المبيعات أو الطلبات أو التقييم.',
+      inputSchema: z.object({ focus: z.enum(['overview', 'low_stock', 'out_of_stock', 'sales', 'orders', 'rating']).default('overview') }),
+      execute: async ({ focus }): Promise<AIToolCard> => getSellerInsightsCard(input.user!, focus),
     }),
     suggestSellerPrice: tool<{ partId?: string; entityName?: string; partNumber?: string; oemNumber?: string }, AIToolCard, Record<string, never>>({
       description: 'اقترح نطاق سعر لقطعة يملكها البائع باستخدام اسمها أو رقمها، ولا تطلب معرّف القطعة. الاقتراح غير ملزم.',
@@ -177,38 +187,41 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         return { type: 'insight', title: `اقتراح سعر: ${part.name}`, description: `النطاق المقترح ${low}–${high} ج.م بناءً على ${prices.length} عرض مشابه. السعر الحالي ${part.price} ج.م والمخزون ${part.stock}. راجع الاقتراح قبل التعديل.`, items: [{ id: `part-${part.id}`, title: part.name, subtitle: 'اقتراح تحليلي وليس سعراً مضموناً', value: `${median} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } }] }
       },
     }),
-    getSellerWorkspace: tool<{ section: 'listings' | 'orders' | 'coupons' | 'messages' | 'reviews'; query?: string; recency?: 'latest' | 'oldest'; limit?: number }, AIToolCard, Record<string, never>>({
+    getSellerWorkspace: tool<{ section: 'listings' | 'orders' | 'coupons' | 'messages' | 'reviews'; query?: string; recency?: 'latest' | 'oldest'; limit?: number; listingState?: 'all' | 'active' | 'blocked' | 'low_stock' | 'out_of_stock'; orderStatus?: string; couponState?: 'all' | 'active' | 'inactive' | 'expired'; messageState?: 'all' | 'unread' | 'read' | 'incoming'; rating?: number }, AIToolCard, Record<string, never>>({
       description: 'اعرض أو ابحث في سجلات متجر البائع: القطع أو الطلبات أو الكوبونات أو الرسائل أو التقييمات. يقبل الاسم والوصف الطبيعي وكلمات مثل الأحدث، ولا يحتاج أي معرّف.',
-      inputSchema: z.object({ section: z.enum(['listings', 'orders', 'coupons', 'messages', 'reviews']), query: z.string().max(160).optional(), recency: z.enum(['latest', 'oldest']).default('latest'), limit: z.number().int().min(1).max(20).default(10) }),
-      execute: async ({ section, query, recency = 'latest', limit = 10 }): Promise<AIToolCard> => {
+      inputSchema: z.object({ section: z.enum(['listings', 'orders', 'coupons', 'messages', 'reviews']), query: z.string().max(160).optional(), recency: z.enum(['latest', 'oldest']).default('latest'), limit: z.number().int().min(1).max(20).default(10), listingState: z.enum(['all', 'active', 'blocked', 'low_stock', 'out_of_stock']).default('all'), orderStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']).optional(), couponState: z.enum(['all', 'active', 'inactive', 'expired']).default('all'), messageState: z.enum(['all', 'unread', 'read', 'incoming']).default('all'), rating: z.number().int().min(1).max(5).optional() }),
+      execute: async ({ section, query, recency = 'latest', limit = 10, listingState = 'all', orderStatus, couponState = 'all', messageState = 'all', rating }): Promise<AIToolCard> => {
         const store = await db.store.findUnique({ where: { ownerId: input.user!.id }, select: { id: true, name: true } })
         if (!store) return { type: 'insight', title: 'لا يوجد متجر مرتبط بالحساب' }
         const orderBy = { createdAt: recency === 'oldest' ? 'asc' as const : 'desc' as const }
         if (section === 'listings') {
           const selectedId = input.clientContext.selection?.kind === 'part' ? input.clientContext.selection.id : undefined
-          const parts = await db.part.findMany({ where: { storeId: store.id, ...(selectedId ? { id: selectedId } : query ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { partNumber: { contains: query, mode: 'insensitive' as const } }, { oemNumber: { contains: query, mode: 'insensitive' as const } }] } : {}) }, select: { id: true, name: true, price: true, stock: true, blocked: true }, orderBy: { updatedAt: recency === 'oldest' ? 'asc' : 'desc' }, take: limit })
-          return { type: 'results', title: `قطع ${store.name}`, description: 'هذه النتائج تخص متجرك فقط.', items: parts.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.blocked ? 'محظورة' : 'نشطة'} • مخزون ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
+          const parts = await db.part.findMany({ where: { storeId: store.id, ...(listingState === 'active' ? { blocked: false } : listingState === 'blocked' ? { blocked: true } : listingState === 'low_stock' ? { stock: { lte: 3 } } : listingState === 'out_of_stock' ? { stock: 0 } : {}), ...(selectedId ? { id: selectedId } : query ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { partNumber: { contains: query, mode: 'insensitive' as const } }, { oemNumber: { contains: query, mode: 'insensitive' as const } }] } : {}) }, select: { id: true, name: true, price: true, stock: true, blocked: true, partNumber: true, oemNumber: true }, orderBy: listingState === 'low_stock' || listingState === 'out_of_stock' ? { stock: 'asc' } : { updatedAt: recency === 'oldest' ? 'asc' : 'desc' }, take: limit })
+          const listingLabel = listingState === 'low_stock' ? 'منخفضة المخزون' : listingState === 'out_of_stock' ? 'نافدة المخزون' : listingState === 'blocked' ? 'المحظورة' : listingState === 'active' ? 'النشطة' : ''
+          return { type: 'results', title: `قطع ${store.name}${listingLabel ? ` ${listingLabel}` : ''}`, description: parts.length ? `${parts.length} نتائج تخص متجرك فقط${listingState === 'low_stock' ? ' عند حد 3 قطع أو أقل' : ''}.` : `لا توجد قطع ${listingLabel || 'مطابقة'} في متجرك حالياً.`, items: parts.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.blocked ? 'محظورة' : 'نشطة'} • ${part.stock === 0 ? 'نفد المخزون' : `المخزون ${part.stock}`}${part.partNumber ? ` • رقم ${part.partNumber}` : part.oemNumber ? ` • OEM ${part.oemNumber}` : ''}`, value: `${part.price.toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
         }
         if (section === 'orders') {
           const selectedId = input.clientContext.selection?.kind === 'order' ? input.clientContext.selection.id : undefined
-          const orders = await db.order.findMany({ where: { storeId: store.id, ...(selectedId ? { id: selectedId } : query ? { OR: [{ part: { name: { contains: query, mode: 'insensitive' as const } } }, { status: { equals: query, mode: 'insensitive' as const } }] } : {}) }, select: { id: true, status: true, totalPrice: true, quantity: true, createdAt: true, part: { select: { name: true } } }, orderBy, take: limit })
-          return { type: 'results', title: 'طلبات المتجر', description: 'لا يعرض المساعد بيانات اتصال المشترين.', items: orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } })) }
+          const orders = await db.order.findMany({ where: { storeId: store.id, ...(orderStatus ? { status: orderStatus } : {}), ...(selectedId ? { id: selectedId } : query ? { part: { name: { contains: query, mode: 'insensitive' as const } } } : {}) }, select: { id: true, status: true, paymentStatus: true, totalPrice: true, quantity: true, createdAt: true, part: { select: { name: true } } }, orderBy, take: limit })
+          return { type: 'results', title: orderStatus ? `طلبات ${humanStatus(orderStatus)}` : 'طلبات المتجر', description: orders.length ? `${orders.length} طلبات تخص متجرك. لا يعرض المساعد بيانات اتصال المشترين.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'مطابقة'} حالياً.`, items: orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${humanStatus(order.status)} • الدفع ${humanStatus(order.paymentStatus)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } })) }
         }
         if (section === 'coupons') {
           const selectedId = input.clientContext.selection?.kind === 'coupon' ? input.clientContext.selection.id : undefined
-          const coupons = await db.coupon.findMany({ where: { storeId: store.id, ...(selectedId ? { id: selectedId } : query ? { code: { contains: query, mode: 'insensitive' as const } } : {}) }, select: { id: true, code: true, discountPercent: true, active: true, usedCount: true, maxUses: true, expiresAt: true }, orderBy, take: limit })
-          return { type: 'results', title: 'كوبونات المتجر', items: coupons.map((coupon) => ({ id: `coupon-${coupon.id}`, title: coupon.code, subtitle: `${coupon.active ? 'فعال' : 'متوقف'} • ${coupon.usedCount}/${coupon.maxUses}${coupon.expiresAt ? ` • ينتهي ${coupon.expiresAt.toLocaleDateString('ar-EG')}` : ''}`, value: `${coupon.discountPercent}%`, select: { kind: 'coupon' as const, id: coupon.id, label: coupon.code } })) }
+          const now = new Date()
+          const coupons = await db.coupon.findMany({ where: { storeId: store.id, ...(couponState === 'active' ? { active: true, OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] } : couponState === 'inactive' ? { active: false } : couponState === 'expired' ? { expiresAt: { lte: now } } : {}), ...(selectedId ? { id: selectedId } : query ? { code: { contains: query, mode: 'insensitive' as const } } : {}) }, select: { id: true, code: true, discountPercent: true, active: true, usedCount: true, maxUses: true, expiresAt: true }, orderBy, take: limit })
+          return { type: 'results', title: couponState === 'active' ? 'الكوبونات الفعالة' : couponState === 'inactive' ? 'الكوبونات المتوقفة' : couponState === 'expired' ? 'الكوبونات المنتهية' : 'كوبونات المتجر', description: coupons.length ? `${coupons.length} كوبونات مطابقة مع نسبة الخصم والاستخدام والانتهاء.` : 'لا توجد كوبونات مطابقة حالياً.', items: coupons.map((coupon) => ({ id: `coupon-${coupon.id}`, title: coupon.code, subtitle: `${coupon.active ? 'فعال' : 'متوقف'} • استُخدم ${coupon.usedCount} من ${coupon.maxUses}${coupon.expiresAt ? ` • ينتهي ${coupon.expiresAt.toLocaleDateString('ar-EG')}` : ' • دون تاريخ انتهاء'}`, value: `${coupon.discountPercent}%`, select: { kind: 'coupon' as const, id: coupon.id, label: coupon.code } })) }
         }
         if (section === 'messages') {
           const selectedId = input.clientContext.selection?.kind === 'message' ? input.clientContext.selection.id : undefined
-          const messages = await db.productMessage.findMany({ where: { part: { storeId: store.id }, ...(selectedId ? { id: selectedId } : query ? { OR: [{ message: { contains: query, mode: 'insensitive' as const } }, { part: { name: { contains: query, mode: 'insensitive' as const } } }, { sender: { name: { contains: query, mode: 'insensitive' as const } } }] } : {}) }, select: { id: true, message: true, read: true, createdAt: true, senderId: true, part: { select: { name: true } }, sender: { select: { name: true } } }, orderBy, take: limit })
-          return { type: 'results', title: 'أحدث رسائل العملاء', description: 'يمكنني تجهيز رد كمسودة فقط؛ الإرسال يتم من صفحة الرسائل.', items: messages.map((message) => ({ id: `message-${message.id}`, title: `${message.part.name} — ${message.sender.name}`, subtitle: `${message.senderId === input.user!.id ? 'ردك' : message.read ? 'مقروءة' : 'غير مقروءة'} • ${message.message.slice(0, 140)}`, select: { kind: 'message' as const, id: message.id, label: `${message.part.name} — ${message.sender.name}` } })) }
+          const messages = await db.productMessage.findMany({ where: { part: { storeId: store.id }, ...(messageState === 'unread' ? { receiverId: input.user!.id, read: false } : messageState === 'read' ? { receiverId: input.user!.id, read: true } : messageState === 'incoming' ? { receiverId: input.user!.id } : {}), ...(selectedId ? { id: selectedId } : query ? { OR: [{ message: { contains: query, mode: 'insensitive' as const } }, { part: { name: { contains: query, mode: 'insensitive' as const } } }, { sender: { name: { contains: query, mode: 'insensitive' as const } } }] } : {}) }, select: { id: true, message: true, read: true, createdAt: true, senderId: true, part: { select: { name: true } }, sender: { select: { name: true } } }, orderBy, take: limit })
+          return { type: 'results', title: messageState === 'unread' ? 'رسائل العملاء غير المقروءة' : messageState === 'read' ? 'رسائل العملاء المقروءة' : 'أحدث رسائل العملاء', description: messages.length ? `${messages.length} رسائل مطابقة. يمكنني تجهيز رد كمسودة فقط؛ الإرسال يتم من صفحة الرسائل.` : 'لا توجد رسائل مطابقة حالياً.', items: messages.map((message) => ({ id: `message-${message.id}`, title: `${message.part.name} — ${message.sender.name}`, subtitle: `${message.senderId === input.user!.id ? 'ردك' : message.read ? 'مقروءة' : 'غير مقروءة'} • ${message.createdAt.toLocaleDateString('ar-EG')} • ${message.message.slice(0, 140)}`, select: { kind: 'message' as const, id: message.id, label: `${message.part.name} — ${message.sender.name}` } })) }
         }
         const [productReviews, storeReviews] = await Promise.all([
-          db.productReview.findMany({ where: { part: { storeId: store.id, ...(query ? { name: { contains: query, mode: 'insensitive' as const } } : {}) }, blocked: false }, select: { id: true, rating: true, comment: true, part: { select: { name: true } } }, orderBy, take: limit }),
-          db.storeReview.findMany({ where: { storeId: store.id, blocked: false, ...(query ? { comment: { contains: query, mode: 'insensitive' as const } } : {}) }, select: { id: true, rating: true, comment: true }, orderBy, take: limit }),
+          db.productReview.findMany({ where: { part: { storeId: store.id, ...(query ? { name: { contains: query, mode: 'insensitive' as const } } : {}) }, blocked: false, ...(rating ? { rating } : {}) }, select: { id: true, rating: true, comment: true, part: { select: { name: true } } }, orderBy, take: limit }),
+          db.storeReview.findMany({ where: { storeId: store.id, blocked: false, ...(rating ? { rating } : {}), ...(query ? { comment: { contains: query, mode: 'insensitive' as const } } : {}) }, select: { id: true, rating: true, comment: true }, orderBy, take: limit }),
         ])
-        return { type: 'results', title: 'أحدث التقييمات', description: 'استخدمها لتحسين الخدمة؛ أي تحليل هو توصية تحتاج مراجعتك.', items: [...productReviews.map((review) => ({ id: review.id, title: `${review.part.name} — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' })), ...storeReviews.map((review) => ({ id: review.id, title: `تقييم المتجر — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' }))] }
+        const reviewItems = [...productReviews.map((review) => ({ id: review.id, title: `${review.part.name} — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' })), ...storeReviews.map((review) => ({ id: review.id, title: `تقييم المتجر — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' }))]
+        return { type: 'results', title: rating ? `تقييمات ${rating}/5` : 'أحدث التقييمات', description: reviewItems.length ? `${reviewItems.length} تقييمات مطابقة. استخدمها لتحسين الخدمة؛ أي تحليل هو توصية تحتاج مراجعتك.` : 'لا توجد تقييمات مطابقة حالياً.', items: reviewItems }
       },
     }),
     resolveSellerRecord: tool<{ kind: 'coupon' | 'message'; query?: string; recency?: 'latest' | 'oldest' }, AIToolCard, Record<string, never>>({
@@ -222,13 +235,21 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
 
   const adminTools = input.user?.role === 'ADMIN' ? {
     getAdminInsights: tool({
-      description: 'اعرض إحصاءات تشغيلية مجمعة للمنصة دون بيانات شخصية خام.',
-      inputSchema: z.object({}),
-      execute: async (): Promise<AIToolCard> => {
-        const [users, stores, parts, orders, openReports, openDisputes, revenue] = await Promise.all([
-          db.user.count(), db.store.count(), db.part.count({ where: { blocked: false } }), db.order.count(), db.report.count({ where: { status: 'OPEN' } }), db.dispute.count({ where: { status: 'OPEN' } }), db.order.aggregate({ where: { status: 'DELIVERED' }, _sum: { totalPrice: true } }),
+      description: 'اعرض الإحصاء المطلوب فقط من المنصة دون بيانات شخصية خام: مستخدمون أو متاجر أو قطع أو طلبات أو بلاغات أو نزاعات أو إيراد.',
+      inputSchema: z.object({ focus: z.enum(['overview', 'users', 'stores', 'parts', 'orders', 'reports', 'disputes', 'revenue']).default('overview') }),
+      execute: async ({ focus }): Promise<AIToolCard> => {
+        const [users, stores, verifiedStores, activeParts, blockedParts, orders, deliveredOrders, openReports, openDisputes, pendingVerifications, revenue] = await Promise.all([
+          db.user.count(), db.store.count(), db.store.count({ where: { verified: true } }), db.part.count({ where: { blocked: false } }), db.part.count({ where: { blocked: true } }), db.order.count(), db.order.count({ where: { status: 'DELIVERED' } }), db.report.count({ where: { status: 'OPEN' } }), db.dispute.count({ where: { status: 'OPEN' } }), db.sellerVerification.count({ where: { status: 'PENDING' } }), db.order.aggregate({ where: { status: 'DELIVERED' }, _sum: { totalPrice: true } }),
         ])
-        return { type: 'insight', title: 'حالة غيار ماركت', description: `${users} مستخدم • ${stores} متجر • ${parts} قطعة نشطة • ${orders} طلب`, items: [{ id: 'revenue', title: 'قيمة الطلبات المكتملة', value: `${revenue._sum.totalPrice || 0} ج.م` }, { id: 'reports', title: 'بلاغات مفتوحة', value: openReports, href: '/admin/reports' }, { id: 'disputes', title: 'نزاعات مفتوحة', value: openDisputes, href: '/admin/reports' }] }
+        const deliveredValue = revenue._sum.totalPrice || 0
+        if (focus === 'users') return { type: 'insight', title: 'المستخدمون', description: `يوجد ${users} حساب مسجل على غيار ماركت. هذه إحصائية مجمعة ولا تعرض أي بريد أو هاتف أو بيانات شخصية.`, items: [{ id: 'users', title: 'كل المستخدمين', value: users, href: '/admin/users' }] }
+        if (focus === 'stores') return { type: 'insight', title: 'المتاجر', description: `${stores} متجر إجمالي • ${verifiedStores} متجر معتمد • ${Math.max(0, stores - verifiedStores)} غير معتمد • ${pendingVerifications} طلب توثيق قيد الانتظار.`, items: [{ id: 'stores', title: 'كل المتاجر', value: stores, href: '/admin/stores' }, { id: 'verified-stores', title: 'المتاجر المعتمدة', value: verifiedStores, href: '/admin/stores' }, { id: 'pending-verifications', title: 'طلبات توثيق معلقة', value: pendingVerifications, href: '/admin/stores' }] }
+        if (focus === 'parts') return { type: 'insight', title: 'قطع المنصة', description: `${activeParts} قطعة نشطة قابلة للعرض • ${blockedParts} قطعة محظورة • ${activeParts + blockedParts} قطعة إجمالي.`, items: [{ id: 'active-parts', title: 'قطع نشطة', value: activeParts, href: '/admin/parts' }, { id: 'blocked-parts', title: 'قطع محظورة', value: blockedParts, href: '/admin/parts' }] }
+        if (focus === 'orders') return { type: 'insight', title: 'طلبات المنصة', description: `${orders} طلب إجمالي • ${deliveredOrders} مكتمل • ${Math.max(0, orders - deliveredOrders)} في حالات أخرى. قيمة الطلبات المكتملة ${deliveredValue.toLocaleString('ar-EG')} ج.م.`, items: [{ id: 'all-orders', title: 'كل الطلبات', value: orders, href: '/admin/orders' }, { id: 'delivered-orders', title: 'طلبات مكتملة', value: deliveredOrders, href: '/admin/orders' }] }
+        if (focus === 'reports') return { type: 'insight', title: 'البلاغات المفتوحة', description: openReports ? `${openReports} بلاغات ما زالت مفتوحة وتحتاج مراجعة إدارية.` : 'لا توجد بلاغات مفتوحة حالياً.', items: [{ id: 'reports', title: 'بلاغات مفتوحة', value: openReports, href: '/admin/reports' }] }
+        if (focus === 'disputes') return { type: 'insight', title: 'النزاعات المفتوحة', description: openDisputes ? `${openDisputes} نزاعات مفتوحة تحتاج قراراً بعد مراجعة الطلب والأدلة.` : 'لا توجد نزاعات مفتوحة حالياً.', items: [{ id: 'disputes', title: 'نزاعات مفتوحة', value: openDisputes, href: '/admin/reports' }] }
+        if (focus === 'revenue') return { type: 'insight', title: 'قيمة الطلبات المكتملة', description: `${deliveredValue.toLocaleString('ar-EG')} ج.م عبر ${deliveredOrders} طلبات مكتملة. هذه قيمة إجمالية للطلبات وليست صافي ربح المنصة.`, items: [{ id: 'revenue', title: 'قيمة الطلبات المكتملة', value: `${deliveredValue.toLocaleString('ar-EG')} ج.م` }] }
+        return { type: 'insight', title: 'حالة غيار ماركت', description: `${users} مستخدم • ${stores} متجر (${verifiedStores} معتمد) • ${activeParts} قطعة نشطة • ${orders} طلب (${deliveredOrders} مكتمل)`, items: [{ id: 'revenue', title: 'قيمة الطلبات المكتملة', value: `${deliveredValue.toLocaleString('ar-EG')} ج.م` }, { id: 'reports', title: 'بلاغات مفتوحة', value: openReports, href: '/admin/reports' }, { id: 'disputes', title: 'نزاعات مفتوحة', value: openDisputes, href: '/admin/reports' }, { id: 'verifications', title: 'طلبات توثيق معلقة', value: pendingVerifications, href: '/admin/stores' }] }
       },
     }),
     lookupAdminRecords: tool<{ kind: 'user' | 'store' | 'part' | 'order' | 'report' | 'verification' | 'dispute'; query?: string; recency?: 'latest' | 'oldest'; date?: string }, AIToolCard, Record<string, never>>({
@@ -364,20 +385,46 @@ export async function buildSellerMessagePlan(input: { user: SessionUser; convers
   }
 }
 
-export async function getSellerInsightsCard(user: SessionUser): Promise<AIToolCard> {
+export async function getSellerInsightsCard(user: SessionUser, focus: 'overview' | 'low_stock' | 'out_of_stock' | 'sales' | 'orders' | 'rating' = 'overview'): Promise<AIToolCard> {
   if (user.role !== 'SHOP_OWNER') throw new Error('ACTION_FORBIDDEN')
   const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true, name: true } })
   if (!store) return { type: 'insight', title: 'لا يوجد متجر مرتبط بالحساب' }
-  const [parts, orders, reviews] = await Promise.all([
-    db.part.findMany({ where: { storeId: store.id }, select: { id: true, name: true, price: true, stock: true }, orderBy: { stock: 'asc' }, take: 100 }),
-    db.order.findMany({ where: { storeId: store.id }, select: { status: true, paymentStatus: true, totalPrice: true, quantity: true } }),
+  const [parts, partCount, activePartCount, lowStockCount, orders, reviews] = await Promise.all([
+    db.part.findMany({ where: { storeId: store.id }, select: { id: true, name: true, price: true, stock: true, blocked: true }, orderBy: { stock: 'asc' }, take: 500 }),
+    db.part.count({ where: { storeId: store.id } }),
+    db.part.count({ where: { storeId: store.id, blocked: false } }),
+    db.part.count({ where: { storeId: store.id, stock: { lte: 3 } } }),
+    db.order.findMany({ where: { storeId: store.id }, select: { status: true, paymentStatus: true, totalPrice: true, quantity: true, createdAt: true } }),
     db.productReview.findMany({ where: { part: { storeId: store.id }, blocked: false }, select: { rating: true } }),
   ])
   const completed = orders.filter((order) => order.status === 'DELIVERED')
   const revenue = completed.reduce((sum, order) => sum + order.totalPrice, 0)
   const rating = reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0
   const lowStock = parts.filter((part) => part.stock <= 3)
-  return { type: 'insight', title: `أداء ${store.name}`, description: `${parts.length} قطعة • ${orders.length} طلب • ${revenue.toFixed(0)} ج.م مبيعات مكتملة • تقييم ${rating.toFixed(1)}`, items: lowStock.slice(0, 8).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `مخزون منخفض: ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
+  const pendingOrders = orders.filter((order) => !['DELIVERED', 'RETURNED', 'CANCELLED', 'REJECTED'].includes(order.status))
+  const paidRevenue = orders.filter((order) => order.paymentStatus === 'PAID').reduce((sum, order) => sum + order.totalPrice, 0)
+  const statusCounts = [...new Set(orders.map((order) => order.status))].map((status) => ({ status, count: orders.filter((order) => order.status === status).length }))
+  const lowStockItems = lowStock.slice(0, 20).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.stock === 0 ? 'نفد من المخزون' : `متبقي ${part.stock}`} • ${part.blocked ? 'محظورة' : 'نشطة'}`, value: `${part.price.toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } }))
+  if (focus === 'out_of_stock' || focus === 'low_stock') return presentSellerInventory({ storeName: store.name, totalParts: partCount, lowStockCount, parts, focus })
+  if (focus === 'sales') return {
+    type: 'insight', title: `مبيعات ${store.name}`,
+    description: `${completed.length} طلبات مكتملة بقيمة ${revenue.toLocaleString('ar-EG')} ج.م • إجمالي المدفوع عبر كل الحالات ${paidRevenue.toLocaleString('ar-EG')} ج.م • متوسط الطلب المكتمل ${completed.length ? (revenue / completed.length).toLocaleString('ar-EG', { maximumFractionDigits: 0 }) : '0'} ج.م. المرتجعات والطلبات الملغاة لا تدخل في المبيعات المكتملة.`,
+  }
+  if (focus === 'orders') return {
+    type: 'insight', title: `طلبات ${store.name}`,
+    description: `${orders.length} طلب إجمالي • ${pendingOrders.length} تحتاج متابعة • ${completed.length} مكتملة.`,
+    items: statusCounts.map(({ status, count }) => ({ id: `status-${status}`, title: humanStatus(status), value: count, href: '/seller/orders' })),
+  }
+  if (focus === 'rating') return {
+    type: 'insight', title: `تقييم منتجات ${store.name}`,
+    description: reviews.length ? `متوسط تقييم المنتجات ${rating.toFixed(1)} من 5 بناءً على ${reviews.length} تقييم ظاهر وغير محظور.` : 'لا توجد تقييمات منتجات ظاهرة يمكن حساب متوسط موثوق منها حالياً.',
+    items: reviews.length ? [1, 2, 3, 4, 5].reverse().map((score) => ({ id: `rating-${score}`, title: `${score} نجوم`, value: reviews.filter((review) => review.rating === score).length, href: '/seller/analytics' })) : [],
+  }
+  return {
+    type: 'insight', title: `أداء ${store.name}`,
+    description: `${activePartCount} قطعة نشطة من ${partCount} • ${orders.length} طلب • ${revenue.toLocaleString('ar-EG')} ج.م مبيعات مكتملة • تقييم ${reviews.length ? `${rating.toFixed(1)}/5 من ${reviews.length} تقييم` : 'لا يوجد بعد'} • ${lowStockCount} منخفضة المخزون.`,
+    items: lowStockItems.slice(0, 5),
+  }
 }
 
 function navigationHref(destination: NavigationDestination, role: AIRole, query?: string) {

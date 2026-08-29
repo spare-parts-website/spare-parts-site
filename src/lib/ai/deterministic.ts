@@ -33,7 +33,13 @@ export function planDeterministicRequest(input: {
 }
 
 export function deterministicToolInput(toolName: AIToolName, message: string, role: AIRole, context: AIClientContext): Record<string, unknown> | undefined {
-  if (['getAccountContext', 'getSellerInsights', 'getAdminInsights'].includes(toolName)) return {}
+  if (toolName === 'getAccountContext') {
+    const focus = accountFocus(message)
+    const orderStatus = focus === 'orders' ? sellerOrderStatus(message) : undefined
+    return { focus, ...(orderStatus ? { orderStatus } : {}) }
+  }
+  if (toolName === 'getSellerInsights') return { focus: sellerInsightFocus(message) }
+  if (toolName === 'getAdminInsights') return { focus: adminInsightFocus(message) }
   if (toolName === 'searchInternet') return { query: cleanWebSearchQuery(message) }
   if (toolName === 'searchMarketplace') {
     const query = cleanSubject(message, [
@@ -46,7 +52,7 @@ export function deterministicToolInput(toolName: AIToolName, message: string, ro
   }
   if (toolName === 'findCompatibleParts') {
     const primary = /(?:عربيتي|سيارتي|الأساسية|my (?:primary )?car)/i.test(message)
-    const query = cleanSubject(message, [/(?:هل|دور|ابحث|عايز|find|search|compatible|fit|fits|متوافق|ينفع|يركب)/gi, /(?:مع|على|لـ?|for|my car|عربيتي|سيارتي|الأساسية)/gi])
+    const query = cleanSubject(message, [/(?:هل|دور|ابحث|عايز|find|search|compatible|fit|fits|متوافق|ينفع|يركب)/gi, /(?:^|\s)(?:عن|مع|على|لـ?|for|my car|عربيتي|سيارتي|الأساسية)(?=\s|$)/gi])
     return { carDescription: primary ? 'السيارة الأساسية' : message.slice(0, 160), ...(query && query.length < message.length ? { query: query.slice(0, 120) } : {}) }
   }
   if (toolName === 'navigate') return navigationInput(message, role)
@@ -66,24 +72,102 @@ export function deterministicToolInput(toolName: AIToolName, message: string, ro
   return undefined
 }
 
+export function accountFocus(message: string): 'overview' | 'orders' | 'cart' | 'cars' | 'favorites' {
+  if (/(?:طلباتي|آخر طلب|أحدث طلب|my orders?|last order|latest order)/i.test(message)) return 'orders'
+  if (/(?:السلة|cart)/i.test(message)) return 'cart'
+  if (/(?:عربياتي|سياراتي|سيارتي|السيارات(?: المحفوظة)?|my cars?|saved cars?)/i.test(message)) return 'cars'
+  if (/(?:مفضل|wishlist|favorites?)/i.test(message)) return 'favorites'
+  return 'overview'
+}
+
+export function sellerInsightFocus(message: string): 'overview' | 'low_stock' | 'out_of_stock' | 'sales' | 'orders' | 'rating' {
+  if (/(?:نفد|خلص|نافد|out of stock|zero stock)/i.test(message)) return 'out_of_stock'
+  if (/(?:مخزون(?:ها|ه|ي)?\s+(?:قليل|منخفض)|ناقص|نفد|خلص|low stock|out of stock)/i.test(message)) return 'low_stock'
+  if (/(?:تقييم|rating|reviews?)/i.test(message)) return 'rating'
+  if (/(?:طلبات|عدد الطلبات|orders?)/i.test(message) && !/(?:مبيعات|sales|revenue)/i.test(message)) return 'orders'
+  if (/(?:مبيعات|إيراد|ايراد|دخل|ربح|sales|revenue)/i.test(message)) return 'sales'
+  return 'overview'
+}
+
+export function adminInsightFocus(message: string): 'overview' | 'users' | 'stores' | 'parts' | 'orders' | 'reports' | 'disputes' | 'revenue' {
+  if (/(?:بلاغ|reports?)/i.test(message)) return 'reports'
+  if (/(?:نزاع|disputes?)/i.test(message)) return 'disputes'
+  if (/(?:إيراد|ايراد|قيمة الطلبات|revenue|sales value)/i.test(message)) return 'revenue'
+  if (/(?:مستخدم|users?)/i.test(message)) return 'users'
+  if (/(?:متجر|stores?)/i.test(message)) return 'stores'
+  if (/(?:قطعة|قطع|parts?|products?)/i.test(message)) return 'parts'
+  if (/(?:طلب|orders?)/i.test(message)) return 'orders'
+  return 'overview'
+}
+
 function sellerWorkspaceInput(message: string) {
   const section = /(?:طلب|طلبات|order)/i.test(message) ? 'orders'
-    : /(?:كوبون|كوبونات|عرض|عروض|coupon|offer)/i.test(message) ? 'coupons'
-      : /(?:رسال|message|customer)/i.test(message) ? 'messages'
+    : /(?:كوبون|كوبونات|coupon|offer)|(?:^|\s)(?:عرض|عروض)(?=\s|$)/i.test(message) ? 'coupons'
+      : /(?:رسال|رسائ|message|customer)/i.test(message) ? 'messages'
         : /(?:تقييم|review|rating)/i.test(message) ? 'reviews' : 'listings'
   const sectionWords: Record<string, RegExp> = {
-    orders: /(?:طلب(?:اتي|ات|ي)?|orders?|طلبات)/gi, coupons: /(?:كوبون(?:اتي|ات)?|عروض?|coupons?|offers?)/gi,
-    messages: /(?:رسال(?:ة|تي|ات)?|messages?|customer|عميل)/gi, reviews: /(?:تقييم(?:اتي|ات)?|reviews?|rating)/gi,
-    listings: /(?:قطعة|قطع|منتجات?|مخزون|listings?|parts?|product|inventory)/gi,
+    orders: /(?:(?:ال)?طلب(?:اتي|ات|ي)?|orders?)/gi, coupons: /(?:(?:ال)?كوبون(?:اتي|ات)?|(?:ال)?(?:عرض|عروض)|coupons?|offers?)/gi,
+    messages: /(?:(?:ال)?رس(?:ال|ائ)(?:ة|تي|ات|ل)?|messages?|customers?|(?:ال)?(?:عميل|عملاء))/gi, reviews: /(?:(?:ال)?تقييم(?:اتي|ات)?|reviews?|rating)/gi,
+    listings: /(?:(?:ال)?قطعة|(?:ال)?قطع|(?:ال)?منتجات?|(?:ال)?مخزون|listings?|parts?|product|inventory)/gi,
   }
-  return { section, recency: recency(message), limit: requestedLimit(message, 10), ...queryUnlessRecency(message, sectionWords[section]) }
+  const orderStatus = sellerOrderStatus(message)
+  const rating = requestedRating(message)
+  const listingState = sellerListingState(message)
+  const couponState = sellerCouponState(message)
+  const messageState = sellerMessageState(message)
+  const filters = section === 'listings' ? { ...(listingState !== 'all' ? { listingState } : {}) }
+    : section === 'orders' ? { ...(orderStatus ? { orderStatus } : {}) }
+      : section === 'coupons' ? { ...(couponState !== 'all' ? { couponState } : {}) }
+        : section === 'messages' ? { ...(messageState !== 'all' ? { messageState } : {}) }
+          : { ...(rating ? { rating } : {}) }
+  const filterWords = /(?:منخفض|قليل|نافد|نفد|خلص|محظور|نشط|فعال|متوقف|منتهي|مقروء|غير\s*(?:ال)?مقروء(?:ة)?|جديد|معلق|قيد الانتظار|مقبول|مرفوض|مشحون|تم الشحن|مكتمل|تم التسليم|مرتجع|ملغي|واحد(?:ة)?|اثن(?:ان|ين)|low|stock|out of|blocked|active|inactive|expired|unread|read|pending|approved|rejected|shipped|delivered|returned|cancelled|stars?|نج(?:مة|متان|متين|وم))/gi
+  return { section, recency: recency(message), limit: requestedLimit(message, 10), ...filters, ...queryUnlessRecency(message, new RegExp(`${sectionWords[section].source}|${filterWords.source}`, 'gi')) }
+}
+
+export function sellerListingState(message: string): 'all' | 'active' | 'blocked' | 'low_stock' | 'out_of_stock' {
+  if (/(?:نفد|خلص|نافد|out of stock|zero stock)/i.test(message)) return 'out_of_stock'
+  if (/(?:مخزون(?:ها|ه|ي)?\s+(?:قليل|منخفض)|low stock)/i.test(message)) return 'low_stock'
+  if (/(?:محظور|محظورة|blocked)/i.test(message)) return 'blocked'
+  if (/(?:نشط|نشطة|active)/i.test(message)) return 'active'
+  return 'all'
+}
+
+export function sellerOrderStatus(message: string): string | undefined {
+  const statuses: Array<[RegExp, string]> = [
+    [/(?:قيد الانتظار|معلق|جديد|pending)/i, 'PENDING'], [/(?:تمت الموافقة|مقبول|approved)/i, 'APPROVED'],
+    [/(?:مرفوض|rejected)/i, 'REJECTED'], [/(?:مدفوع|paid)/i, 'PAID'], [/(?:تم الشحن|مشحون|shipped)/i, 'SHIPPED'],
+    [/(?:تم التسليم|مكتمل|delivered|completed)/i, 'DELIVERED'], [/(?:مرتجع|returned)/i, 'RETURNED'], [/(?:ملغي|ملغى|cancelled|canceled)/i, 'CANCELLED'],
+  ]
+  return statuses.find(([pattern]) => pattern.test(message))?.[1]
+}
+
+export function sellerCouponState(message: string): 'all' | 'active' | 'inactive' | 'expired' {
+  if (/(?:منتهي|expired)/i.test(message)) return 'expired'
+  if (/(?:متوقف|غير فعال|inactive|disabled)/i.test(message)) return 'inactive'
+  if (/(?:فعال|نشط|active)/i.test(message)) return 'active'
+  return 'all'
+}
+
+export function sellerMessageState(message: string): 'all' | 'unread' | 'read' | 'incoming' {
+  if (/(?:غير\s*(?:ال)?مقروء|لم تقرأ|unread)/i.test(message)) return 'unread'
+  if (/(?:مقروء|read)/i.test(message)) return 'read'
+  if (/(?:وارد|عميل|incoming|customer)/i.test(message)) return 'incoming'
+  return 'all'
+}
+
+function requestedRating(message: string) {
+  const match = message.match(/(?:تقييم|rating|نجوم?|stars?)\s*(?:=|:)?\s*([1-5])|([1-5])\s*(?:نجوم?|stars?)/i)
+  if (match) return Number(match[1] || match[2])
+  if (/(?:نجمة|تقييم)\s+واحد(?:ة)?/i.test(message)) return 1
+  if (/(?:نجمتان|نجمتين|تقييم)\s+اثن(?:ان|ين)|تقييم\s+2/i.test(message)) return 2
+  return undefined
 }
 
 function sellerWorkspaceInputs(message: string) {
   const sections = [
     [/(?:قطعة|قطع|منتج|منتجات|مخزون|listing|parts?|products?|inventory)/i, 'listings'],
-    [/(?:طلب|طلبات|orders?)/i, 'orders'], [/(?:كوبون|كوبونات|عرض|عروض|coupons?|offers?)/i, 'coupons'],
-    [/(?:رسال|messages?|customer)/i, 'messages'], [/(?:تقييم|reviews?|rating)/i, 'reviews'],
+    [/(?:طلب|طلبات|orders?)/i, 'orders'], [/(?:كوبون|كوبونات|coupons?|offers?)|(?:^|\s)(?:عرض|عروض)(?=\s|$)/i, 'coupons'],
+    [/(?:رسال|رسائ|messages?|customer)/i, 'messages'], [/(?:تقييم|reviews?|rating)/i, 'reviews'],
   ] as const
   const matched = sections.filter(([pattern]) => pattern.test(message)).map(([, section]) => section)
   if (matched.length < 2) return [sellerWorkspaceInput(message)]
@@ -116,9 +200,9 @@ function adminLookupInputs(message: string) {
 
 function navigationInput(message: string, role: AIRole) {
   const destinations: Array<[RegExp, string]> = [
-    [/(?:الرئيسية|home)/i, 'home'], [/(?:المتاجر|stores)/i, 'stores'], [/(?:السلة|cart)/i, 'cart'],
+    [/(?:الرئيسية|home)/i, 'home'], [/(?:المتاجر|stores)/i, role === 'ADMIN' ? 'admin_stores' : 'stores'], [/(?:السلة|cart)/i, 'cart'],
     [/(?:المفضلة|wishlist)/i, 'wishlist'], [/(?:سياراتي|عربياتي|cars)/i, 'cars'], [/(?:حسابي|الملف|profile)/i, 'profile'],
-    [/(?:رسائل|messages)/i, role === 'SHOP_OWNER' ? 'seller_messages' : 'profile'],
+    ...(role === 'SHOP_OWNER' ? [[/(?:رسائل|messages)/i, 'seller_messages'] as [RegExp, string]] : []),
     [/(?:كوبونات|coupons)/i, 'seller_coupons'], [/(?:تحليل|إحصائ|analytics)/i, 'seller_analytics'],
     [/(?:بلاغات|reports)/i, 'admin_reports'], [/(?:مستخدمين|users)/i, 'admin_users'],
     [/(?:طلبات|orders)/i, role === 'ADMIN' ? 'admin_orders' : role === 'SHOP_OWNER' ? 'seller_orders' : 'orders'],
@@ -181,7 +265,8 @@ function entityReference(message: string, selected: string | undefined, removals
 }
 
 function queryUnlessRecency(message: string, kindWords: RegExp) {
-  const query = cleanSubject(message, [/(?:اعرض|هات|شوف|ابحث|دور|show|find|search|list|my|لي|عن)/gi, kindWords, /(?:آخر|أحدث|جديد|أقدم|أول|last|latest|newest|oldest|first)/gi, /\b\d+\b/g])
+  const rawQuery = cleanSubject(message, [/(?:اعرض|هات|شوف|ابحث|دور|show|find|search|list|my|لي|عن)/gi, kindWords, /(?:آخر|أحدث|جديد|أقدم|أول|last|latest|newest|oldest|first)/gi, /\b\d+\b/g])
+  const query = rawQuery.split(/\s+/).filter((token) => token.length > 2 || /^[A-Za-z0-9_-]{2,}$/.test(token)).join(' ')
   return query ? { query: query.slice(0, 160) } : {}
 }
 

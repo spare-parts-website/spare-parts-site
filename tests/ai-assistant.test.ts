@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs'
 import { DEFAULT_AI_QUOTAS, maskEmail, maskPhone, roleCanPrepareAction } from '../src/lib/ai/policy.ts'
 import { cleanWebSearchQuery, planAIRequest } from '../src/lib/ai/planner.ts'
 import { presentAIResponse } from '../src/lib/ai/presentation.ts'
-import { deterministicToolInput, planDeterministicRequest } from '../src/lib/ai/deterministic.ts'
+import { accountFocus, adminInsightFocus, deterministicToolInput, planDeterministicRequest, sellerCouponState, sellerInsightFocus, sellerListingState, sellerMessageState, sellerOrderStatus } from '../src/lib/ai/deterministic.ts'
+import { presentSellerInventory } from '../src/lib/ai/deterministic-presenters.ts'
 
 const emptyContext = { cart: [] }
 
@@ -73,6 +74,7 @@ test('automatically reserves more work only for complex requests', () => {
 test('cleans conversational filler from current web searches', () => {
   assert.equal(cleanWebSearchQuery('Can you please tell me how much is "BMW 328i belt"?'), 'BMW 328i belt price')
   assert.equal(cleanWebSearchQuery('What is the current price in Egypt for a BMW 328i serpentine belt? Search the internet and show me the sources'), 'BMW 328i serpentine belt price Egypt EGP')
+  assert.equal(cleanWebSearchQuery('كم سعر BMW 328i belt في مصر حالياً؟'), 'BMW 328i belt price Egypt EGP')
 })
 
 test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
@@ -131,6 +133,93 @@ test('parses broad Arabic and English commands without a model', () => {
   assert.deepEqual(deterministicToolInput('navigate', 'افتح صفحة طلباتي', 'BUYER', emptyContext), { destination: 'orders' })
   assert.deepEqual(deterministicToolInput('lookupAdminRecords', 'اعرض أحدث 3 بلاغات', 'ADMIN', emptyContext), { kind: 'report', recency: 'latest' })
   assert.deepEqual(deterministicToolInput('prepareAction', 'غير سعر تيل فرامل Bosch إلى 2500', 'SHOP_OWNER', emptyContext), { action: 'seller_part_update', price: 2500, stock: undefined, entityName: 'تيل فرامل Bosch' })
+})
+
+test('answers the exact requested summary instead of returning a generic dashboard line', () => {
+  assert.equal(sellerInsightFocus('ايه القطع اللي مخزونها قليل؟'), 'low_stock')
+  assert.equal(sellerInsightFocus('كم عدد الطلبات عندي؟'), 'orders')
+  assert.equal(sellerInsightFocus('اعرض إيرادات المتجر'), 'sales')
+  assert.equal(sellerInsightFocus('ما متوسط تقييم منتجاتي؟'), 'rating')
+  assert.equal(accountFocus('ما هو آخر طلب لي؟'), 'orders')
+  assert.equal(accountFocus('اعرض السيارات المحفوظة'), 'cars')
+  assert.equal(accountFocus('ماذا يوجد في السلة؟'), 'cart')
+  assert.equal(adminInsightFocus('كم بلاغ مفتوح؟'), 'reports')
+  assert.equal(adminInsightFocus('ما قيمة الطلبات المكتملة؟'), 'revenue')
+  assert.deepEqual(deterministicToolInput('getSellerInsights', 'ايه القطع اللي مخزونها قليل؟', 'SHOP_OWNER', emptyContext), { focus: 'low_stock' })
+  assert.equal(planAIRequest('كم عدد الطلبات عندي؟', 'SHOP_OWNER').forcedTool, 'getSellerInsights')
+  assert.equal(planAIRequest('كم بلاغ مفتوح؟', 'ADMIN').forcedTool, 'getAdminInsights')
+  assert.equal(planAIRequest('اعرض السيارات المحفوظة', 'BUYER').forcedTool, 'getAccountContext')
+  assert.deepEqual(deterministicToolInput('getAccountContext', 'اعرض طلباتي قيد الانتظار', 'BUYER', emptyContext), { focus: 'orders', orderStatus: 'PENDING' })
+})
+
+test('covers every deterministic tool category with usable structured input', () => {
+  const cases = [
+    ['searchMarketplace', 'ابحث عن تيل فرامل تويوتا داخل غيار ماركت', 'GUEST'],
+    ['searchInternet', 'كم سعر BMW 328i belt في مصر حالياً؟', 'GUEST'],
+    ['navigate', 'افتح صفحة طلباتي', 'BUYER'],
+    ['prepareDraft', 'اكتب رسالة أسأل فيها عن التوافق', 'BUYER'],
+    ['getAccountContext', 'اعرض طلباتي', 'BUYER'],
+    ['findCompatibleParts', 'ابحث عن تيل فرامل متوافق مع سيارتي الأساسية', 'BUYER'],
+    ['prepareAction', 'أضف تيل فرامل Bosch إلى السلة', 'BUYER'],
+    ['getSellerInsights', 'ايه القطع اللي مخزونها قليل؟', 'SHOP_OWNER'],
+    ['suggestSellerPrice', 'اقترح سعر تيل فرامل Bosch', 'SHOP_OWNER'],
+    ['getSellerWorkspace', 'اعرض أحدث 5 طلبات', 'SHOP_OWNER'],
+    ['resolveSellerRecord', 'حدد أحدث رسالة عميل', 'SHOP_OWNER'],
+    ['getAdminInsights', 'اعرض إحصائيات البلاغات', 'ADMIN'],
+    ['lookupAdminRecords', 'اعرض أحدث بلاغ', 'ADMIN'],
+  ] as const
+  for (const [toolName, message, role] of cases) {
+    assert.ok(deterministicToolInput(toolName, message, role, emptyContext), `${toolName} did not produce deterministic input`)
+  }
+})
+
+test('keeps low-stock and focused aggregate wording in server responses', () => {
+  const tools = readFileSync(new URL('../src/lib/ai/tools.ts', import.meta.url), 'utf8')
+  assert.match(tools, /طلباتك/)
+  assert.match(tools, /قيمة الطلبات المكتملة/)
+
+  const lowStock = presentSellerInventory({
+    storeName: 'متجر الاختبار', totalParts: 0, lowStockCount: 0, parts: [], focus: 'low_stock',
+  })
+  const outOfStock = presentSellerInventory({
+    storeName: 'متجر الاختبار', totalParts: 1, lowStockCount: 1,
+    parts: [{ id: 'empty', name: 'قطعة نافدة', stock: 0, price: 100, blocked: false }], focus: 'out_of_stock',
+  })
+  assert.equal(lowStock.title, 'القطع منخفضة المخزون')
+  assert.match(lowStock.description || '', /لا توجد قطع عند حد التنبيه/)
+  assert.match(outOfStock.items?.[0]?.subtitle || '', /نفد من المخزون/)
+})
+
+test('returns the actual low-stock products for the reported production phrase', () => {
+  const result = presentSellerInventory({
+    storeName: 'bmw store 2', totalParts: 2, lowStockCount: 1, focus: 'low_stock',
+    parts: [{ id: 'p1', name: 'سير محرك BMW', stock: 2, price: 700, blocked: false }, { id: 'p2', name: 'فلتر BMW', stock: 8, price: 350, blocked: false }],
+  })
+  assert.match(result.description || '', /وجدت 1 من أصل 2/)
+  assert.deepEqual(result.items?.map((item) => item.title), ['سير محرك BMW'])
+  assert.match(result.items?.[0]?.subtitle || '', /متبقي 2/)
+  assert.equal(result.items?.[0]?.value, '٧٠٠ ج.م')
+})
+
+test('turns seller filters into database fields instead of mistaken text searches', () => {
+  assert.equal(sellerListingState('اعرض القطع التي نفد مخزونها'), 'out_of_stock')
+  assert.equal(sellerListingState('اعرض القطع المحظورة'), 'blocked')
+  assert.equal(sellerOrderStatus('اعرض الطلبات قيد الانتظار'), 'PENDING')
+  assert.equal(sellerOrderStatus('show delivered orders'), 'DELIVERED')
+  assert.equal(sellerCouponState('اعرض الكوبونات الفعالة'), 'active')
+  assert.equal(sellerCouponState('show expired coupons'), 'expired')
+  assert.equal(sellerMessageState('اعرض رسائل العملاء غير المقروءة'), 'unread')
+  assert.deepEqual(deterministicToolInput('getSellerWorkspace', 'اعرض الطلبات قيد الانتظار', 'SHOP_OWNER', emptyContext), { section: 'orders', recency: 'latest', limit: 10, orderStatus: 'PENDING' })
+  assert.deepEqual(deterministicToolInput('getSellerWorkspace', 'اعرض الكوبونات الفعالة', 'SHOP_OWNER', emptyContext), { section: 'coupons', recency: 'latest', limit: 10, couponState: 'active' })
+  assert.deepEqual(deterministicToolInput('getSellerWorkspace', 'اعرض رسائل العملاء غير المقروءة', 'SHOP_OWNER', emptyContext), { section: 'messages', recency: 'latest', limit: 10, messageState: 'unread' })
+  assert.deepEqual(deterministicToolInput('getSellerWorkspace', 'اعرض تقييمات نجمة واحدة', 'SHOP_OWNER', emptyContext), { section: 'reviews', recency: 'latest', limit: 10, rating: 1 })
+})
+
+test('does not mistake substrings inside ordinary Arabic words for actions', () => {
+  assert.equal(planAIRequest('ابحث عن تيل فرامل متوافق مع سيارتي الأساسية', 'BUYER').forcedTool, 'findCompatibleParts')
+  assert.equal(planAIRequest('اعرض أحدث بلاغ', 'ADMIN').forcedTool, 'lookupAdminRecords')
+  assert.equal(planAIRequest('اعرض رسائل العملاء غير المقروءة', 'SHOP_OWNER').forcedTool, 'getSellerWorkspace')
+  assert.equal(planAIRequest('اعرض تقييمات نجمة واحدة', 'SHOP_OWNER').forcedTool, 'getSellerWorkspace')
 })
 
 test('answers greetings and role help without consuming a model request', () => {
