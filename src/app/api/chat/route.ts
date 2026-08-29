@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAuth } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
 import { rateLimit } from '@/lib/rate-limit'
+import { censorChatContent } from '@/lib/content-moderation'
 
 function unauthorized() {
   return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
@@ -199,7 +200,8 @@ export async function POST(req: NextRequest) {
     const orderId = typeof body.orderId === 'string' ? body.orderId : null
     const partId = typeof body.partId === 'string' ? body.partId : null
     const participantId = typeof body.participantId === 'string' ? body.participantId : null
-    const message = typeof body.message === 'string' ? body.message.trim() : ''
+    const rawMessage = typeof body.message === 'string' ? body.message.trim() : ''
+    const message = censorChatContent(rawMessage).text
     const imageUrl = typeof body.imageUrl === 'string' && body.imageUrl.startsWith('https://') ? body.imageUrl : null
 
     if (session.role === 'BUYER' && imageUrl) {
@@ -207,7 +209,7 @@ export async function POST(req: NextRequest) {
     }
 
     if (!message && !imageUrl) return NextResponse.json({ error: 'اكتب رسالة أو أرفق صورة' }, { status: 400 })
-    if (message.length > 2000) return NextResponse.json({ error: 'الرسالة طويلة جداً' }, { status: 400 })
+    if (rawMessage.length > 2000) return NextResponse.json({ error: 'الرسالة طويلة جداً' }, { status: 400 })
 
     if (partId) {
       const target = await getProductParticipant(partId, session.id, participantId)
