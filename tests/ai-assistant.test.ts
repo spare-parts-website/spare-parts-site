@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs'
 import { DEFAULT_AI_QUOTAS, maskEmail, maskPhone, roleCanPrepareAction } from '../src/lib/ai/policy.ts'
 import { cleanWebSearchQuery, planAIRequest } from '../src/lib/ai/planner.ts'
 import { presentAIResponse } from '../src/lib/ai/presentation.ts'
+import { deterministicToolInput, planDeterministicRequest } from '../src/lib/ai/deterministic.ts'
+
+const emptyContext = { cart: [] }
 
 test('uses the requested role-specific hourly quotas', () => {
   assert.deepEqual(DEFAULT_AI_QUOTAS, { GUEST: 10, BUYER: 40, SHOP_OWNER: 100, ADMIN: 150 })
@@ -113,12 +116,44 @@ test('executes safe obvious tools directly without a model', () => {
   const tools = readFileSync(new URL('../src/lib/ai/tools.ts', import.meta.url), 'utf8')
   const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
   for (const name of ['getAccountContext', 'getSellerInsights', 'getAdminInsights', 'searchMarketplace', 'findCompatibleParts', 'getSellerWorkspace']) assert.match(tools, new RegExp(name))
-  assert.match(route, /executeDirectAITool/)
-  assert.match(route, /ai\.direct_tool\.completed/)
+  assert.match(route, /executeDeterministicAIRequest/)
+  assert.match(route, /ai\.deterministic\.completed/)
   assert.match(tools, /buildSellerPerformancePlan/)
   assert.match(tools, /buildSellerMessagePlan/)
   assert.match(route, /ai\.seller_plan\.completed/)
   assert.match(route, /ai\.seller_message_plan\.completed/)
+})
+
+test('parses broad Arabic and English commands without a model', () => {
+  assert.deepEqual(deterministicToolInput('getSellerWorkspace', 'اعرض أحدث 7 طلبات', 'SHOP_OWNER', emptyContext), { section: 'orders', recency: 'latest', limit: 7 })
+  assert.deepEqual(deterministicToolInput('getSellerWorkspace', 'show my oldest 5 coupons', 'SHOP_OWNER', emptyContext), { section: 'coupons', recency: 'oldest', limit: 5 })
+  assert.deepEqual(deterministicToolInput('searchMarketplace', 'دور على تيل فرامل تويوتا داخل غيار ماركت', 'GUEST', emptyContext), { query: 'تيل فرامل تويوتا', limit: 8 })
+  assert.deepEqual(deterministicToolInput('navigate', 'افتح صفحة طلباتي', 'BUYER', emptyContext), { destination: 'orders' })
+  assert.deepEqual(deterministicToolInput('lookupAdminRecords', 'اعرض أحدث 3 بلاغات', 'ADMIN', emptyContext), { kind: 'report', recency: 'latest' })
+  assert.deepEqual(deterministicToolInput('prepareAction', 'غير سعر تيل فرامل Bosch إلى 2500', 'SHOP_OWNER', emptyContext), { action: 'seller_part_update', price: 2500, stock: undefined, entityName: 'تيل فرامل Bosch' })
+})
+
+test('answers greetings and role help without consuming a model request', () => {
+  const greeting = planDeterministicRequest({ message: 'hi', role: 'SHOP_OWNER', clientContext: emptyContext })
+  const help = planDeterministicRequest({ message: 'ماذا تستطيع أن تفعل؟', role: 'ADMIN', clientContext: emptyContext })
+  assert.equal(greeting?.kind, 'answer')
+  assert.equal(help?.kind, 'answer')
+  if (help?.kind === 'answer') assert.match(help.answer, /لا تستهلك رصيد AI/)
+})
+
+test('supports combined seller and admin record requests in one deterministic reply', () => {
+  const seller = planDeterministicRequest({ message: 'اعرض آخر قطعة أو عرض تم إنشاؤه', role: 'SHOP_OWNER', forcedTool: 'getSellerWorkspace', clientContext: emptyContext })
+  const admin = planDeterministicRequest({ message: 'اعرض أحدث البلاغات والنزاعات', role: 'ADMIN', forcedTool: 'lookupAdminRecords', clientContext: emptyContext })
+  assert.equal(seller?.kind, 'tools')
+  assert.equal(admin?.kind, 'tools')
+  if (seller?.kind === 'tools') assert.deepEqual(seller.requests.map((request) => request.input.section), ['listings', 'coupons'])
+  if (admin?.kind === 'tools') assert.deepEqual(admin.requests.map((request) => request.input.kind), ['report', 'dispute'])
+})
+
+test('checks deterministic commands before provider quota and concurrency', () => {
+  const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
+  assert.ok(route.indexOf('executeDeterministicAIRequest') < route.indexOf('const quotaKeys'))
+  assert.ok(route.indexOf('const directResult = await executeDeterministicAIRequest') < route.indexOf('lease = await acquireAIConcurrency'))
 })
 
 test('renders normal tool results inside the reply and keeps only important cards', () => {
@@ -136,4 +171,14 @@ test('renders normal tool results inside the reply and keeps only important card
 test('always keeps confirmation proposals as interactive cards', () => {
   const proposal = { type: 'proposal' as const, title: 'تأكيد', proposal: { id: 'p1', action: 'cart_add' as const, summary: 'إضافة القطعة', expiresAt: new Date().toISOString() } }
   assert.deepEqual(presentAIResponse('', [proposal]).cards, [proposal])
+})
+
+test('keeps routine multi-record summaries in the reply instead of an extra box', () => {
+  const records = { type: 'results' as const, title: 'طلبات المتجر', items: [
+    { id: '1', title: 'طلب فرامل', value: '500 ج.م', select: { kind: 'order' as const, id: '1', label: 'طلب فرامل' } },
+    { id: '2', title: 'طلب فلتر', value: '300 ج.م', select: { kind: 'order' as const, id: '2', label: 'طلب فلتر' } },
+  ] }
+  const result = presentAIResponse('', [records])
+  assert.match(result.answer, /طلب فرامل/)
+  assert.deepEqual(result.cards, [])
 })

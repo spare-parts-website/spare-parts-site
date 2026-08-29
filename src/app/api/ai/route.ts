@@ -9,7 +9,7 @@ import { acquireAIConcurrency, aiModel, aiProviderTargets, aiQuota, releaseAICon
 import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
-import { buildSellerMessagePlan, buildSellerPerformancePlan, executeDirectAITool } from '@/lib/ai/tools'
+import { buildSellerMessagePlan, buildSellerPerformancePlan, executeDeterministicAIRequest } from '@/lib/ai/tools'
 
 export const maxDuration = 120
 
@@ -22,11 +22,6 @@ export async function POST(request: Request) {
     const current = sanitizeIncomingUserMessage(body.messages.at(-1), user)
     const message = textFromMessage(current) || 'حلل الصورة المرفقة وساعدني بناءً على ما يظهر فيها.'
     const plan = planAIRequest(message, role); const address = requestAddress(request)
-    const quotaKeys = user ? [`ai-hour:user:${role}:${user.id}`, `ai-hour:ip:${role}:${address}`] : [`ai-hour:guest:${address}`]
-    const limits = await Promise.all(quotaKeys.map((key) => rateLimit(key, aiQuota(role), 60 * 60 * 1000))); const denied = limits.find((limit) => !limit.allowed)
-    if (denied) return NextResponse.json({ error: 'وصلت للحد المؤقت لاستخدام المساعد. حاول بعد قليل.', requestId }, { status: 429, headers: { 'Retry-After': String(denied.retryAfter) } })
-    lease = await acquireAIConcurrency(`ai:${user?.id || address}`, role) || ''
-    if (!lease) return NextResponse.json({ error: 'لديك طلب آخر قيد التنفيذ. انتظر لحظة وحاول مجدداً.', requestId }, { status: 429, headers: { 'Retry-After': '5' } })
     void purgeExpiredAIData().catch((error) => console.error(JSON.stringify({ event: 'ai.cleanup.failed', requestId, error: errorMessage(error) })))
 
     let conversationId: string | undefined; let expiresAt: string | undefined; let uiMessages: GhyarAIMessage[]
@@ -50,22 +45,25 @@ export async function POST(request: Request) {
       await appendDirectResult({ result, conversationId, expiresAt, requestId, event: 'ai.seller_plan.completed', startedAt })
       return directResultResponse(result, { conversationId, expiresAt, requestId, provider: 'deterministic' })
     }
-    const directCard = await executeDirectAITool({ toolName: plan.forcedTool, role, user, conversationId, clientContext, message })
-    if (directCard) {
-      const card = directCard
-      const answer = cardToDirectAnswer(card)
-      if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { parts: [{ type: 'text', text: answer }] } })
-      console.info(JSON.stringify({ event: 'ai.direct_tool.completed', requestId, role, intent: plan.intent, tool: plan.forcedTool, durationMs: Date.now() - startedAt }))
-      const stream = createUIMessageStream<GhyarAIMessage>({
-        execute: ({ writer }) => {
-          writer.write({ type: 'start', messageMetadata: { conversationId, expiresAt, requestId } })
-          writer.write({ type: 'text-start', id: requestId })
-          writer.write({ type: 'text-delta', id: requestId, delta: answer })
-          writer.write({ type: 'text-end', id: requestId })
-        },
-      })
-      return createUIMessageStreamResponse({ stream })
+    try {
+      const directResult = await executeDeterministicAIRequest({ toolName: plan.forcedTool, role, user, conversationId, clientContext, message })
+      if (directResult) {
+        if (conversationId) await appendDirectResult({ result: directResult, conversationId, expiresAt, requestId, event: 'ai.deterministic.completed', startedAt })
+        else console.info(JSON.stringify({ event: 'ai.deterministic.completed', requestId, role, intent: plan.intent, tool: plan.forcedTool || 'static', cards: directResult.cards.length, durationMs: Date.now() - startedAt }))
+        return directResultResponse(directResult, { conversationId, expiresAt, requestId, provider: 'deterministic' })
+      }
+    } catch (error) {
+      console.warn(JSON.stringify({ event: 'ai.deterministic.failed', requestId, role, intent: plan.intent, tool: plan.forcedTool, error: safeErrorCategory(error) }))
     }
+
+    // Only requests that genuinely need a language/vision model consume the AI
+    // quota or a concurrency slot. Database, search, navigation and protected
+    // proposal commands return above without touching provider limits.
+    const quotaKeys = user ? [`ai-hour:user:${role}:${user.id}`, `ai-hour:ip:${role}:${address}`] : [`ai-hour:guest:${address}`]
+    const limits = await Promise.all(quotaKeys.map((key) => rateLimit(key, aiQuota(role), 60 * 60 * 1000))); const denied = limits.find((limit) => !limit.allowed)
+    if (denied) return NextResponse.json({ error: 'وصلت للحد المؤقت لاستخدام المساعد. حاول بعد قليل.', requestId }, { status: 429, headers: { 'Retry-After': String(denied.retryAfter) } })
+    lease = await acquireAIConcurrency(`ai:${user?.id || address}`, role) || ''
+    if (!lease) return NextResponse.json({ error: 'لديك طلب آخر قيد التنفيذ. انتظر لحظة وحاول مجدداً.', requestId }, { status: 429, headers: { 'Retry-After': '5' } })
     const modelMessages = await materializePrivateImages(compactConversationContext(uiMessages), user)
     const hasImage = current.parts.some((part) => part.type === 'file')
     const attempts: AIProviderAttempt[] = []
@@ -179,10 +177,6 @@ function directResultResponse(result: DirectResult, metadata: GhyarAIMessage['me
     result.cards.forEach((card, index) => { const toolCallId = `${requestId}-${index}`; writer.write({ type: 'tool-input-available', toolCallId, toolName: 'prepareAction', input: {}, dynamic: true }); writer.write({ type: 'tool-output-available', toolCallId, output: card, dynamic: true }) })
   } })
   return createUIMessageStreamResponse({ stream })
-}
-function cardToDirectAnswer(card: { title: string; description?: string; items?: Array<{ title: string; subtitle?: string; value?: string | number }> }) {
-  const items = card.items?.map((item) => `• ${item.title}${item.subtitle ? ` — ${item.subtitle}` : ''}${item.value !== undefined ? ` — ${item.value}` : ''}`).join('\n')
-  return [card.title, card.description, items].filter(Boolean).join('\n')
 }
 function friendlyAIError(error: unknown, requestId: string) {
   const message = errorMessage(error)

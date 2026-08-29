@@ -6,7 +6,7 @@ const NAVIGATION = /(?:افتح|روح|وديني|صفحة|open|go to|navigate)/
 const COMPATIBILITY = /(?:متوافق|ينفع|يركب|عربيتي|سيارتي|سيارتي الأساسية|compatible|fit|my car)/i
 const SELLER_PRICE = /(?:اقترح|نصيحة|مناسب).*(?:سعر)|(?:سعر).*(?:اقترح|نصيحة|مناسب)|price advice|suggest.*price/i
 const ANALYTICS = /(?:تحليل|أداء|إحصائ|مبيعات|مخزون(?:ها|ه|ي)?\s+قليل|ملخص|analytics|performance|statistics|insights|low stock)/i
-const RECORDS = /(?:طلب|طلبات|رسال|كوبون|تقييم|قطعة|مخزون|order|message|coupon|review|listing|stock)/i
+const RECORDS = /(?:طلب|طلبات|رسال|كوبون|عرض|عروض|تقييم|قطعة|مخزون|order|message|coupon|offer|review|listing|stock)/i
 const ADMIN_RECORDS = /(?:مستخدم|متجر|بلاغ|توثيق|نزاع|طلب|قطعة|user|store|report|verification|dispute|order|part)/i
 const DRAFT = /(?:اكتب|جهز|حض[ّ]?ر|صياغة|وصف|رد|مسودة|draft|write|reply|description)/i
 const GREETING = /^(?:hi|hello|hey|أهلا|اهلا|أهلًا|مرحبا|مرحباً|السلام عليكم|صباح الخير|مساء الخير)[!.,،؟?\s]*$/i
@@ -80,7 +80,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
     intent = 'compatibility'
     tools.add('findCompatibleParts')
     forcedTool = 'findCompatibleParts'
-  } else if (role !== 'GUEST' && /(?:حسابي|طلباتي|مفضل|عربياتي|السلة|account|my orders|wishlist|my cars|cart)/i.test(text)) {
+  } else if (role !== 'GUEST' && role !== 'ADMIN' && /(?:حسابي|طلباتي|آخر طلب|أحدث طلب|مفضل|عربياتي|سياراتي|السلة|account|my orders|latest order|last order|wishlist|my cars|cart)/i.test(text)) {
     intent = 'account_context'
     tools.add('getAccountContext')
     forcedTool = 'getAccountContext'

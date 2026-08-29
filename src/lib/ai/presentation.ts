@@ -16,8 +16,10 @@ export function presentAIResponse(modelAnswer: string, cards: AIToolCard[]) {
 }
 
 function isImportantCard(card: AIToolCard) {
+  if (card.clientAction) return true
   if (card.proposal || card.type === 'proposal') return true
-  return (card.items?.filter((item) => item.select).length || 0) > 1
+  const selectable = card.items?.filter((item) => item.select).length || 0
+  return selectable > 1 && /(?:اختر|حد[ّ]?د|المقصود|نتائج البحث|قطع متوافقة)/i.test(card.title)
 }
 
 function isProcessOnlyAnswer(answer: string) {
