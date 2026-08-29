@@ -10,8 +10,8 @@ const CONCURRENCY: Record<AIRole, number> = {
   ADMIN: 3,
 }
 
-const AI_MODEL = 'gemini-3.5-flash-lite'
-export type AIProviderTarget = 'gateway' | 'google' | 'openrouter-gemma' | 'openrouter-nemotron' | 'openrouter-poolside' | 'openrouter'
+const AI_MODEL = 'gemini-2.5-flash-lite'
+export type AIProviderTarget = 'google' | 'openrouter-text-pool' | 'openrouter-vision-pool' | 'openrouter' | 'gateway'
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
@@ -21,13 +21,17 @@ export function aiModel() {
 }
 
 export function aiProviderTargets(options?: { hasImage?: boolean }): AIProviderTarget[] {
-  const targets: AIProviderTarget[] = ['gateway']
+  const targets: AIProviderTarget[] = []
+  // The direct Google free quota is independent from OpenRouter and Gateway,
+  // so prefer it before shared free routers.
   if (process.env.GEMINI_API_KEY) targets.push('google')
   if (process.env.OPENROUTER_API_KEY) {
-    targets.push('openrouter-gemma')
-    if (!options?.hasImage) targets.push('openrouter-nemotron', 'openrouter-poolside')
+    targets.push(options?.hasImage ? 'openrouter-vision-pool' : 'openrouter-text-pool')
     targets.push('openrouter')
   }
+  // Vercel's included free Gateway credit is useful as a final independent
+  // route, but it must not delay every request after its monthly cap is hit.
+  targets.push('gateway')
   return targets
 }
 

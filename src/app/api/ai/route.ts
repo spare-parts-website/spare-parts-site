@@ -130,13 +130,13 @@ function safeClientContext(value: unknown): AIClientContext {
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
 type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 'success' | 'failed'; durationMs: number; stepCount: number; error?: string }
 function providerModelName(provider: AIProviderTarget) {
-  const openRouterModels: Partial<Record<AIProviderTarget, string>> = { 'openrouter-gemma': 'google/gemma-4-31b-it:free', 'openrouter-nemotron': 'nvidia/nemotron-3.5-lightning:free', 'openrouter-poolside': 'poolside/laguna-xs-2.1:free', openrouter: 'openrouter/free' }
+  const openRouterModels: Partial<Record<AIProviderTarget, string>> = { 'openrouter-text-pool': 'openrouter/free-tool-pool', 'openrouter-vision-pool': 'openrouter/free-vision-pool', openrouter: 'openrouter/free' }
   return openRouterModels[provider] || (provider === 'gateway' ? `google/${aiModel()}` : aiModel())
 }
 function attemptTimeout(_complexity: 'quick' | 'standard' | 'heavy', hasImage: boolean, provider?: AIProviderTarget) {
-  if (provider === 'gateway') return 6_000
+  if (provider === 'gateway') return 5_000
   if (provider === 'google') return hasImage ? 12_000 : 10_000
-  return hasImage ? 10_000 : 7_000
+  return hasImage ? 12_000 : 9_000
 }
 function hasUsefulAIOutput(message: GhyarAIMessage) {
   // A tool result alone is not a user-visible answer in every client renderer.

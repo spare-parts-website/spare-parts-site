@@ -74,9 +74,8 @@ function providerModel(provider: AIProviderTarget) {
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   const models: Partial<Record<AIProviderTarget, string>> = {
-    'openrouter-gemma': 'google/gemma-4-31b-it:free',
-    'openrouter-nemotron': 'nvidia/nemotron-3.5-lightning:free',
-    'openrouter-poolside': 'poolside/laguna-xs-2.1:free',
+    'openrouter-text-pool': 'inclusionai/ling-3.0-flash-fin:free',
+    'openrouter-vision-pool': 'minimax/minimax-m3:free',
     openrouter: 'openrouter/free',
   }
   return createOpenRouter({ apiKey })(models[provider] || 'openrouter/free')
@@ -84,6 +83,30 @@ function providerModel(provider: AIProviderTarget) {
 
 function providerOptions(input: { provider: AIProviderTarget; user: SessionUser | null; plan: AIRequestPlan }): ProviderOptions | undefined {
   if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-3-flash', 'alibaba/qwen3-vl-instruct'], user: input.user?.id || 'guest', tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`] } }
-  if (input.provider === 'google') return { google: { thinkingConfig: { thinkingBudget: input.plan.complexity === 'heavy' ? 512 : 0, includeThoughts: false } } }
+  // Gemini 2.5 Flash-Lite already chooses a compatible thinking budget. The
+  // former explicit zero-budget payload was rejected by the direct API.
+  if (input.provider === 'google') return undefined
+  if (input.provider === 'openrouter-text-pool') return {
+    openrouter: {
+      models: [
+        'google/gemma-4-26b-a4b-it:free',
+        'z-ai/glm-5.2:free',
+        'minimax/minimax-m3:free',
+        'nvidia/nemotron-3.5-lightning:free',
+        'poolside/laguna-s-2.1:free',
+        'poolside/laguna-xs-2.1:free',
+        'google/gemma-4-31b-it:free',
+      ],
+      user: input.user?.id || 'guest',
+      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput' },
+    },
+  }
+  if (input.provider === 'openrouter-vision-pool') return {
+    openrouter: {
+      models: ['google/gemma-4-26b-a4b-it:free', 'google/gemma-4-31b-it:free'],
+      user: input.user?.id || 'guest',
+      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput' },
+    },
+  }
   return undefined
 }

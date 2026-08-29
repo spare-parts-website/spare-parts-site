@@ -352,6 +352,20 @@ function directToolInput(toolName: AIToolName | undefined, message: string): Rec
     const query = /(?:طلب|order)/i.test(message) ? 'orders' : /(?:كوبون|coupon)/i.test(message) ? 'coupons' : /(?:رسال|message)/i.test(message) ? 'messages' : /(?:تقييم|review)/i.test(message) ? 'reviews' : 'parts'
     return { query }
   }
+  if (toolName === 'lookupAdminRecords') {
+    const kind = /(?:مستخدم|user|account)/i.test(message) ? 'user'
+      : /(?:متجر|store|shop)/i.test(message) ? 'store'
+        : /(?:قطعة|part|product|offer)/i.test(message) ? 'part'
+          : /(?:طلب|order)/i.test(message) ? 'order'
+            : /(?:بلاغ|report)/i.test(message) ? 'report'
+              : /(?:توثيق|verification)/i.test(message) ? 'verification'
+                : /(?:نزاع|dispute)/i.test(message) ? 'dispute'
+                  : undefined
+    if (!kind) return undefined
+    const recency = /(?:أقدم|أول|oldest|first)/i.test(message) ? 'oldest' : 'latest'
+    const asksByRecency = /(?:آخر|أحدث|أقدم|أول|last|latest|newest|oldest|first)/i.test(message)
+    return { kind, recency, ...(asksByRecency ? {} : { query: message.slice(0, 160) }) }
+  }
   return undefined
 }
 
