@@ -1,5 +1,6 @@
 import { db } from '@/lib/db'
 import { maskEmail, maskPhone } from '@/lib/ai/policy'
+import { fuzzyPartScore } from '@/lib/ai/fuzzy-match'
 import type { AIEntityKind, AIProposalInput, AISelectedEntity, AIToolCard } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
@@ -59,8 +60,16 @@ export async function resolvePart(input: { user?: SessionUser | null; scope: 'pu
   }
   const query = input.reference.partNumber?.trim() || input.reference.oemNumber?.trim() || input.reference.entityName?.trim() || input.reference.name?.trim() || ''
   if (!query) return finish('part', 'القطعة', [])
-  const exact = await db.part.findMany({ where: { ...scope, OR: [{ name: { equals: query, mode: 'insensitive' } }, { partNumber: { equals: query, mode: 'insensitive' } }, { oemNumber: { equals: query, mode: 'insensitive' } }] }, select: { id: true, name: true, partNumber: true, store: { select: { name: true } } }, take: 6 })
-  const rows = exact.length ? exact : await db.part.findMany({ where: { ...scope, OR: [{ name: { contains: query, mode: 'insensitive' } }, { partNumber: { contains: query, mode: 'insensitive' } }, { oemNumber: { contains: query, mode: 'insensitive' } }, { searchAliases: { contains: query, mode: 'insensitive' } }] }, select: { id: true, name: true, partNumber: true, store: { select: { name: true } } }, orderBy: { updatedAt: 'desc' }, take: 6 })
+  const select = { id: true, name: true, partNumber: true, oemNumber: true, searchAliases: true, store: { select: { name: true } } } as const
+  const exact = await db.part.findMany({ where: { ...scope, OR: [{ name: { equals: query, mode: 'insensitive' } }, { partNumber: { equals: query, mode: 'insensitive' } }, { oemNumber: { equals: query, mode: 'insensitive' } }] }, select, take: 6 })
+  const contained = exact.length ? [] : await db.part.findMany({ where: { ...scope, OR: [{ name: { contains: query, mode: 'insensitive' } }, { partNumber: { contains: query, mode: 'insensitive' } }, { oemNumber: { contains: query, mode: 'insensitive' } }, { searchAliases: { contains: query, mode: 'insensitive' } }] }, select, orderBy: { updatedAt: 'desc' }, take: 6 })
+  const fuzzy = exact.length || contained.length ? [] : (await db.part.findMany({ where: scope, select, orderBy: { updatedAt: 'desc' }, take: 500 }))
+    .map((part) => ({ part, score: fuzzyPartScore(query, [part.name, part.partNumber, part.oemNumber, part.searchAliases].filter(Boolean).join(' ')) }))
+    .filter((entry) => entry.score > 0)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 6)
+    .map((entry) => entry.part)
+  const rows = exact.length ? exact : contained.length ? contained : fuzzy
   return finish('part', 'القطعة', rows.map((part) => ({ id: part.id, label: part.name, subtitle: `${part.store.name}${part.partNumber ? ` • ${part.partNumber}` : ''}` })))
 }
 

@@ -6,6 +6,7 @@ import { cleanWebSearchQuery, planAIRequest } from '../src/lib/ai/planner.ts'
 import { presentAIResponse } from '../src/lib/ai/presentation.ts'
 import { accountFocus, adminInsightFocus, deterministicToolInput, planDeterministicRequest, sellerCouponState, sellerInsightFocus, sellerListingState, sellerMessageState, sellerOrderStatus } from '../src/lib/ai/deterministic.ts'
 import { presentSellerInventory } from '../src/lib/ai/deterministic-presenters.ts'
+import { fuzzyPartScore, normalizePartSearch } from '../src/lib/ai/fuzzy-match.ts'
 
 const emptyContext = { cart: [] }
 
@@ -134,6 +135,14 @@ test('parses broad Arabic and English commands without a model', () => {
   assert.deepEqual(deterministicToolInput('lookupAdminRecords', 'اعرض أحدث 3 بلاغات', 'ADMIN', emptyContext), { kind: 'report', recency: 'latest' })
   assert.deepEqual(deterministicToolInput('prepareAction', 'غير سعر تيل فرامل Bosch إلى 2500', 'SHOP_OWNER', emptyContext), { action: 'seller_part_update', price: 2500, stock: undefined, entityName: 'تيل فرامل Bosch' })
   assert.deepEqual(deterministicToolInput('prepareAction', 'change the price of my bmw engin price to 10000', 'SHOP_OWNER', emptyContext), { action: 'seller_part_update', price: 10000, stock: undefined, entityName: 'bmw engine' })
+})
+
+test('matches part names through small typos and automotive synonyms', () => {
+  assert.deepEqual(normalizePartSearch('BMW motor'), ['bmw', 'engine'])
+  assert.ok(fuzzyPartScore('bmw engin', 'BMW motor') > 0)
+  assert.ok(fuzzyPartScore('bwm moter', 'BMW motor') > 0)
+  assert.ok(fuzzyPartScore('بي ام محرك', 'بي ام موتور') > 0)
+  assert.equal(fuzzyPartScore('toyota brakes', 'BMW motor'), 0)
 })
 
 test('answers the exact requested summary instead of returning a generic dashboard line', () => {
