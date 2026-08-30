@@ -466,9 +466,9 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                     placeholder="0"
                   />
                 </div>
-                <div className="space-y-2"><Label>رقم القطعة</Label><Input value={partForm.partNumber} onChange={(e) => setPartForm({ ...partForm, partNumber: e.target.value })} placeholder="Part number" dir="ltr" /></div>
-                <div className="space-y-2"><Label>رقم OEM</Label><Input value={partForm.oemNumber} onChange={(e) => setPartForm({ ...partForm, oemNumber: e.target.value })} placeholder="OEM number" dir="ltr" /></div>
-                <div className="space-y-2 md:col-span-2"><Label>أسماء بحث إضافية</Label><Input value={partForm.searchAliases} onChange={(e) => setPartForm({ ...partForm, searchAliases: e.target.value })} placeholder="مرادفات عربية وإنجليزية مفصولة بفواصل" /></div>
+                <div className="space-y-2"><Label>رقم القطعة (اختياري)</Label><Input value={partForm.partNumber} onChange={(e) => setPartForm({ ...partForm, partNumber: e.target.value })} placeholder="Part number" dir="ltr" /></div>
+                <div className="space-y-2"><Label>رقم OEM (اختياري)</Label><Input value={partForm.oemNumber} onChange={(e) => setPartForm({ ...partForm, oemNumber: e.target.value })} placeholder="OEM number" dir="ltr" /></div>
+                <div className="space-y-2 md:col-span-2"><Label>أسماء بحث إضافية (اختياري)</Label><Input value={partForm.searchAliases} onChange={(e) => setPartForm({ ...partForm, searchAliases: e.target.value })} placeholder="مرادفات عربية وإنجليزية مفصولة بفواصل" /></div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>صور القطعة</Label>
                   <MultiImageUpload
