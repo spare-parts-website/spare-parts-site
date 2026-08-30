@@ -261,7 +261,9 @@ function draftInput(message: string, role: AIRole) {
 }
 
 function entityReference(message: string, selected: string | undefined, removals: RegExp): Pick<AIProposalInput, 'entityName'> {
-  return { entityName: selected || cleanSubject(message, [removals]) || undefined }
+  const cleaned = cleanSubject(message, [removals, /(?:^|\s)(?:the|of|my)(?=\s|$)/gi])
+    .replace(/\bengin\b/gi, 'engine')
+  return { entityName: selected || cleaned || undefined }
 }
 
 function queryUnlessRecency(message: string, kindWords: RegExp) {

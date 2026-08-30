@@ -133,6 +133,7 @@ test('parses broad Arabic and English commands without a model', () => {
   assert.deepEqual(deterministicToolInput('navigate', 'افتح صفحة طلباتي', 'BUYER', emptyContext), { destination: 'orders' })
   assert.deepEqual(deterministicToolInput('lookupAdminRecords', 'اعرض أحدث 3 بلاغات', 'ADMIN', emptyContext), { kind: 'report', recency: 'latest' })
   assert.deepEqual(deterministicToolInput('prepareAction', 'غير سعر تيل فرامل Bosch إلى 2500', 'SHOP_OWNER', emptyContext), { action: 'seller_part_update', price: 2500, stock: undefined, entityName: 'تيل فرامل Bosch' })
+  assert.deepEqual(deterministicToolInput('prepareAction', 'change the price of my bmw engin price to 10000', 'SHOP_OWNER', emptyContext), { action: 'seller_part_update', price: 10000, stock: undefined, entityName: 'bmw engine' })
 })
 
 test('answers the exact requested summary instead of returning a generic dashboard line', () => {
