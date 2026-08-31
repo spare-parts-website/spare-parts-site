@@ -26,6 +26,7 @@ import {
   MessageSquare,
   Heart,
   Car,
+  UserPlus,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
 import {
@@ -319,8 +320,11 @@ export function Header({ user }: { user: AuthUser | null }) {
               <Button
                 size="sm"
                 onClick={() => setView({ name: 'register' })}
+                className="size-10 p-0 sm:h-9 sm:w-auto sm:px-3"
+                aria-label="إنشاء حساب جديد"
               >
-                حساب جديد
+                <UserPlus className="size-4 sm:hidden" />
+                <span className="hidden sm:inline">حساب جديد</span>
               </Button>
             </>
           )}
