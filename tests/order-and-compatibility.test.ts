@@ -4,6 +4,8 @@ import { calculateOrderLine, InvalidOrderTransition, resolveOrderTransition } fr
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '../src/lib/vehicle-compatibility.ts'
 import { loginCodeEmailHtml, notificationEmailHtml, passwordResetEmailHtml } from '../src/lib/email-templates.ts'
 import { requiresLoginCode } from '../src/lib/login-policy.ts'
+import { buildGroupedOrderDrafts } from '../src/lib/grouped-orders.ts'
+import { readFileSync } from 'node:fs'
 
 test('calculates coupon discount against quantity without floating-point drift', () => {
   assert.deepEqual(calculateOrderLine(125.5, 2, 10), { subtotal: 251, discount: 25.1, total: 225.9 })
@@ -38,6 +40,45 @@ test('rejects invalid order transitions', () => {
     () => resolveOrderTransition({ action: 'pay', status: 'APPROVED', paymentStatus: 'UNPAID', paymentMethod: 'cod' }),
     InvalidOrderTransition,
   )
+})
+
+test('groups checkout items into one order per seller with one shipping fee', () => {
+  const drafts = buildGroupedOrderDrafts([
+    { partId: 'a1', storeId: 'seller-a', ownerId: 'owner-a', storeName: 'متجر أ', productName: 'فرامل', unitPrice: 100, quantity: 2 },
+    { partId: 'a2', storeId: 'seller-a', ownerId: 'owner-a', storeName: 'متجر أ', productName: 'فلتر', unitPrice: 50, quantity: 1 },
+    { partId: 'b1', storeId: 'seller-b', ownerId: 'owner-b', storeName: 'متجر ب', productName: 'موتور', unitPrice: 200, quantity: 1 },
+  ], 60, { storeId: 'seller-a', code: 'SAVE10', discountPercent: 10 })
+
+  assert.equal(drafts.length, 2)
+  assert.deepEqual(drafts[0], {
+    storeId: 'seller-a', ownerId: 'owner-a', storeName: 'متجر أ', couponCode: 'SAVE10', shippingFee: 60,
+    totalQuantity: 3, discount: 25, itemsTotal: 225, totalPrice: 285,
+    items: [
+      { partId: 'a1', storeId: 'seller-a', ownerId: 'owner-a', storeName: 'متجر أ', productName: 'فرامل', unitPrice: 100, quantity: 2, discount: 20, itemTotal: 180 },
+      { partId: 'a2', storeId: 'seller-a', ownerId: 'owner-a', storeName: 'متجر أ', productName: 'فلتر', unitPrice: 50, quantity: 1, discount: 5, itemTotal: 45 },
+    ],
+  })
+  assert.equal(drafts[1].couponCode, null)
+  assert.equal(drafts[1].shippingFee, 60)
+  assert.equal(drafts[1].totalPrice, 260)
+})
+
+test('keeps grouped-order rollout additive, idempotent, and stock-safe', () => {
+  const migration = readFileSync(new URL('../prisma/grouped-orders.sql', import.meta.url), 'utf8')
+  const route = readFileSync(new URL('../src/app/api/orders/route.ts', import.meta.url), 'utf8')
+  const disputes = readFileSync(new URL('../src/app/api/disputes/route.ts', import.meta.url), 'utf8')
+  assert.match(migration, /create table if not exists public\."OrderItem"/)
+  assert.match(migration, /where not exists/)
+  assert.match(migration, /enable row level security/)
+  assert.match(migration, /revoke all on table public\."OrderItem" from anon, authenticated/)
+  assert.doesNotMatch(migration, /\b(drop|truncate)\b/i)
+  assert.match(route, /clientOrderId: \{ startsWith: `\$\{checkoutId\}:` \}/)
+  assert.match(route, /stock: \{ gte: item\.quantity \}/)
+  assert.match(route, /stock: \{ decrement: item\.quantity \}/)
+  assert.match(route, /نطاق الطلبات غير صالح/)
+  assert.match(route, /code === 'P2002'/)
+  assert.match(disputes, /status: \{ in: \['SHIPPED', 'DELIVERED'\] \}/)
+  assert.match(disputes, /claimedOrder\.count !== 1/)
 })
 
 test('parses, validates, deduplicates, and serializes vehicle compatibility', () => {

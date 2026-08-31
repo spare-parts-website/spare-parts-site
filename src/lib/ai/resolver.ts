@@ -20,6 +20,11 @@ function selectedId(selection: AISelectedEntity | undefined, kind: AIEntityKind)
   return selection?.kind === kind ? selection.id : undefined
 }
 
+function groupedOrderLabel(order: { part: { name: string }; items: Array<{ productName: string }> }) {
+  if (order.items.length > 1) return `${order.items[0].productName} و${order.items.length - 1} منتج آخر`
+  return order.items[0]?.productName || order.part.name
+}
+
 function dateRange(value?: string) {
   if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined
   const start = new Date(`${value}T00:00:00.000Z`)
@@ -105,16 +110,16 @@ export async function resolveOrder(user: SessionUser, reference: NaturalReferenc
   const id = selectedId(selection, 'order') || reference.targetId
   const owned = adminScope && user.role === 'ADMIN' ? {} : user.role === 'SHOP_OWNER' ? { store: { ownerId: user.id } } : { buyerId: user.id }
   if (id) {
-    const order = await db.order.findFirst({ where: { id, ...owned }, include: { part: true, store: true } })
-    return finish('order', 'الطلب', order ? [{ id: order.id, label: order.part.name, subtitle: `${order.store.name} • ${order.status} • ${order.createdAt.toLocaleDateString('ar-EG')}` }] : [])
+    const order = await db.order.findFirst({ where: { id, ...owned }, include: { part: true, items: true, store: true } })
+    return finish('order', 'الطلب', order ? [{ id: order.id, label: groupedOrderLabel(order), subtitle: `${order.store.name} • ${order.status} • ${order.createdAt.toLocaleDateString('ar-EG')}` }] : [])
   }
   const partQuery = reference.entityName?.trim() || reference.name?.trim()
   const storeQuery = reference.storeName?.trim()
   const description = reference.orderDescription?.replace(/(أحدث|احدث|آخر|اخر|أقدم|اقدم|طلب|الطلب|بتاع|خاص)/g, ' ').replace(/\s+/g, ' ').trim()
   const hasQuery = Boolean(partQuery || storeQuery || description)
   const range = dateRange(reference.date)
-  const rows = await db.order.findMany({ where: { ...owned, ...(range ? { createdAt: range } : {}), ...(partQuery ? { part: { name: { contains: partQuery, mode: 'insensitive' } } } : {}), ...(storeQuery ? { store: { name: { contains: storeQuery, mode: 'insensitive' } } } : {}), ...(!partQuery && !storeQuery && description ? { OR: [{ part: { name: { contains: description, mode: 'insensitive' } } }, { store: { name: { contains: description, mode: 'insensitive' } } }, { status: { equals: description, mode: 'insensitive' } }] } : {}) }, include: { part: true, store: true }, orderBy: { createdAt: reference.recency === 'oldest' ? 'asc' : 'desc' }, take: hasQuery || range ? 6 : 1 })
-  return finish('order', 'الطلب', rows.map((order) => ({ id: order.id, label: order.part.name, subtitle: `${order.store.name} • ${order.status} • ${order.createdAt.toLocaleDateString('ar-EG')}` })))
+  const rows = await db.order.findMany({ where: { ...owned, ...(range ? { createdAt: range } : {}), ...(partQuery ? { OR: [{ part: { name: { contains: partQuery, mode: 'insensitive' } } }, { items: { some: { productName: { contains: partQuery, mode: 'insensitive' } } } }] } : {}), ...(storeQuery ? { store: { name: { contains: storeQuery, mode: 'insensitive' } } } : {}), ...(!partQuery && !storeQuery && description ? { OR: [{ part: { name: { contains: description, mode: 'insensitive' } } }, { items: { some: { productName: { contains: description, mode: 'insensitive' } } } }, { store: { name: { contains: description, mode: 'insensitive' } } }, { status: { equals: description, mode: 'insensitive' } }] } : {}) }, include: { part: true, items: true, store: true }, orderBy: { createdAt: reference.recency === 'oldest' ? 'asc' : 'desc' }, take: hasQuery || range ? 6 : 1 })
+  return finish('order', 'الطلب', rows.map((order) => ({ id: order.id, label: groupedOrderLabel(order), subtitle: `${order.store.name} • ${order.status} • ${order.createdAt.toLocaleDateString('ar-EG')}` })))
 }
 
 export async function resolveSellerCoupon(user: SessionUser, query?: string, recency: 'latest' | 'oldest' = 'latest', selection?: AISelectedEntity): Promise<EntityResolution> {
@@ -149,8 +154,8 @@ export async function resolveAdminEntity(kind: Extract<AIEntityKind, 'user' | 'r
   }
   if (kind === 'dispute') {
     const range = dateRange(reference.date)
-    const rows = await db.dispute.findMany({ where: { ...(id ? { id } : { status: 'OPEN', ...(range ? { createdAt: range } : {}), ...(query ? { OR: [{ reason: { contains: query, mode: 'insensitive' } }, { order: { part: { name: { contains: query, mode: 'insensitive' } } } }, { store: { name: { contains: query, mode: 'insensitive' } } }] } : {}) }) }, include: { order: { include: { part: true } }, store: true }, orderBy: { createdAt: reference.recency === 'oldest' ? 'asc' : 'desc' }, take: query || id || range ? 6 : 1 })
-    return finish('dispute', 'النزاع', rows.map((item) => ({ id: item.id, label: item.order.part.name, subtitle: `${item.store.name} • ${item.reason.slice(0, 80)} • ${item.createdAt.toLocaleDateString('ar-EG')}` })))
+    const rows = await db.dispute.findMany({ where: { ...(id ? { id } : { status: 'OPEN', ...(range ? { createdAt: range } : {}), ...(query ? { OR: [{ reason: { contains: query, mode: 'insensitive' } }, { order: { OR: [{ part: { name: { contains: query, mode: 'insensitive' } } }, { items: { some: { productName: { contains: query, mode: 'insensitive' } } } }] } }, { store: { name: { contains: query, mode: 'insensitive' } } }] } : {}) }) }, include: { order: { include: { part: true, items: true } }, store: true }, orderBy: { createdAt: reference.recency === 'oldest' ? 'asc' : 'desc' }, take: query || id || range ? 6 : 1 })
+    return finish('dispute', 'النزاع', rows.map((item) => ({ id: item.id, label: groupedOrderLabel(item.order), subtitle: `${item.store.name} • ${item.reason.slice(0, 80)} • ${item.createdAt.toLocaleDateString('ar-EG')}` })))
   }
   const range = dateRange(reference.date)
   const recent = await db.report.findMany({ where: id ? { id } : { status: 'OPEN', ...(range ? { createdAt: range } : {}) }, orderBy: { createdAt: reference.recency === 'oldest' ? 'asc' : 'desc' }, take: id ? 1 : query ? 30 : range ? 6 : 1 })

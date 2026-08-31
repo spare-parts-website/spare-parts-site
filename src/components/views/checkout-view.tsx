@@ -256,7 +256,7 @@ export function CheckoutView() {
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-muted-foreground">عدد الطلبات</span>
-                  <span>{cart.length}</span>
+                  <span>{Object.keys(storeGroups).length}</span>
                 </div>
                 <div className="flex justify-between text-sm"><span className="text-muted-foreground">التوصيل ({Object.keys(storeGroups).length} متجر)</span><span>{form.governorate ? formatPrice(shippingTotal) : 'اختر المحافظة'}</span></div>
                 <div className="flex justify-between font-bold text-lg pt-2 border-t">

@@ -231,10 +231,11 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
       return `${input.status === 'APPROVED' ? 'اعتماد' : 'رفض'} طلب توثيق ${verification.store.name}`
     }
     case 'admin_dispute_decision': {
-      const dispute = await db.dispute.findUnique({ where: { id: input.targetId }, include: { order: { include: { part: { select: { name: true } } } } } })
+      const dispute = await db.dispute.findUnique({ where: { id: input.targetId }, include: { order: { include: { part: { select: { name: true } }, items: { select: { productName: true } } } } } })
       if (!dispute || !['RESOLVED_BUYER', 'RESOLVED_SELLER', 'REJECTED'].includes(input.status || '') || !input.description || input.description.length < 3) throw new Error('INVALID_ACTION_INPUT')
       if (dispute.status !== 'OPEN') throw new Error('ACTION_STALE')
-      return `حسم نزاع ${dispute.order.part.name}: ${humanDecision(input.status)}`
+      const label = dispute.order.items.length > 1 ? `${dispute.order.items[0].productName} و${dispute.order.items.length - 1} منتج آخر` : dispute.order.items[0]?.productName || dispute.order.part.name
+      return `حسم نزاع ${label}: ${humanDecision(input.status)}`
     }
   }
 }
@@ -364,10 +365,25 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       return {}
     }
     case 'admin_dispute_decision': {
-      const dispute = await db.dispute.findUnique({ where: { id: input.targetId! }, include: { order: { include: { store: true, part: true } } } })
+      const dispute = await db.dispute.findUnique({ where: { id: input.targetId! }, include: { order: { include: { store: true, part: true, items: true } } } })
       if (!dispute) throw new Error('INVALID_ACTION_INPUT')
-      const claimed = await db.dispute.updateMany({ where: { id: dispute.id, status: 'OPEN' }, data: { status: input.status!, resolution: input.description!, reviewedById: user.id } })
-      if (claimed.count !== 1) throw new Error('ACTION_STALE')
+      await db.$transaction(async (tx) => {
+        const claimed = await tx.dispute.updateMany({ where: { id: dispute.id, status: 'OPEN' }, data: { status: input.status!, resolution: input.description!, reviewedById: user.id } })
+        if (claimed.count !== 1) throw new Error('ACTION_STALE')
+        if (input.status === 'RESOLVED_BUYER' && dispute.order.status !== 'RETURNED') {
+          const claimedOrder = await tx.order.updateMany({ where: { id: dispute.orderId, status: dispute.order.status }, data: { status: 'RETURNED', paymentStatus: dispute.order.paymentStatus === 'PAID' ? 'REFUNDED' : dispute.order.paymentStatus } })
+          if (claimedOrder.count !== 1) throw new Error('ACTION_STALE')
+          await tx.orderTimeline.create({ data: { orderId: dispute.orderId, status: 'RETURNED', note: 'تم قبول طلب الحماية والاسترجاع بقرار الإدارة عبر المساعد' } })
+          if (dispute.order.items.length) {
+            for (const item of dispute.order.items) {
+              if (item.partId) await tx.part.updateMany({ where: { id: item.partId }, data: { stock: { increment: item.quantity } } })
+            }
+          } else {
+            await tx.part.update({ where: { id: dispute.order.partId }, data: { stock: { increment: dispute.order.quantity } } })
+          }
+          if (dispute.order.couponCode) await tx.coupon.updateMany({ where: { code: dispute.order.couponCode, usedCount: { gt: 0 } }, data: { usedCount: { decrement: 1 } } })
+        }
+      })
       await Promise.allSettled([
         createNotification({ userId: dispute.buyerId, title: 'تم تحديث النزاع', message: input.description!, type: 'DISPUTE', link: 'orders' }),
         createNotification({ userId: dispute.order.store.ownerId, title: 'تم تحديث النزاع', message: input.description!, type: 'DISPUTE', link: 'shop-dashboard' }),
@@ -378,7 +394,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
 }
 
 async function executeOrderAction(user: SessionUser, orderId: string, action: OrderAction, trackingNumber?: string) {
-  const order = await db.order.findUnique({ where: { id: orderId }, include: { part: true, store: true } })
+  const order = await db.order.findUnique({ where: { id: orderId }, include: { part: true, store: true, items: true } })
   if (!order) throw new Error('INVALID_ACTION_INPUT')
   const buyerAllowed = ['cancel', 'deliver', 'return'].includes(action) && order.buyerId === user.id
   const sellerAllowed = ['approve', 'reject', 'ship'].includes(action) && order.store.ownerId === user.id
@@ -388,8 +404,20 @@ async function executeOrderAction(user: SessionUser, orderId: string, action: Or
     const claimed = await tx.order.updateMany({ where: { id: order.id, status: order.status, paymentStatus: order.paymentStatus }, data: { status: transition.status, paymentStatus: transition.paymentStatus, ...(action === 'ship' ? { trackingNumber: trackingNumber || null } : {}) } })
     if (claimed.count !== 1) throw new Error('ORDER_CHANGED')
     await tx.orderTimeline.create({ data: { orderId: order.id, status: transition.status, note: 'تم تنفيذ الإجراء بعد تأكيد اقتراح مساعد غيار ماركت' } })
-    if (transition.restoreStock) await tx.part.update({ where: { id: order.partId }, data: { stock: { increment: order.quantity } } })
+    if (transition.restoreStock) {
+      if (order.items.length) {
+        for (const item of order.items) {
+          if (item.partId) await tx.part.updateMany({ where: { id: item.partId }, data: { stock: { increment: item.quantity } } })
+        }
+      } else {
+        await tx.part.update({ where: { id: order.partId }, data: { stock: { increment: order.quantity } } })
+      }
+      if (order.couponCode) {
+        await tx.coupon.updateMany({ where: { code: order.couponCode, usedCount: { gt: 0 } }, data: { usedCount: { decrement: 1 } } })
+      }
+    }
   })
   const recipient = order.buyerId === user.id ? order.store.ownerId : order.buyerId
-  await createNotification({ userId: recipient, title: 'تم تحديث الطلب', message: `تم تحديث طلب ${order.part.name} إلى ${transition.status}.`, type: 'ORDER_STATUS', link: order.buyerId === recipient ? 'orders' : 'shop-dashboard' }).catch((error) => console.error('AI order notification failed:', error))
+  const label = order.items.length > 1 ? `${order.items[0].productName} و${order.items.length - 1} منتج آخر` : order.items[0]?.productName || order.part.name
+  await createNotification({ userId: recipient, title: 'تم تحديث الطلب', message: `تم تحديث طلب ${label} إلى ${transition.status}.`, type: 'ORDER_STATUS', link: order.buyerId === recipient ? 'orders' : 'shop-dashboard' }).catch((error) => console.error('AI order notification failed:', error))
 }

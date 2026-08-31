@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
       where: { id: orderId },
       include: {
         part: { select: { name: true, brand: true, image: true, price: true } },
+        items: { orderBy: { createdAt: 'asc' } },
         store: { select: { name: true, address: true, phone: true, ownerId: true } },
         buyer: { select: { name: true, email: true, phone: true } },
         timeline: { orderBy: { createdAt: 'asc' } },
@@ -38,10 +39,24 @@ export async function GET(req: NextRequest) {
       return new Response('Unauthorized', { status: 403 })
     }
 
-    // totalPrice is already stored after the coupon discount is applied.
-    const discount = order.discount || 0
-    const subtotal = order.totalPrice + discount
+    const items = order.items.length ? order.items : [{
+      productName: order.part.name,
+      unitPrice: order.part.price,
+      quantity: order.quantity,
+      discount: order.discount || 0,
+      itemTotal: Math.max(0, order.totalPrice - (order.shippingFee || 0)),
+    }]
+    const discount = items.reduce((sum, item) => sum + item.discount, 0)
+    const subtotal = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+    const shippingFee = order.shippingFee || 0
     const total = order.totalPrice
+    const itemRows = items.map((item) => `
+          <tr>
+            <td><strong>${escapeHtml(item.productName)}</strong></td>
+            <td>${item.quantity}</td>
+            <td>${item.unitPrice.toLocaleString('ar-EG')} ج.م</td>
+            <td>${item.itemTotal.toLocaleString('ar-EG')} ج.م</td>
+          </tr>`).join('')
     const invoiceNumber = escapeHtml(`INV-${order.id.slice(-8).toUpperCase()}`)
     const date = escapeHtml(new Date(order.createdAt).toLocaleDateString('ar-EG'))
     const statusLabel = order.status === 'PAID' ? 'مدفوع' : order.status === 'DELIVERED' ? 'تم التوصيل' : order.status === 'PENDING' ? 'بانتظار الموافقة' : order.status
@@ -119,15 +134,7 @@ export async function GET(req: NextRequest) {
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>
-              <strong>${escapeHtml(order.part.name)}</strong>
-              ${order.part.brand ? `<br><small style="color:#999">${escapeHtml(order.part.brand)}</small>` : ''}
-            </td>
-            <td>${order.quantity}</td>
-            <td>${order.part.price.toLocaleString('ar-EG')} ج.م</td>
-            <td>${(order.part.price * order.quantity).toLocaleString('ar-EG')} ج.م</td>
-          </tr>
+          ${itemRows}
         </tbody>
       </table>
     </div>
@@ -135,6 +142,7 @@ export async function GET(req: NextRequest) {
     <div class="totals">
       <div class="row"><span>المجموع الفرعي:</span><span>${subtotal.toLocaleString('ar-EG')} ج.م</span></div>
       ${discount > 0 ? `<div class="row"><span>الخصم${order.couponCode ? ` (${escapeHtml(order.couponCode)})` : ''}:</span><span>- ${discount.toLocaleString('ar-EG')} ج.م</span></div>` : ''}
+      <div class="row"><span>الشحن:</span><span>${shippingFee.toLocaleString('ar-EG')} ج.م</span></div>
       <div class="row total"><span>الإجمالي:</span><span>${total.toLocaleString('ar-EG')} ج.م</span></div>
     </div>
 

@@ -20,6 +20,7 @@ export async function GET() {
         quantity: true,
         createdAt: true,
         part: { select: { name: true } },
+        items: { select: { productName: true, quantity: true, itemTotal: true } },
       },
     })
 
@@ -52,10 +53,13 @@ export async function GET() {
     // Top selling parts
     const partSales: Record<string, { name: string; count: number; revenue: number }> = {}
     paidOrders.forEach((o) => {
-      const name = o.part.name
-      if (!partSales[name]) partSales[name] = { name, count: 0, revenue: 0 }
-      partSales[name].count += o.quantity
-      partSales[name].revenue += o.totalPrice
+      const lines = o.items.length ? o.items : [{ productName: o.part.name, quantity: o.quantity, itemTotal: o.totalPrice }]
+      for (const line of lines) {
+        const name = line.productName
+        if (!partSales[name]) partSales[name] = { name, count: 0, revenue: 0 }
+        partSales[name].count += line.quantity
+        partSales[name].revenue += line.itemTotal
+      }
     })
     const topParts = Object.values(partSales).sort((a, b) => b.count - a.count).slice(0, 5)
 

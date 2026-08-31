@@ -83,9 +83,19 @@ interface Order {
   status: string
   paymentStatus: string
   paymentMethod?: string | null
+  shippingFee?: number
   deliveryAddress: string
   createdAt: string
   part: { id: string; name: string }
+  items?: Array<{
+    id: string
+    partId?: string | null
+    productName: string
+    unitPrice: number
+    quantity: number
+    discount: number
+    itemTotal: number
+  }>
   buyer: { id: string; name: string; phone?: string | null }
 }
 
@@ -601,13 +611,25 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-semibold">{order.part.name}</h3>
+                        <h3 className="font-semibold">{order.items && order.items.length > 1 ? `طلب مجمع: ${order.items.length} منتجات` : order.items?.[0]?.productName || order.part.name}</h3>
                         <p className="text-xs text-muted-foreground mt-0.5">
                           {new Date(order.createdAt).toLocaleString('ar-EG')}
                         </p>
                       </div>
                       <StatusBadge status={order.status} />
                     </div>
+                    {order.items?.length ? (
+                      <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+                        {order.items.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+                            <span className="min-w-0 truncate font-medium">{item.productName}</span>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {item.quantity} × {formatPrice(item.unitPrice)} = {formatPrice(item.itemTotal)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm">
                       <div>
                         <span className="block text-xs text-muted-foreground">العميل</span>
@@ -624,6 +646,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                       <div>
                         <span className="block text-xs text-muted-foreground">الإجمالي</span>
                         <span className="font-medium text-primary">{formatPrice(order.totalPrice)}</span>
+                      </div>
+                      <div>
+                        <span className="block text-xs text-muted-foreground">الشحن</span>
+                        <span className="font-medium">{formatPrice(order.shippingFee || 0)}</span>
                       </div>
                       <div>
                         <span className="block text-xs text-muted-foreground">الدفع</span>

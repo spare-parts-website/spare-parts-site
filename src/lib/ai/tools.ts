@@ -113,7 +113,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         const [cars, favorites, orders, carCount, favoriteCount, orderCount, wishlistCount] = await Promise.all([
           db.userCar.findMany({ where: { userId: input.user!.id }, select: { id: true, brand: true, model: true, year: true, engine: true, nickname: true, isPrimary: true }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }], take: 5 }),
           db.storeWishlist.findMany({ where: { userId: input.user!.id }, include: { store: { select: { id: true, name: true } } }, take: 10 }),
-          db.order.findMany({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) }, include: { part: { select: { name: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
+          db.order.findMany({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) }, include: { part: { select: { name: true } }, items: { select: { productName: true, quantity: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
           db.userCar.count({ where: { userId: input.user!.id } }),
           db.storeWishlist.count({ where: { userId: input.user!.id } }),
           db.order.count({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) } }),
@@ -123,7 +123,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         const cartItems = input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `الكمية ${item.quantity} • سعر الوحدة ${item.price.toLocaleString('ar-EG')} ج.م`, value: `${(item.price * item.quantity).toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: item.partId, label: item.name } }))
         const carItems = cars.map((car) => ({ id: `car-${car.id}`, title: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model}${car.year ? ` ${car.year}` : ''}${car.engine ? ` • ${car.engine}` : ''}${car.isPrimary ? ' • السيارة الأساسية' : ''}`, select: { kind: 'car' as const, id: car.id, label: car.nickname || `${car.brand} ${car.model}` } }))
         const favoriteItems = favorites.map((favorite) => ({ id: `store-${favorite.store.id}`, title: favorite.store.name, subtitle: 'متجر محفوظ في المفضلة', select: { kind: 'store' as const, id: favorite.store.id, label: favorite.store.name } }))
-        const orderItems = orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${order.store.name} • ${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } }))
+        const orderItems = orders.map((order) => { const label = order.items.length > 1 ? `${order.items.length} منتجات` : order.items[0]?.productName || order.part.name; return { id: `order-${order.id}`, title: label, subtitle: `${order.store.name} • ${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label } } })
         if (focus === 'cart') return { type: 'insight', title: 'سلة مشترياتك', description: cartItems.length ? `${cartItems.length} عناصر بقيمة إجمالية ${cartTotal.toLocaleString('ar-EG')} ج.م. الأسعار والمخزون قد يتغيران حتى إتمام الطلب.` : 'سلة مشترياتك فارغة حالياً.', items: cartItems }
         if (focus === 'cars') return { type: 'insight', title: 'سياراتك المحفوظة', description: carCount ? `لديك ${carCount} سيارة محفوظة. أعرض أحدث 5 سيارات، والسيارة الأساسية مميزة بوضوح.` : 'لم تحفظ سيارة بعد. أضف الماركة والموديل والسنة للحصول على نتائج توافق أفضل.', items: carItems }
         if (focus === 'favorites') return { type: 'insight', title: 'المفضلة', description: favoriteCount || wishlistCount ? `${favoriteCount} متجر مفضل${wishlistCount ? ` • ${wishlistCount} قطعة محفوظة في البيانات القديمة` : ''}. أعرض أحدث المتاجر المحفوظة.` : 'لا توجد متاجر محفوظة في المفضلة حالياً.', items: favoriteItems }
@@ -202,8 +202,8 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         }
         if (section === 'orders') {
           const selectedId = input.clientContext.selection?.kind === 'order' ? input.clientContext.selection.id : undefined
-          const orders = await db.order.findMany({ where: { storeId: store.id, ...(orderStatus ? { status: orderStatus } : {}), ...(selectedId ? { id: selectedId } : query ? { part: { name: { contains: query, mode: 'insensitive' as const } } } : {}) }, select: { id: true, status: true, paymentStatus: true, totalPrice: true, quantity: true, createdAt: true, part: { select: { name: true } } }, orderBy, take: limit })
-          return { type: 'results', title: orderStatus ? `طلبات ${humanStatus(orderStatus)}` : 'طلبات المتجر', description: orders.length ? `${orders.length} طلبات تخص متجرك. لا يعرض المساعد بيانات اتصال المشترين.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'مطابقة'} حالياً.`, items: orders.map((order) => ({ id: `order-${order.id}`, title: order.part.name, subtitle: `${humanStatus(order.status)} • الدفع ${humanStatus(order.paymentStatus)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label: order.part.name } })) }
+          const orders = await db.order.findMany({ where: { storeId: store.id, ...(orderStatus ? { status: orderStatus } : {}), ...(selectedId ? { id: selectedId } : query ? { OR: [{ part: { name: { contains: query, mode: 'insensitive' as const } } }, { items: { some: { productName: { contains: query, mode: 'insensitive' as const } } } }] } : {}) }, select: { id: true, status: true, paymentStatus: true, totalPrice: true, quantity: true, createdAt: true, part: { select: { name: true } }, items: { select: { productName: true } } }, orderBy, take: limit })
+          return { type: 'results', title: orderStatus ? `طلبات ${humanStatus(orderStatus)}` : 'طلبات المتجر', description: orders.length ? `${orders.length} طلبات تخص متجرك. لا يعرض المساعد بيانات اتصال المشترين.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'مطابقة'} حالياً.`, items: orders.map((order) => { const label = order.items.length > 1 ? `${order.items.length} منتجات` : order.items[0]?.productName || order.part.name; return { id: `order-${order.id}`, title: label, subtitle: `${humanStatus(order.status)} • الدفع ${humanStatus(order.paymentStatus)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label } } }) }
         }
         if (section === 'coupons') {
           const selectedId = input.clientContext.selection?.kind === 'coupon' ? input.clientContext.selection.id : undefined
@@ -306,15 +306,19 @@ export async function buildSellerPerformancePlan(input: { user: SessionUser; con
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const [parts, orders] = await Promise.all([
     db.part.findMany({ where: { storeId: store.id, blocked: false }, select: { id: true, name: true, price: true, stock: true, category: true, brand: true } }),
-    db.order.findMany({ where: { storeId: store.id, createdAt: { gte: since }, status: { notIn: ['CANCELLED', 'REJECTED', 'RETURNED'] } }, select: { partId: true, quantity: true, totalPrice: true, paymentStatus: true } }),
+    db.order.findMany({ where: { storeId: store.id, createdAt: { gte: since }, status: { notIn: ['CANCELLED', 'REJECTED', 'RETURNED'] } }, select: { partId: true, quantity: true, totalPrice: true, paymentStatus: true, items: { select: { partId: true, quantity: true, itemTotal: true } } } }),
   ])
   if (!parts.length) return { answer: `تحليل آخر 30 يوماً لمتجر ${store.name}: لا توجد منتجات نشطة لتحليلها حالياً.`, cards: [] }
   const sales = new Map<string, { quantity: number; revenue: number }>()
   for (const order of orders) {
-    const current = sales.get(order.partId) || { quantity: 0, revenue: 0 }
-    current.quantity += order.quantity
-    if (order.paymentStatus === 'PAID') current.revenue += order.totalPrice
-    sales.set(order.partId, current)
+    const lines = order.items.length ? order.items : [{ partId: order.partId, quantity: order.quantity, itemTotal: order.totalPrice }]
+    for (const line of lines) {
+      if (!line.partId) continue
+      const current = sales.get(line.partId) || { quantity: 0, revenue: 0 }
+      current.quantity += line.quantity
+      if (order.paymentStatus === 'PAID') current.revenue += line.itemTotal
+      sales.set(line.partId, current)
+    }
   }
   const ranked = parts.map((part) => ({ ...part, sold: sales.get(part.id)?.quantity || 0, revenue: sales.get(part.id)?.revenue || 0 })).sort((a, b) => a.sold - b.sold || a.stock - b.stock)
   const weakest = ranked[0]

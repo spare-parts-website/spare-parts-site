@@ -49,6 +49,16 @@ interface Order {
   notes?: string | null
   createdAt: string
   part: { id: string; name: string; image?: string | null; price: number }
+  items?: Array<{
+    id: string
+    partId?: string | null
+    productName: string
+    productImage?: string | null
+    unitPrice: number
+    quantity: number
+    discount: number
+    itemTotal: number
+  }>
   store: { id: string; name: string }
   buyer: { id: string; name: string }
   timeline?: OrderTimelineEntry[]
@@ -152,11 +162,11 @@ export function OrdersView() {
                 <div className="flex flex-col md:flex-row gap-4">
                   {/* Part image */}
                   <div className="relative size-24 rounded-2xl bg-muted/30 flex items-center justify-center shrink-0">
-                    {order.part.image ? (
+                    {(order.items?.[0]?.productImage || order.part.image) ? (
                        
                       <Image
-                        src={order.part.image}
-                        alt={order.part.name}
+                        src={order.items?.[0]?.productImage || order.part.image!}
+                        alt={order.items?.[0]?.productName || order.part.name}
                         fill
                         sizes="96px"
                         className="object-contain rounded-lg"
@@ -172,9 +182,9 @@ export function OrdersView() {
                       <div>
                         <button
                           className="font-semibold hover:text-primary transition text-right"
-                          onClick={() => setView({ name: 'part', partId: order.part.id })}
+                          onClick={() => setView({ name: 'part', partId: order.items?.[0]?.partId || order.part.id })}
                         >
-                          {order.part.name}
+                          {order.items && order.items.length > 1 ? `${order.items.length} منتجات من نفس المتجر` : order.items?.[0]?.productName || order.part.name}
                         </button>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
                           <StoreIcon className="size-3" />
@@ -189,6 +199,26 @@ export function OrdersView() {
                       <StatusBadge status={order.status} />
                     </div>
 
+                    {order.items && order.items.length > 1 && (
+                      <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+                        {order.items.map((item) => (
+                          <div key={item.id} className="flex items-center justify-between gap-3 text-sm">
+                            <button
+                              type="button"
+                              className="min-w-0 truncate text-right font-medium hover:text-primary disabled:pointer-events-none"
+                              disabled={!item.partId}
+                              onClick={() => item.partId && setView({ name: 'part', partId: item.partId })}
+                            >
+                              {item.productName}
+                            </button>
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              {item.quantity} × {formatPrice(item.unitPrice)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-muted-foreground pt-2">
                       <div>
                         <span className="block text-foreground font-medium">الكمية</span>
@@ -197,6 +227,10 @@ export function OrdersView() {
                       <div>
                         <span className="block text-foreground font-medium">الإجمالي</span>
                         {formatPrice(order.totalPrice)}
+                      </div>
+                      <div>
+                        <span className="block text-foreground font-medium">الشحن</span>
+                        {formatPrice(order.shippingFee || 0)}
                       </div>
                       <div>
                         <span className="block text-foreground font-medium">التاريخ</span>
@@ -237,7 +271,7 @@ export function OrdersView() {
                           استرجاع القطعة
                         </Button>
                       )}
-                      {['SHIPPED', 'DELIVERED', 'RETURNED'].includes(order.status) && <DisputeDialog orderId={order.id} />}
+                      {['SHIPPED', 'DELIVERED'].includes(order.status) && <DisputeDialog orderId={order.id} />}
                       {(order.status === 'PENDING' || order.status === 'APPROVED') && order.paymentStatus === 'UNPAID' && (
                         <Button
                           size="sm"

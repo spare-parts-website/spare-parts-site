@@ -117,6 +117,7 @@ model Part {
   storeId         String
   store           Store                  @relation(fields: [storeId], references: [id])
   orders          Order[]
+  orderItems      OrderItem[]
   reviews         ProductReview[]
   images          PartImage[]
   productMessages ProductMessage[]
@@ -258,9 +259,28 @@ model Order {
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
   disputes            Dispute[]
+  items               OrderItem[]
 
   @@index([buyerId, createdAt])
   @@index([storeId, createdAt])
+}
+
+model OrderItem {
+  id           String   @id @default(cuid())
+  orderId      String
+  order        Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  partId       String?
+  part         Part?    @relation(fields: [partId], references: [id], onDelete: SetNull)
+  productName  String
+  productImage String?
+  unitPrice    Float
+  quantity     Int
+  discount     Float    @default(0)
+  itemTotal    Float
+  createdAt    DateTime @default(now())
+
+  @@index([orderId])
+  @@index([partId])
 }
 
 // Order status timeline (track each status change)
