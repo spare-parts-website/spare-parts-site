@@ -29,6 +29,7 @@ import {
   Calendar,
   Flag,
   Bot,
+  Pencil,
 } from 'lucide-react'
 import { StatusBadge, formatPrice, Stars } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
@@ -40,6 +41,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { AdminEditDialog, type AdminEditTarget } from '@/components/admin-edit-dialog'
+import { UserAvatar } from '@/components/user-avatar'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -61,6 +64,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [submitting, setSubmitting] = useState(false)
+  const [editTarget, setEditTarget] = useState<AdminEditTarget | null>(null)
 
   const loadAll = async () => {
     setLoading(true)
@@ -351,9 +355,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                         <tr key={u.id} className="border-b last:border-0 hover:bg-muted/30">
                           <td className="p-3 text-right whitespace-nowrap">
                             <div className="flex w-full items-center justify-start gap-2">
-                              <div className="size-8 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold">
-                                {u.name.charAt(0)}
-                              </div>
+                              <UserAvatar name={u.name} src={u.avatar} className="size-8 text-xs" />
                               <span className="font-medium truncate" title={u.name}>{u.name}</span>
                             </div>
                           </td>
@@ -379,6 +381,15 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                             {new Date(u.createdAt).toLocaleDateString('ar-EG')}
                           </td>
                           <td className="p-3 whitespace-nowrap">
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setEditTarget({ kind: 'user', item: u })}
+                              disabled={u.id === user.id}
+                              title="تعديل الحساب"
+                            >
+                              <Pencil className="size-4 text-primary" />
+                            </Button>
                             <Button
                               size="icon"
                               variant="ghost"
@@ -478,6 +489,10 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                       <div className="w-full sm:flex-1 min-w-0 text-xs text-muted-foreground truncate" dir="ltr">
                         {s.owner?.email || 'بدون مالك'}
                       </div>
+                      <Button size="sm" variant="outline" onClick={() => setEditTarget({ kind: 'store', item: s })} className="shrink-0 gap-1">
+                        <Pencil className="size-3.5" />
+                        تعديل
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => handleVerifyStore(s.id, s.verified)} disabled={submitting} className="shrink-0 gap-1">
                         <ShieldCheck className="size-3.5" />
                         {s.verified ? 'إلغاء التوثيق' : 'توثيق'}
@@ -536,6 +551,14 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                           </td>
                           <td className="p-3 whitespace-nowrap">
                             <div className="flex gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                onClick={() => setEditTarget({ kind: 'part', item: p })}
+                                title="تعديل العرض"
+                              >
+                                <Pencil className="size-4 text-primary" />
+                              </Button>
                               <Button
                                 size="icon"
                                 variant="ghost"
@@ -734,6 +757,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           )}
         </TabsContent>
       </Tabs>
+      <AdminEditDialog target={editTarget} onClose={() => setEditTarget(null)} onSaved={loadAll} />
     </div>
   )
 }

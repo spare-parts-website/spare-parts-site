@@ -6,6 +6,7 @@ import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
+import { audit } from '@/lib/audit'
 
 const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
 
@@ -302,6 +303,7 @@ export async function PUT(req: NextRequest) {
     } else if (image !== undefined && image !== part.image) {
       await deleteUploadedFiles([part.image])
     }
+    if (isAdmin) await audit({ actorId: session.id, action: 'ADMIN_PART_UPDATED', targetType: 'part', targetId: id })
 
     return NextResponse.json({ part: updated })
   } catch (e) {

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { deleteStoreWithDependencies } from '@/lib/admin-deletion'
 import { deleteUploadedFiles } from '@/lib/storage'
+import { audit } from '@/lib/audit'
 
 export async function GET() {
   try {
@@ -69,11 +70,42 @@ export async function DELETE(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    await requireRole('ADMIN')
+    const session = await requireRole('ADMIN')
     const body = await req.json()
     const id = typeof body.id === 'string' ? body.id : ''
-    if (!id || typeof body.verified !== 'boolean') return NextResponse.json({ error: 'بيانات التحقق غير صحيحة' }, { status: 400 })
-    const store = await db.store.update({ where: { id }, data: { verified: body.verified } })
+    if (!id) return NextResponse.json({ error: 'معرف المتجر مطلوب' }, { status: 400 })
+    const current = await db.store.findUnique({ where: { id } })
+    if (!current) return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
+
+    const name = body.name === undefined ? current.name : typeof body.name === 'string' ? body.name.trim() : ''
+    const description = body.description === undefined ? current.description : typeof body.description === 'string' ? body.description.trim() || null : null
+    const address = body.address === undefined ? current.address : typeof body.address === 'string' ? body.address.trim() || null : null
+    const phone = body.phone === undefined ? current.phone : typeof body.phone === 'string' ? body.phone.trim() || null : null
+    const image = body.image === undefined ? current.image : body.image === null || body.image === '' ? null : typeof body.image === 'string' && body.image.trim().startsWith('https://') ? body.image.trim() : undefined
+    const verified = body.verified === undefined ? current.verified : body.verified
+    if (name.length < 2 || name.length > 120) return NextResponse.json({ error: 'اسم المتجر يجب أن يكون بين حرفين و120 حرفاً' }, { status: 400 })
+    if (description && description.length > 2000) return NextResponse.json({ error: 'وصف المتجر طويل جداً' }, { status: 400 })
+    if (address && address.length > 300) return NextResponse.json({ error: 'عنوان المتجر طويل جداً' }, { status: 400 })
+    if (phone && phone.length > 40) return NextResponse.json({ error: 'رقم الهاتف طويل جداً' }, { status: 400 })
+    if (image === undefined) return NextResponse.json({ error: 'صورة المتجر غير صالحة' }, { status: 400 })
+    if (typeof verified !== 'boolean') return NextResponse.json({ error: 'حالة توثيق المتجر غير صالحة' }, { status: 400 })
+    const verificationChanged = body.verified !== undefined && verified !== current.verified
+
+    const store = await db.store.update({
+      where: { id },
+      data: {
+        name,
+        description,
+        address,
+        phone,
+        image,
+        verified,
+        verificationStatus: verificationChanged ? (verified ? 'APPROVED' : 'UNVERIFIED') : current.verificationStatus,
+        verifiedAt: verificationChanged ? (verified ? new Date() : null) : current.verifiedAt,
+      },
+    })
+    if (image !== current.image) await deleteUploadedFiles([current.image])
+    await audit({ actorId: session.id, action: 'ADMIN_STORE_UPDATED', targetType: 'store', targetId: id, metadata: { verificationChanged } })
     return NextResponse.json({ store })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })

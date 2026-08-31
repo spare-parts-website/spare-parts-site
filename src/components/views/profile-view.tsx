@@ -147,7 +147,7 @@ export function ProfileView() {
             <Button variant="outline" onClick={() => setView({ name: 'shop-dashboard' })} className="justify-start h-auto p-4">
               <LayoutDashboard className="size-5 ml-2" />
               <div className="text-right">
-                <p className="font-medium">لوحة تحكم المحل</p>
+                <p className="font-medium">صفحة المحل</p>
                 <p className="text-xs text-muted-foreground">إدارة قطع الغيار والطلبات</p>
               </div>
             </Button>

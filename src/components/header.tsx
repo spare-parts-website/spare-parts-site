@@ -28,7 +28,6 @@ import {
   Car,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { Input } from '@/components/ui/input'
 import {
   Sheet,
   SheetContent,
@@ -47,24 +46,13 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export function Header({ user }: { user: AuthUser | null }) {
-  const { view, setView, setUser, setSearchQuery, cart, setCartOpen } = useAppStore()
+  const { view, setView, setUser, cart, setCartOpen } = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [searchValue, setSearchValue] = useState(
-    view.name === 'parts' ? useAppStore.getState().searchQuery : ''
-  )
+  const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
-    if (view.name !== 'parts') {
-      setSearchValue('')
-    }
+    setSearchOpen(false)
   }, [view.name])
-
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault()
-    setSearchQuery(searchValue)
-    setView({ name: 'parts' })
-    setMobileOpen(false)
-  }
 
   const navItems = (
     <>
@@ -158,7 +146,7 @@ export function Header({ user }: { user: AuthUser | null }) {
             className="justify-start gap-2"
           >
             <LayoutDashboard className="size-4" />
-            لوحة المحل
+            صفحة المحل
           </Button>
         </>
       )}
@@ -212,6 +200,17 @@ export function Header({ user }: { user: AuthUser | null }) {
 
         {/* Cart + Theme + Notifications */}
         <div className="flex items-center gap-0.5 sm:gap-1">
+          <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="size-9 rounded-xl md:hidden" aria-label="فتح البحث">
+                <Search className="size-4" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="top" className="px-4 pb-6 pt-12">
+              <SheetTitle className="mb-4 text-right text-lg font-bold">البحث في قطع الغيار</SheetTitle>
+              <div className="mx-auto w-full max-w-2xl"><SearchBar /></div>
+            </SheetContent>
+          </Sheet>
           {(!user || user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
             <Button
               variant="ghost"
@@ -279,7 +278,7 @@ export function Header({ user }: { user: AuthUser | null }) {
                   <>
                     <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard' })}>
                       <LayoutDashboard className="size-4 ml-2" />
-                      لوحة المحل
+                      صفحة المحل
                     </DropdownMenuItem>
                     <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard', tab: 'messages' })}>
                       <MessageSquare className="size-4 ml-2" />
@@ -336,9 +335,6 @@ export function Header({ user }: { user: AuthUser | null }) {
             </SheetTrigger>
             <SheetContent side="right" className="mobile-sheet-content w-[min(88vw,22rem)] gap-4 p-4 pt-16">
               <SheetTitle className="text-right text-lg font-bold">القائمة</SheetTitle>
-              <div className="md:hidden">
-                <SearchBar />
-              </div>
               <div className="flex flex-col gap-1 rounded-2xl border bg-card/70 p-2">
                 {navItems}
               </div>

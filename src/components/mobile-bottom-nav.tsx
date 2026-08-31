@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Heart, Home, PackageSearch, ShoppingCart, UserRound } from 'lucide-react'
+import { Heart, Home, PackageSearch, ShoppingCart, Store as StoreIcon, UserRound } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 
 export function MobileBottomNav() {
@@ -9,7 +9,9 @@ export function MobileBottomNav() {
   const items = [
     { label: 'الرئيسية', href: '/', icon: Home, active: view.name === 'home' },
     { label: 'القطع', href: '/parts', icon: PackageSearch, active: view.name === 'parts' || view.name === 'part' },
-    { label: 'المفضلة', href: user ? '/account/wishlist' : '/login', icon: Heart, active: view.name === 'wishlist' },
+    user?.role === 'SHOP_OWNER'
+      ? { label: 'صفحة المحل', href: '/seller/parts', icon: StoreIcon, active: view.name === 'shop-dashboard' }
+      : { label: 'المفضلة', href: user ? '/account/wishlist' : '/login', icon: Heart, active: view.name === 'wishlist' },
     { label: 'حسابي', href: user ? '/account/profile' : '/login', icon: UserRound, active: ['profile', 'cars', 'orders', 'inbox', 'login', 'register', 'forgot-password', 'reset-password'].includes(view.name) },
   ]
 

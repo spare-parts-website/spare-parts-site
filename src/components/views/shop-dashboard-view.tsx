@@ -350,7 +350,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       <div className="page-heading mb-0 flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="page-kicker">إدارة المتجر</p>
-          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">لوحة تحكم المحل</h1>
+          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">صفحة المحل</h1>
         <p className="text-muted-foreground mt-1">
           {store ? store.name : 'جاري التحميل...'}
         </p>
@@ -360,7 +360,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
       {loadError && (
         <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-center" role="alert">
-          <p className="font-semibold">تعذر تحميل بيانات لوحة المحل</p>
+          <p className="font-semibold">تعذر تحميل بيانات صفحة المحل</p>
           <Button className="mt-3" variant="outline" onClick={() => void loadDashboard()}>إعادة المحاولة</Button>
         </div>
       )}
@@ -466,9 +466,6 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                     placeholder="0"
                   />
                 </div>
-                <div className="space-y-2"><Label>رقم القطعة (اختياري)</Label><Input value={partForm.partNumber} onChange={(e) => setPartForm({ ...partForm, partNumber: e.target.value })} placeholder="Part number" dir="ltr" /></div>
-                <div className="space-y-2"><Label>رقم OEM (اختياري)</Label><Input value={partForm.oemNumber} onChange={(e) => setPartForm({ ...partForm, oemNumber: e.target.value })} placeholder="OEM number" dir="ltr" /></div>
-                <div className="space-y-2 md:col-span-2"><Label>أسماء بحث إضافية (اختياري)</Label><Input value={partForm.searchAliases} onChange={(e) => setPartForm({ ...partForm, searchAliases: e.target.value })} placeholder="مرادفات عربية وإنجليزية مفصولة بفواصل" /></div>
                 <div className="space-y-2 md:col-span-2">
                   <Label>صور القطعة</Label>
                   <MultiImageUpload

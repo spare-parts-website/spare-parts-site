@@ -54,11 +54,13 @@ test('parses, validates, deduplicates, and serializes vehicle compatibility', ()
 
 test('renders escaped Arabic RTL transactional email markup', () => {
   const login = loginCodeEmailHtml({ name: '<محمد>', code: '1234' })
-  const notification = notificationEmailHtml({ title: 'طلب جديد', message: '<script>alert(1)</script>' })
+  const notification = notificationEmailHtml({ title: 'طلب جديد', message: '<script>alert(1)</script>', link: 'https://ghyarmarket-eg.com/orders?id=1&next=<script>' })
   assert.match(login, /dir="rtl"/)
   assert.match(login, /<table/)
   assert.ok(!login.includes('<محمد>'))
   assert.ok(!notification.includes('<script>'))
+  assert.match(notification, /https:\/\/ghyarmarket-eg\.com\/orders/)
+  assert.match(notification, /عرض التفاصيل في غيار ماركت/)
 })
 
 test('renders a safe one-time password reset email', () => {

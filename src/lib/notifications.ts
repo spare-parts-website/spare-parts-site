@@ -1,8 +1,21 @@
 import { db } from '@/lib/db'
 import { Resend } from 'resend'
 import { notificationEmailHtml } from '@/lib/email-templates'
+import { applicationOrigin } from '@/lib/application-url'
 
 const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null
+
+function notificationActionUrl(link: string | undefined) {
+  const origin = process.env.NODE_ENV === 'production' ? 'https://ghyarmarket-eg.com' : applicationOrigin()
+  const fallback = new URL('/account/profile', origin).toString()
+  if (!link) return fallback
+  try {
+    const requested = new URL(link, origin)
+    return requested.origin === origin ? requested.toString() : fallback
+  } catch {
+    return fallback
+  }
+}
 
 export async function createNotification(input: {
   userId: string
@@ -23,7 +36,7 @@ export async function createNotification(input: {
 
   // Email is an additional delivery channel. A provider failure must never
   // prevent the in-site notification from being saved and shown in the bell.
-  const from = process.env.NOTIFICATION_FROM_EMAIL
+  const from = process.env.NOTIFICATION_FROM_EMAIL || process.env.AUTH_FROM_EMAIL
   if (resend && from) {
     try {
       const recipient = await db.user.findUnique({
@@ -32,12 +45,13 @@ export async function createNotification(input: {
       })
 
       if (recipient?.email && recipient.emailNotifications) {
+        const actionUrl = notificationActionUrl(input.link)
         const result = await resend.emails.send({
           from: `غيار ماركت <${from}>`,
           to: recipient.email,
-          subject: input.title,
-          text: `${input.title}\n\n${input.message}`,
-          html: notificationEmailHtml(input),
+          subject: `غيار ماركت: ${input.title}`,
+          text: `${input.title}\n\n${input.message}\n\nعرض التفاصيل: ${actionUrl}\n\nيمكنك إدارة إشعارات البريد من صفحة ملفك الشخصي في غيار ماركت.`,
+          html: notificationEmailHtml({ ...input, link: actionUrl }),
         }, { idempotencyKey: `notification/${notification.id}` })
         if (result.error) throw new Error(result.error.message)
         await db.emailDeliveryAttempt.upsert({

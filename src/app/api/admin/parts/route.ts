@@ -27,7 +27,10 @@ export async function GET() {
   try {
     await requireRole('ADMIN')
     const parts = await db.part.findMany({
-      include: { store: { select: { id: true, name: true } } },
+      include: {
+        store: { select: { id: true, name: true } },
+        images: { select: { url: true, position: true }, orderBy: { position: 'asc' } },
+      },
       orderBy: { createdAt: 'desc' },
     })
     return NextResponse.json({ parts })

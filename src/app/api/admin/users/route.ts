@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { deleteUserWithDependencies } from '@/lib/admin-deletion'
+import { deleteUploadedFiles } from '@/lib/storage'
+import { isProfileAvatar } from '@/lib/profile-avatars'
+import { audit } from '@/lib/audit'
 
 export async function GET() {
   try {
@@ -13,6 +16,8 @@ export async function GET() {
         email: true,
         role: true,
         phone: true,
+        avatar: true,
+        emailNotifications: true,
         createdAt: true,
         store: { select: { id: true, name: true } },
         _count: {
@@ -35,13 +40,15 @@ export async function PUT(req: NextRequest) {
   try {
     const session = await requireRole('ADMIN')
     const body = await req.json()
-    const { id, role } = body
-    if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(role)) {
+    const id = typeof body.id === 'string' ? body.id : ''
+    if (!id) return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 })
+    if (body.role !== undefined && !['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(body.role)) {
       return NextResponse.json({ error: 'دور غير صالح' }, { status: 400 })
     }
-    if (id === session.id) return NextResponse.json({ error: 'لا يمكنك تغيير دور حساب المدير الحالي' }, { status: 400 })
     const target = await db.user.findUnique({ where: { id }, include: { store: { select: { id: true } } } })
     if (!target) return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
+    const role = body.role === undefined ? target.role : body.role
+    if (id === session.id && role !== target.role) return NextResponse.json({ error: 'لا يمكنك تغيير دور حساب المدير الحالي' }, { status: 400 })
     if (target.role === 'SHOP_OWNER' && role !== 'SHOP_OWNER' && target.store) {
       return NextResponse.json({ error: 'احذف أو انقل المتجر قبل تغيير دور صاحبه' }, { status: 409 })
     }
@@ -49,17 +56,33 @@ export async function PUT(req: NextRequest) {
       const admins = await db.user.count({ where: { role: 'ADMIN' } })
       if (admins <= 1) return NextResponse.json({ error: 'يجب أن يبقى مدير واحد على الأقل' }, { status: 409 })
     }
+    const name = body.name === undefined ? target.name : typeof body.name === 'string' ? body.name.trim() : ''
+    const phone = body.phone === undefined ? target.phone : typeof body.phone === 'string' ? body.phone.trim() || null : null
+    const emailNotifications = body.emailNotifications === undefined ? target.emailNotifications : body.emailNotifications
+    const avatar = body.avatar === undefined
+      ? target.avatar
+      : body.avatar === null || body.avatar === ''
+        ? null
+        : isProfileAvatar(body.avatar) || (typeof body.avatar === 'string' && body.avatar.trim().startsWith('https://'))
+          ? body.avatar.trim()
+          : undefined
+    if (name.length < 2 || name.length > 100) return NextResponse.json({ error: 'الاسم يجب أن يكون بين حرفين و100 حرف' }, { status: 400 })
+    if (phone && phone.length > 40) return NextResponse.json({ error: 'رقم الهاتف طويل جداً' }, { status: 400 })
+    if (typeof emailNotifications !== 'boolean') return NextResponse.json({ error: 'إعداد إشعارات البريد غير صالح' }, { status: 400 })
+    if (avatar === undefined) return NextResponse.json({ error: 'صورة الحساب غير صالحة' }, { status: 400 })
     const updated = await db.$transaction(async (tx) => {
       const next = await tx.user.update({
         where: { id },
-        data: { role },
-        select: { id: true, name: true, email: true, role: true, phone: true },
+        data: { role, name, phone, avatar, emailNotifications },
+        select: { id: true, name: true, email: true, role: true, phone: true, avatar: true, emailNotifications: true },
       })
       if (role === 'SHOP_OWNER' && !target.store) {
         await tx.store.create({ data: { name: `متجر ${next.name}`, description: '', ownerId: next.id } })
       }
       return next
     })
+    if (avatar !== target.avatar) await deleteUploadedFiles([target.avatar])
+    await audit({ actorId: session.id, action: 'ADMIN_USER_UPDATED', targetType: 'user', targetId: id, metadata: { roleChanged: role !== target.role } })
     return NextResponse.json({ user: updated })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
