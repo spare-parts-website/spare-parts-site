@@ -54,6 +54,17 @@ test('server-only AI tables enable RLS and revoke browser roles', () => {
   }
 })
 
+test('loads the heavy AI assistant only after the user opens it', () => {
+  const shell = readFileSync(new URL('../src/components/app-shell.tsx', import.meta.url), 'utf8')
+  const loader = readFileSync(new URL('../src/components/ai-assistant-loader.tsx', import.meta.url), 'utf8')
+  assert.equal(shell.includes("from '@/components/ai-assistant'"), false)
+  assert.match(shell, /AIAssistantLoader/)
+  assert.equal(loader.includes("from 'next/dynamic'"), false)
+  assert.match(loader, /const requestAssistant = useCallback/)
+  assert.match(loader, /if \(Assistant\)/)
+  assert.match(loader, /import\('@\/components\/ai-assistant'\)/)
+})
+
 test('plans obvious requests with a narrow forced tool', () => {
   assert.deepEqual(planAIRequest('غير سعر قطعة موتور BMW إلى 2500', 'SHOP_OWNER').tools, ['prepareAction'])
   assert.equal(planAIRequest('غير سعر قطعة موتور BMW إلى 2500', 'SHOP_OWNER').forcedTool, 'prepareAction')

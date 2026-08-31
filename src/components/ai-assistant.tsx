@@ -30,10 +30,18 @@ const PROMPTS: Record<AuthUser['role'] | 'GUEST', string[]> = {
   ADMIN: ['اعرض حالة المنصة اليوم', 'إيه البلاغات والنزاعات المفتوحة؟', 'ابحث عن سجل إداري'],
 }
 
-export function AIAssistant({ user }: { user: AuthUser | null }) {
+export function AIAssistant({
+  user,
+  initiallyOpen = false,
+  initialPrompt = '',
+}: {
+  user: AuthUser | null
+  initiallyOpen?: boolean
+  initialPrompt?: string
+}) {
   const router = useRouter(); const addToCart = useAppStore((state) => state.addToCart); const setFavoriteStores = useAppStore((state) => state.setFavoriteStores)
   const role = user?.role || 'GUEST'; const conversationRef = useRef<string | undefined>(undefined); const selectionRef = useRef<AISelectedEntity | undefined>(undefined); const handledActions = useRef(new Set<string>()); const manualStopRef = useRef(false)
-  const [open, setOpen] = useState(false); const [input, setInput] = useState(''); const [conversationId, setConversationId] = useState<string>(); const [expiresAt, setExpiresAt] = useState<string>()
+  const [open, setOpen] = useState(initiallyOpen); const [input, setInput] = useState(initialPrompt); const [conversationId, setConversationId] = useState<string>(); const [expiresAt, setExpiresAt] = useState<string>()
   const [conversations, setConversations] = useState<SavedConversation[]>([]); const [showHistory, setShowHistory] = useState(false); const [attachments, setAttachments] = useState<PromptAttachment[]>([]); const [uploading, setUploading] = useState(false)
   const [localError, setLocalError] = useState(''); const [pendingProposal, setPendingProposal] = useState<AIToolCard['proposal']>(); const [proposalBusy, setProposalBusy] = useState(false); const [requestAgeSeconds, setRequestAgeSeconds] = useState(0)
   conversationRef.current = conversationId

@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 're
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { LockKeyhole, ShieldX } from 'lucide-react'
-import { AIAssistant } from '@/components/ai-assistant'
+import { AIAssistantLoader } from '@/components/ai-assistant-loader'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { CartDrawer } from '@/components/cart-drawer'
@@ -125,7 +125,7 @@ export function AppShell({
       <CartDrawer />
       <MobileBottomNav />
       <PwaInstaller />
-      <AIAssistant user={visibleUser} />
+      <AIAssistantLoader user={visibleUser} />
     </div>
   )
 }
