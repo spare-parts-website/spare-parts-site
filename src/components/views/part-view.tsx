@@ -421,8 +421,8 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
             <div className="flex items-start gap-3">
               {fitmentStatus === 'fits' ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : fitmentStatus === 'does-not-fit' ? <CircleX className="mt-0.5 size-5 shrink-0 text-destructive" /> : <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />}
               <div>
-                <p className="font-bold">{fitmentStatus === 'fits' ? (part.universal ? 'قطعة عامة ومتوافقة' : 'متوافقة مع سيارتك') : fitmentStatus === 'does-not-fit' ? 'لا تطابق سيارتك المحفوظة' : 'التوافق غير مؤكد'}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{fitmentStatus === 'fits' ? (fitmentCarLabel ? `تمت المطابقة مع ${fitmentCarLabel}` : 'هذه القطعة مصنفة كقطعة عامة.') : fitmentStatus === 'does-not-fit' ? `بيانات الإعلان لا تطابق ${fitmentCarLabel || 'السيارة المحددة'}.` : fitmentCarLabel ? `راجع بيانات التوافق أو اسأل البائع قبل الطلب لـ ${fitmentCarLabel}.` : 'أضف سيارة أساسية لعرض نتيجة توافق دقيقة، أو اسأل البائع قبل الطلب.'}</p>
+                <p className="font-bold">{fitmentStatus === 'fits' ? (part.universal ? 'قطعة عامة ومتوافقة' : 'متوافقة حسب بيانات الإعلان') : fitmentStatus === 'does-not-fit' ? 'بيانات التوافق لا تطابق المركبة المحددة' : 'التوافق غير مؤكد'}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{fitmentStatus === 'fits' ? (fitmentCarLabel ? `تمت المطابقة مع ${fitmentCarLabel}` : 'هذه القطعة مصنفة كقطعة عامة.') : fitmentStatus === 'does-not-fit' ? `بيانات الإعلان لا تطابق ${fitmentCarLabel || 'المركبة المحددة'}.` : fitmentCarLabel ? `راجع بيانات التوافق أو اسأل البائع قبل الطلب لـ ${fitmentCarLabel}.` : 'لا توجد مطابقة مركبة محددة لهذا العرض. راجع بيانات التوافق أو اسأل البائع قبل الطلب.'}</p>
                 {!fitmentCarLabel && !part.universal && <p className="mt-1 text-sm text-muted-foreground">راجع بيانات التوافق أو اسأل البائع قبل الطلب.</p>}
               </div>
             </div>
@@ -542,7 +542,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                           ? <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
                           : <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />}
                         <div>
-                          <p className="font-semibold">{fitmentStatus === 'does-not-fit' ? 'تنبيه: القطعة لا تطابق سيارتك المحفوظة' : 'تنبيه: توافق القطعة غير مؤكد'}</p>
+                          <p className="font-semibold">{fitmentStatus === 'does-not-fit' ? 'تنبيه: بيانات التوافق لا تطابق المركبة المحددة' : 'تنبيه: توافق القطعة غير مؤكد'}</p>
                           <p className="mt-1 text-muted-foreground">يمكنك متابعة الطلب، لكن ننصح بمراجعة بيانات التوافق أو سؤال البائع أولاً.</p>
                         </div>
                       </div>

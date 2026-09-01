@@ -171,7 +171,7 @@ export function CheckoutView() {
                   {incompatibleItems.length ? <CircleX className="mt-0.5 size-5 shrink-0 text-destructive" /> : <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />}
                   <div>
                     <h2 className="font-black">راجع توافق القطع قبل تأكيد الطلب</h2>
-                    {incompatibleItems.length > 0 && <p className="mt-1 text-sm">{incompatibleItems.map((item) => item.name).join('، ')} لا تطابق السيارة المحفوظة في بيانات الإعلان.</p>}
+                    {incompatibleItems.length > 0 && <p className="mt-1 text-sm">{incompatibleItems.map((item) => item.name).join('، ')} لا تطابق المركبة المحددة في بيانات الإعلان.</p>}
                     {unknownFitmentItems.length > 0 && <p className="mt-1 text-sm text-muted-foreground">التوافق غير مؤكد لـ: {unknownFitmentItems.map((item) => item.name).join('، ')}. يمكنك المتابعة، لكن ننصح بسؤال البائع أولًا.</p>}
                   </div>
                 </div>
