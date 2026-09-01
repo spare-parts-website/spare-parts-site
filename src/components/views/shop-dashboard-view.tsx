@@ -255,6 +255,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       toast({ title: 'خطأ', description: 'الاسم والسعر وحالة المنتج مطلوبة', variant: 'destructive' })
       return
     }
+    if (!Number.isFinite(Number(partForm.price)) || Number(partForm.price) <= 0) {
+      toast({ title: 'خطأ', description: 'يجب أن يكون سعر المنتج أكبر من صفر.', variant: 'destructive' })
+      return
+    }
     setSubmitting(true)
     try {
       const method = editPart ? 'PUT' : 'POST'
@@ -471,7 +475,9 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                     type="number"
                     value={partForm.price}
                     onChange={(e) => setPartForm({ ...partForm, price: e.target.value })}
-                    placeholder="0.00"
+                    placeholder="مثال: 2500"
+                    min="0.01"
+                    step="0.01"
                   />
                 </div>
                 <div className="space-y-2">

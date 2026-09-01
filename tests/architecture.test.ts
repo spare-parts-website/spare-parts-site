@@ -120,3 +120,17 @@ test('requires a normalized delivery phone on both checkout paths', () => {
   assert.match(checkout, /hasDeliveryPhone/)
   assert.match(partView, /hasDeliveryPhone/)
 })
+
+test('requires positive product prices at every seller write boundary', () => {
+  const partsApi = readFileSync(new URL('../src/app/api/parts/route.ts', import.meta.url), 'utf8')
+  const aiActions = readFileSync(new URL('../src/lib/ai/actions.ts', import.meta.url), 'utf8')
+  const sellerView = readFileSync(new URL('../src/components/views/shop-dashboard-view.tsx', import.meta.url), 'utf8')
+  const migration = readFileSync(new URL('../prisma/positive-part-prices.sql', import.meta.url), 'utf8')
+
+  assert.match(partsApi, /numericPrice <= 0/)
+  assert.match(partsApi, /يجب أن يكون سعر المنتج أكبر من صفر/)
+  assert.match(aiActions, /input\.price > 0/)
+  assert.match(sellerView, /min="0\.01"/)
+  assert.match(migration, /check \("price" > 0\)/i)
+  assert.doesNotMatch(migration, /\b(?:delete|drop|truncate)\b/i)
+})

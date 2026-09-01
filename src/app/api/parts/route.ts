@@ -89,9 +89,10 @@ export async function POST(req: NextRequest) {
     if (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
     const numericPrice = Number(price)
     const numericStock = Number(stock ?? 0)
-    if (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000 || !Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000) {
-      return NextResponse.json({ error: 'السعر أو المخزون غير صالح' }, { status: 400 })
+    if (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > 100000000) {
+      return NextResponse.json({ error: 'يجب أن يكون سعر المنتج أكبر من صفر.' }, { status: 400 })
     }
+    if (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
     if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
     if (universal !== undefined && typeof universal !== 'boolean') return NextResponse.json({ error: 'نوع التوافق غير صالح' }, { status: 400 })
@@ -156,7 +157,7 @@ export async function PUT(req: NextRequest) {
     const numericPrice = price != null ? Number(price) : undefined
     const numericStock = stock != null ? Number(stock) : undefined
     if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160)) return NextResponse.json({ error: 'اسم القطعة غير صالح' }, { status: 400 })
-    if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice < 0 || numericPrice > 100000000)) return NextResponse.json({ error: 'السعر غير صالح' }, { status: 400 })
+    if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > 100000000)) return NextResponse.json({ error: 'يجب أن يكون سعر المنتج أكبر من صفر.' }, { status: 400 })
     if (numericStock !== undefined && (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000)) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
     if (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })

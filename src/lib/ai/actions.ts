@@ -181,7 +181,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
     }
     case 'seller_part_create': {
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
-      const validPrice = input.price !== undefined && input.price >= 0 && input.price <= 100000000
+      const validPrice = input.price !== undefined && Number.isFinite(input.price) && input.price > 0 && input.price <= 100000000
       const validStock = input.stock !== undefined && Number.isInteger(input.stock) && input.stock >= 0 && input.stock <= 1000000
       if (!store || !input.name || input.name.length < 2 || !input.condition || !validPrice || !validStock) throw new Error('INVALID_ACTION_INPUT')
       return `نشر قطعة ${input.name} بسعر ${input.price} ج.م ومخزون ${input.stock} دون صور. راجع بيانات التوافق وأضف الصور من لوحة المتجر عند الحاجة.`
@@ -189,7 +189,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
     case 'seller_part_update': {
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
       const part = store ? await db.part.findFirst({ where: { id: input.targetId, storeId: store.id }, select: { name: true } }) : null
-      const validPrice = input.price === undefined || (input.price >= 0 && input.price <= 100000000)
+      const validPrice = input.price === undefined || (Number.isFinite(input.price) && input.price > 0 && input.price <= 100000000)
       const validStock = input.stock === undefined || (Number.isInteger(input.stock) && input.stock >= 0 && input.stock <= 1000000)
       if (!part || (!validPrice || !validStock) || (input.price === undefined && input.stock === undefined && !input.description)) throw new Error('INVALID_ACTION_INPUT')
       return `تحديث ${part.name}${input.price !== undefined ? ` — السعر ${input.price} ج.م` : ''}${input.stock !== undefined ? ` — المخزون ${input.stock}` : ''}`
