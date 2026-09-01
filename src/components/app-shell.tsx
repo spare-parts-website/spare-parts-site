@@ -1,15 +1,15 @@
 'use client'
 
-import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { LockKeyhole, ShieldX } from 'lucide-react'
 import { AIAssistantLoader } from '@/components/ai-assistant-loader'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
 import { CartDrawer } from '@/components/cart-drawer'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
-import { setAppNavigator, useAppStore, type AuthUser, type CartItem, type View } from '@/lib/store'
+import { useAppStore, type AuthUser, type CartItem } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { PwaInstaller } from '@/components/pwa-installer'
 
@@ -32,50 +32,32 @@ function isCartItem(value: unknown): value is CartItem {
 
 export function AppShell({
   children,
-  initialView,
-  initialSearch = '',
-  initialUser,
 }: {
   children: ReactNode
-  initialView: View
-  initialSearch?: string
-  initialUser: AuthUser | null
 }) {
-  const router = useRouter()
+  const pathname = usePathname()
   const user = useAppStore((state) => state.user)
   const setUser = useAppStore((state) => state.setUser)
   const hydratedCart = useRef(false)
+  const reminderSent = useRef(false)
   const [authResolved, setAuthResolved] = useState(false)
 
-  // The server has already verified the HttpOnly session before rendering this page.
-  // Hydrate the client store before paint so child views see the same account.
-  useLayoutEffect(() => {
-    setUser(initialUser)
-    setAuthResolved(true)
-  }, [initialUser, setUser])
-
-  // Public SSR pages intentionally do not resolve cookies/database state. A
-  // small client overlay restores the signed-in header and controls after the
-  // anonymous HTML is delivered, without putting identity into shared caches.
+  // Resolve the HttpOnly session once for the lifetime of the persistent shell.
+  // Public SSR remains identity-free; this client overlay restores account
+  // controls after hydration without putting identity into shared HTML caches.
   useEffect(() => {
-    if (initialUser !== null) return
     let active = true
     fetch('/api/auth/me', { cache: 'no-store' })
       .then((response) => response.ok ? response.json() as Promise<{ user?: AuthUser | null }> : { user: null })
       .then((data) => { if (active) setUser(data.user || null) })
       .catch(() => { if (active) setUser(null) })
+      .finally(() => { if (active) setAuthResolved(true) })
     return () => { active = false }
-  }, [initialUser, setUser])
-
-  useLayoutEffect(() => {
-    setAppNavigator((path) => router.push(path))
-    return () => setAppNavigator(null)
-  }, [router])
+  }, [setUser])
 
   useEffect(() => {
-    useAppStore.setState({ view: initialView, searchQuery: initialSearch })
     window.scrollTo({ top: 0 })
-  }, [initialSearch, initialView])
+  }, [pathname])
 
   useEffect(() => {
     try {
@@ -84,8 +66,6 @@ export function AppShell({
         const parsed: unknown = JSON.parse(storedCart)
         if (Array.isArray(parsed)) {
           useAppStore.setState({ cart: parsed.filter(isCartItem) })
-          const updatedAt = Number(window.localStorage.getItem(CART_UPDATED_KEY) || 0)
-          if (initialUser && parsed.length && updatedAt && Date.now() - updatedAt > 86400000) void fetch('/api/cart-reminders', { method: 'POST' })
         }
       }
     } catch {
@@ -100,6 +80,16 @@ export function AppShell({
       }
     })
   }, [])
+
+  useEffect(() => {
+    if (!user || !hydratedCart.current || reminderSent.current) return
+    const cart = useAppStore.getState().cart
+    const updatedAt = Number(window.localStorage.getItem(CART_UPDATED_KEY) || 0)
+    if (cart.length && updatedAt && Date.now() - updatedAt > 86400000) {
+      reminderSent.current = true
+      void fetch('/api/cart-reminders', { method: 'POST' })
+    }
+  }, [user])
 
   useEffect(() => {
     if (!user) {
@@ -123,31 +113,30 @@ export function AppShell({
     }
   }, [user])
 
-  const requiredRoles = rolesForView(initialView)
+  const requiredRoles = rolesForPath(pathname)
   const protectedContent = requiredRoles !== null
-  const visibleUser = authResolved ? user : initialUser
-  const canAccess = !protectedContent || (visibleUser && (requiredRoles.length === 0 || requiredRoles.includes(visibleUser.role)))
+  const canAccess = !protectedContent || (authResolved && user && (requiredRoles.length === 0 || requiredRoles.includes(user.role)))
 
   return (
     <div className="min-h-screen flex flex-col pb-20 lg:pb-0">
-      <Header user={visibleUser} />
+      <Header />
       <main className="flex-1">
-        {protectedContent && !authResolved ? <ProtectedLoading /> : canAccess ? children : visibleUser ? <ForbiddenState /> : <SignInState />}
+        {protectedContent && !authResolved ? <ProtectedLoading /> : canAccess ? children : user ? <ForbiddenState /> : <SignInState />}
       </main>
       <Footer />
       <CartDrawer />
       <MobileBottomNav />
       <PwaInstaller />
-      <AIAssistantLoader user={visibleUser} />
+      <AIAssistantLoader user={user} />
     </div>
   )
 }
 
-function rolesForView(view: View): AuthUser['role'][] | null {
-  if (view.name === 'shop-dashboard') return ['SHOP_OWNER']
-  if (view.name === 'admin-dashboard') return ['ADMIN']
-  if (['orders', 'wishlist', 'checkout'].includes(view.name)) return ['BUYER', 'SHOP_OWNER']
-  if (['profile', 'inbox', 'chat', 'support'].includes(view.name)) return []
+function rolesForPath(pathname: string): AuthUser['role'][] | null {
+  if (pathname === '/seller' || pathname.startsWith('/seller/')) return ['SHOP_OWNER']
+  if (pathname === '/admin' || pathname.startsWith('/admin/')) return ['ADMIN']
+  if (pathname === '/checkout' || pathname === '/account/orders' || pathname === '/account/wishlist') return ['BUYER', 'SHOP_OWNER']
+  if (pathname === '/account/profile' || pathname === '/account/messages' || pathname === '/support' || pathname.startsWith('/messages/')) return []
   return null
 }
 

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
-import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -17,7 +17,7 @@ import type { PublicStoreListItem, PublicStoresList } from '@/lib/public-marketp
 type Store = PublicStoreListItem
 
 export function StoresView({ initialData = null, initialSearch = '', initialPage = 1 }: { initialData?: PublicStoresList | null; initialSearch?: string; initialPage?: number }) {
-  const { setView } = useAppStore()
+  const navigate = useAppNavigation()
   const routeParams = useSearchParams()
   const routeSearch = routeParams.get('search') || initialSearch
   const routePage = Math.max(1, Number(routeParams.get('page')) || initialPage)
@@ -137,11 +137,11 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
               tabIndex={0}
               aria-label={`زيارة ${store.name}`}
               className="market-card w-full cursor-pointer transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setView({ name: 'store', storeId: store.id })}
+              onClick={() => navigate({ name: 'store', storeId: store.id })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
-                  setView({ name: 'store', storeId: store.id })
+                  navigate({ name: 'store', storeId: store.id })
                 }
               }}
             >
@@ -193,7 +193,7 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
                 </Badge>
                 <p className="text-xs text-muted-foreground">{store.completedOrderCount} طلباً مكتملًا</p>
                 {store.completionRate !== null && <Badge variant="outline" className="text-[10px]">نسبة الإكمال {store.completionRate}%</Badge>}
-                <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: store.id }) }}>
+                <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); navigate({ name: 'store', storeId: store.id }) }}>
                   زيارة المتجر
                 </Button>
               </CardContent>

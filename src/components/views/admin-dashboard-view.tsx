@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -53,9 +54,12 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' | 'support' }) {
-  const { user } = useAppStore()
+  const router = useRouter()
+  const pathname = usePathname() || '/admin/users'
+  const user = useAppStore((state) => state.user)
   const { toast } = useToast()
-  const [tab, setTab] = useState<'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' | 'support'>(initialTab || 'users')
+  const routeTab = pathname.split('/')[2] as 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' | 'support' | undefined
+  const tab = ['users', 'parts', 'orders', 'reviews', 'stores', 'reports', 'support'].includes(routeTab || '') ? routeTab! : initialTab || 'users'
   const [users, setUsers] = useState<any[]>([])
   const [parts, setParts] = useState<any[]>([])
   const [stores, setStores] = useState<any[]>([])
@@ -304,7 +308,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
         ))}
       </div>
 
-      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); window.history.pushState({}, '', `/admin/${v}`) }}>
+      <Tabs value={tab} onValueChange={(v) => router.push(`/admin/${v}`)}>
         <TabsList className="grid w-full max-w-5xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-7">
           <TabsTrigger value="users" className="gap-1 text-[11px] sm:text-sm">
             <Users className="size-4" />

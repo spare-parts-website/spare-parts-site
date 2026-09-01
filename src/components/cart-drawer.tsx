@@ -15,9 +15,17 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Trash2, ShoppingCart, Plus, Minus, Package, Store as StoreIcon } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
+import { useAppNavigation } from '@/lib/use-navigation'
 
 export function CartDrawer() {
-  const { cart, cartOpen, setCartOpen, removeFromCart, updateCartQuantity, setView, user, clearCart } = useAppStore()
+  const navigate = useAppNavigation()
+  const cart = useAppStore((state) => state.cart)
+  const cartOpen = useAppStore((state) => state.cartOpen)
+  const setCartOpen = useAppStore((state) => state.setCartOpen)
+  const removeFromCart = useAppStore((state) => state.removeFromCart)
+  const updateCartQuantity = useAppStore((state) => state.updateCartQuantity)
+  const user = useAppStore((state) => state.user)
+  const clearCart = useAppStore((state) => state.clearCart)
   const { toast } = useToast()
 
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
@@ -25,7 +33,7 @@ export function CartDrawer() {
 
   const handleCheckout = () => {
     if (!user) {
-      setView({ name: 'login' })
+      navigate({ name: 'login' })
       setCartOpen(false)
       toast({
         title: 'سجّل الدخول أولاً',
@@ -33,7 +41,7 @@ export function CartDrawer() {
       })
       return
     }
-    setView({ name: 'checkout' })
+    navigate({ name: 'checkout' })
     setCartOpen(false)
   }
 
@@ -65,7 +73,7 @@ export function CartDrawer() {
               variant="outline"
               onClick={() => {
                 setCartOpen(false)
-                setView({ name: 'parts' })
+                navigate({ name: 'parts' })
               }}
             >
               تصفح قطع الغيار
@@ -89,7 +97,7 @@ export function CartDrawer() {
                         className="font-medium text-sm line-clamp-2 text-right hover:text-primary"
                         onClick={() => {
                           setCartOpen(false)
-                          setView({ name: 'part', partId: item.partId })
+                          navigate({ name: 'part', partId: item.partId })
                         }}
                       >
                         {item.name}

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LifeBuoy, MessageSquare, Search, Send, ShieldCheck } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
@@ -15,6 +15,14 @@ type SupportTicket = { id: string; category: string; subject: string; status: st
 
 const STATUS_LABELS: Record<string, string> = { OPEN: 'مفتوحة', IN_PROGRESS: 'قيد المتابعة', WAITING_FOR_CUSTOMER: 'بانتظار رد العميل', WAITING_FOR_SUPPORT: 'بانتظار الدعم', RESOLVED: 'تم الحل', CLOSED: 'مغلقة' }
 const CATEGORY_LABELS: Record<string, string> = { GENERAL: 'عام', ORDER: 'طلب', ACCOUNT: 'حساب', SELLER: 'متجر / بائع', PAYMENT: 'دفع', REPORT: 'بلاغ', RETURN_REFUND: 'استرجاع / رد مبلغ', TECHNICAL: 'مشكلة تقنية', OTHER: 'أخرى' }
+
+type SupportCacheEntry = { fetchedAt: number; tickets: SupportTicket[] }
+const SUPPORT_CACHE_TTL = 30_000
+const supportCache = new Map<string, SupportCacheEntry>()
+
+function supportCacheKey(userId: string, role: string, status: string, category: string, search: string) {
+  return [userId, role, status, category, search].map((value) => encodeURIComponent(value)).join(':')
+}
 
 export function SupportView({ embedded = false }: { embedded?: boolean }) {
   const user = useAppStore((state) => state.user)
@@ -32,10 +40,26 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
   const [categoryFilter, setCategoryFilter] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [ticketSearch, setTicketSearch] = useState('')
+  const cacheKey = user ? supportCacheKey(user.id, user.role, statusFilter, categoryFilter, ticketSearch) : ''
+  const requestVersion = useRef(0)
 
-  const load = async () => {
-    if (!user) return
-    setLoading(true)
+  const applyTickets = useCallback((next: SupportTicket[]) => {
+    setTickets(next)
+    const requested = new URLSearchParams(window.location.search).get('ticket')
+    setSelectedId((current) => (requested && next.some((ticket) => ticket.id === requested) ? requested : current && next.some((ticket) => ticket.id === current) ? current : next[0]?.id || null))
+  }, [])
+
+  const load = useCallback(async (force = false) => {
+    if (!user || !cacheKey) return
+    const requestId = ++requestVersion.current
+    const cached = supportCache.get(cacheKey)
+    if (cached) {
+      applyTickets(cached.tickets)
+      setLoading(false)
+      if (!force && Date.now() - cached.fetchedAt < SUPPORT_CACHE_TTL) return
+    } else {
+      setLoading(true)
+    }
     try {
       const params = new URLSearchParams()
       if (statusFilter) params.set('status', statusFilter)
@@ -44,18 +68,29 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
       const response = await fetch(`/api/support/tickets${params.toString() ? `?${params}` : ''}`, { cache: 'no-store' })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'تعذر تحميل الدعم')
+      if (requestId !== requestVersion.current) return
       const next = data.tickets || []
-      setTickets(next)
-      const requested = new URLSearchParams(window.location.search).get('ticket')
-      setSelectedId((current) => (requested && next.some((ticket: SupportTicket) => ticket.id === requested) ? requested : current && next.some((ticket: SupportTicket) => ticket.id === current) ? current : next[0]?.id || null))
+      supportCache.set(cacheKey, { fetchedAt: Date.now(), tickets: next })
+      applyTickets(next)
     } catch (error: any) {
-      toast({ title: 'تعذر تحميل الدعم', description: error.message, variant: 'destructive' })
+      if (requestId === requestVersion.current) toast({ title: 'تعذر تحميل الدعم', description: error.message, variant: 'destructive' })
     } finally {
-      setLoading(false)
+      if (requestId === requestVersion.current) setLoading(false)
     }
-  }
+  }, [applyTickets, cacheKey, categoryFilter, statusFilter, ticketSearch, toast, user])
 
-  useEffect(() => { void load() }, [user?.id, statusFilter, categoryFilter, ticketSearch])
+  useEffect(() => {
+    if (!user) {
+      requestVersion.current += 1
+      supportCache.clear()
+      setTickets([])
+      setSelectedId(null)
+      setLoading(false)
+      return
+    }
+    for (const key of supportCache.keys()) if (!key.startsWith(`${encodeURIComponent(user.id)}:`)) supportCache.delete(key)
+    void load()
+  }, [load, user?.id])
 
   const selected = useMemo(() => tickets.find((ticket) => ticket.id === selectedId) || null, [selectedId, tickets])
 
@@ -67,7 +102,7 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'تعذر إنشاء التذكرة')
       setSubject(''); setMessage(''); setCategory('GENERAL'); setOrderId('')
-      await load()
+      await load(true)
       setSelectedId(data.ticket?.id || null)
       toast({ title: 'تم إرسال طلب الدعم', description: 'سيظهر رد الفريق هنا عند وصوله.' })
     } catch (error: any) {
@@ -83,6 +118,7 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'تعذر إرسال الرد')
       setReply('')
+      supportCache.delete(cacheKey)
       setTickets((current) => current.map((ticket) => ticket.id === selected.id ? data.ticket : ticket))
     } catch (error: any) {
       toast({ title: 'تعذر إرسال الرد', description: error.message, variant: 'destructive' })
@@ -96,6 +132,7 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
       const response = await fetch(`/api/support/tickets/${encodeURIComponent(selected.id)}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'تعذر تحديث الحالة')
+      supportCache.delete(cacheKey)
       setTickets((current) => current.map((ticket) => ticket.id === selected.id ? data.ticket : ticket))
     } catch (error: any) {
       toast({ title: 'تعذر تحديث الحالة', description: error.message, variant: 'destructive' })

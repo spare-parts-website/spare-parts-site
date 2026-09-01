@@ -1,4 +1,3 @@
-import { AppShell } from '@/components/app-shell'
 import { HomeView } from '@/components/views/home-view'
 
 // Anonymous marketplace data may be regenerated independently of auth state.
@@ -7,9 +6,5 @@ import { HomeView } from '@/components/views/home-view'
 export const revalidate = 30
 
 export default async function HomePage() {
-  return (
-    <AppShell initialView={{ name: 'home' }} initialUser={null}>
-      <HomeView />
-    </AppShell>
-  )
+  return <HomeView />
 }

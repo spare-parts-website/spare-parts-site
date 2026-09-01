@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -25,7 +26,9 @@ interface FavoriteStore {
 }
 
 export function WishlistView() {
-  const { user, setView, setFavoriteStores } = useAppStore()
+  const navigate = useAppNavigation()
+  const user = useAppStore((state) => state.user)
+  const setFavoriteStores = useAppStore((state) => state.setFavoriteStores)
   const [items, setItems] = useState<FavoriteStore[]>([])
   const [loading, setLoading] = useState(true)
 
@@ -44,7 +47,7 @@ export function WishlistView() {
   }, [user])
 
   if (!user) {
-    return <div className="container mx-auto px-4 py-16 text-center"><Heart className="size-12 mx-auto mb-3 opacity-40" /><h2 className="text-xl font-semibold">سجّل الدخول لعرض المفضلة</h2><Button className="mt-4" onClick={() => setView({ name: 'login' })}>تسجيل الدخول</Button></div>
+    return <div className="container mx-auto px-4 py-16 text-center"><Heart className="size-12 mx-auto mb-3 opacity-40" /><h2 className="text-xl font-semibold">سجّل الدخول لعرض المفضلة</h2><Button className="mt-4" onClick={() => navigate({ name: 'login' })}>تسجيل الدخول</Button></div>
   }
 
   if (!['BUYER', 'SHOP_OWNER'].includes(user.role)) {
@@ -62,16 +65,16 @@ export function WishlistView() {
         <p className="text-muted-foreground mt-1">{items.length === 0 ? 'لا توجد متاجر في مفضلتك' : `${items.length} متجر محفوظ`}</p>
       </div>
       {items.length === 0 ? (
-        <Card><CardContent className="py-16 text-center text-muted-foreground"><Heart className="size-12 mx-auto mb-3 opacity-40" /><p className="mb-4">لم تقم بإضافة أي متجر للمفضلة بعد</p><Button onClick={() => setView({ name: 'stores' })}>تصفح المتاجر</Button></CardContent></Card>
+        <Card><CardContent className="py-16 text-center text-muted-foreground"><Heart className="size-12 mx-auto mb-3 opacity-40" /><p className="mb-4">لم تقم بإضافة أي متجر للمفضلة بعد</p><Button onClick={() => navigate({ name: 'stores' })}>تصفح المتاجر</Button></CardContent></Card>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {items.map((item) => <Card key={item.id} className="overflow-hidden"><CardContent className="p-5 space-y-4">
-            <div className="flex items-start gap-3 cursor-pointer" onClick={() => setView({ name: 'store', storeId: item.store.id })}>
+            <div className="flex items-start gap-3 cursor-pointer" onClick={() => navigate({ name: 'store', storeId: item.store.id })}>
               <div className="relative size-16 rounded-xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden">{item.store.image ? <Image src={item.store.image} alt={item.store.name} fill sizes="128px" quality={100} className="object-cover" /> : <StoreIcon className="size-8" />}</div>
               <div className="min-w-0 flex-1"><div className="flex items-center gap-1.5"><h2 className="font-bold truncate">{item.store.name}</h2>{item.store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" />}</div><p className="text-sm text-muted-foreground mt-1">{item.store._count.parts} قطعة غيار</p></div>
             </div>
             {item.store.description && <p className="text-sm text-muted-foreground line-clamp-2">{item.store.description}</p>}
-            <div className="flex gap-2"><Button className="flex-1" onClick={() => setView({ name: 'store', storeId: item.store.id })}>زيارة المتجر</Button><FavoriteStoreButton storeId={item.store.id} /></div>
+            <div className="flex gap-2"><Button className="flex-1" onClick={() => navigate({ name: 'store', storeId: item.store.id })}>زيارة المتجر</Button><FavoriteStoreButton storeId={item.store.id} /></div>
           </CardContent></Card>)}
         </div>
       )}

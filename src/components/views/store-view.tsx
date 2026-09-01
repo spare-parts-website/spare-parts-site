@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -36,7 +37,9 @@ import { UserAvatar } from '@/components/user-avatar'
 import type { PublicStore } from '@/lib/public-marketplace'
 
 export function StoreView({ storeId, initialStore = null, initialCanReview = false }: { storeId: string; initialStore?: PublicStore | null; initialCanReview?: boolean }) {
-  const { setView, user, setPendingView } = useAppStore()
+  const navigate = useAppNavigation()
+  const user = useAppStore((state) => state.user)
+  const setPendingView = useAppStore((state) => state.setPendingView)
   const { toast } = useToast()
   const [store, setStore] = useState<PublicStore | null>(initialStore)
   const [canReview, setCanReview] = useState(initialCanReview)
@@ -91,7 +94,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
   const handleReview = async () => {
     if (!user) {
       setPendingView({ name: 'store', storeId })
-      setView({ name: 'login' })
+      navigate({ name: 'login' })
       return
     }
     setSubmitting(true)
@@ -149,7 +152,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
       <div className="container mx-auto px-4 py-16 text-center">
         <StoreIcon className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold">المتجر غير موجود</h2>
-        <Button className="mt-4" onClick={() => setView({ name: 'stores' })}>
+        <Button className="mt-4" onClick={() => navigate({ name: 'stores' })}>
           العودة للمتاجر
         </Button>
       </div>
@@ -160,7 +163,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
 
   return (
     <div className="content-container space-y-7 py-10">
-      <Button variant="ghost" size="sm" onClick={() => setView({ name: 'stores' })}>
+      <Button variant="ghost" size="sm" onClick={() => navigate({ name: 'stores' })}>
         <ArrowRight className="size-4 ml-1" />
         العودة للمتاجر
       </Button>
@@ -307,11 +310,11 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
                 tabIndex={0}
                 aria-label={`عرض تفاصيل ${part.name}`}
                 className="market-card w-full overflow-hidden cursor-pointer transition group h-full flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                onClick={() => setView({ name: 'part', partId: part.id })}
+                onClick={() => navigate({ name: 'part', partId: part.id })}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === ' ') {
                     event.preventDefault()
-                    setView({ name: 'part', partId: part.id })
+                    navigate({ name: 'part', partId: part.id })
                   }
                 }}
               >

@@ -2,6 +2,7 @@
 
 import { useMemo, useRef, useState } from 'react'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -25,7 +26,11 @@ import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export function CheckoutView() {
-  const { cart, user, setView, clearCart, setCartOpen } = useAppStore()
+  const navigate = useAppNavigation()
+  const cart = useAppStore((state) => state.cart)
+  const user = useAppStore((state) => state.user)
+  const clearCart = useAppStore((state) => state.clearCart)
+  const setCartOpen = useAppStore((state) => state.setCartOpen)
   const { toast } = useToast()
   const [submitting, setSubmitting] = useState(false)
   const checkoutId = useRef<string | null>(null)
@@ -64,7 +69,7 @@ export function CheckoutView() {
         <ShoppingCart className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold mb-2">سجّل الدخول لإتمام الطلب</h2>
         <p className="text-muted-foreground mb-4">يجب تسجيل الدخول قبل إرسال طلب التوصيل.</p>
-        <Button onClick={() => setView({ name: 'login' })}>تسجيل الدخول</Button>
+        <Button onClick={() => navigate({ name: 'login' })}>تسجيل الدخول</Button>
       </div>
     )
   }
@@ -113,7 +118,7 @@ export function CheckoutView() {
         })
         checkoutId.current = null
         clearCart()
-        setView({ name: 'orders' })
+        navigate({ name: 'orders' })
       }
     } catch {
       toast({ title: 'تعذر الاتصال', description: 'لم نتمكن من إرسال الطلب. حاول مرة أخرى دون تحديث الصفحة.', variant: 'destructive' })
@@ -128,14 +133,14 @@ export function CheckoutView() {
         <ShoppingCart className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold mb-2">سلتك فارغة</h2>
         <p className="text-muted-foreground mb-4">أضف قطع غيار إلى السلة أولاً</p>
-        <Button onClick={() => setView({ name: 'parts' })}>تصفح قطع الغيار</Button>
+        <Button onClick={() => navigate({ name: 'parts' })}>تصفح قطع الغيار</Button>
       </div>
     )
   }
 
   return (
     <div className="content-container space-y-7 py-10">
-      <Button variant="ghost" size="sm" onClick={() => setView({ name: 'parts' })}>
+      <Button variant="ghost" size="sm" onClick={() => navigate({ name: 'parts' })}>
         <ArrowRight className="size-4 ml-1" />
         متابعة التسوق
       </Button>
@@ -160,7 +165,7 @@ export function CheckoutView() {
                   <h2 className="font-black">أضف رقم موبايل للتوصيل</h2>
                   <p className="mt-1 text-sm text-muted-foreground">يلزم رقم مصري صالح يبدأ بـ 010 أو 011 أو 012 أو 015 حتى يتمكن المتجر من تأكيد الطلب.</p>
                 </div>
-                <Button type="button" variant="outline" onClick={() => setView({ name: 'profile' })}>تحديث الملف الشخصي</Button>
+                <Button type="button" variant="outline" onClick={() => navigate({ name: 'profile' })}>تحديث الملف الشخصي</Button>
               </CardContent>
             </Card>
           )}

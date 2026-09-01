@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -18,7 +18,7 @@ interface Thread {
 }
 
 export function ShopMessagesView() {
-  const { setView } = useAppStore()
+  const navigate = useAppNavigation()
   const { toast } = useToast()
   const [threads, setThreads] = useState<Thread[]>([])
   const [loading, setLoading] = useState(true)
@@ -79,7 +79,7 @@ export function ShopMessagesView() {
                   </p>
                   <p className="text-xs text-muted-foreground truncate mt-1">{thread.lastMessage.message}</p>
                 </div>
-                <Button size="sm" onClick={() => setView({ name: 'chat', partId: thread.partId, participantId: thread.buyerId })}>
+                <Button size="sm" onClick={() => navigate({ name: 'chat', partId: thread.partId, participantId: thread.buyerId })}>
                   <MessageSquare className="size-4 ml-1" />
                   فتح
                   {thread.unreadCount > 0 && <span className="mr-1 rounded-full bg-red-500 text-white px-1.5 text-xs">{thread.unreadCount}</span>}

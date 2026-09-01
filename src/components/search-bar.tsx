@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import Image from 'next/image'
-import { useAppStore } from '@/lib/store'
+import { useRouter } from 'next/navigation'
 import { Search, Package, Store as StoreIcon, Car } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -13,7 +13,7 @@ interface SearchResult {
 }
 
 export function SearchBar({ className }: { className?: string }) {
-  const { setView, setSearchQuery } = useAppStore()
+  const router = useRouter()
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResult | null>(null)
   const [open, setOpen] = useState(false)
@@ -64,8 +64,7 @@ export function SearchBar({ className }: { className?: string }) {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (query.trim()) {
-      setSearchQuery(query)
-      setView({ name: 'parts' })
+      router.push(`/parts?search=${encodeURIComponent(query.trim())}`)
       setOpen(false)
     }
   }
@@ -110,7 +109,7 @@ export function SearchBar({ className }: { className?: string }) {
                   key={part.id}
                   className="w-full text-right p-2 hover:bg-muted/50 rounded flex items-center gap-3 transition"
                   onClick={() => {
-                    setView({ name: 'part', partId: part.id })
+                    router.push(`/parts/${encodeURIComponent(part.id)}`)
                     setOpen(false)
                     setQuery('')
                   }}
@@ -142,7 +141,7 @@ export function SearchBar({ className }: { className?: string }) {
                   key={store.id}
                   className="w-full text-right p-2 hover:bg-muted/50 rounded flex items-center gap-3 transition"
                   onClick={() => {
-                    setView({ name: 'store', storeId: store.id })
+                    router.push(`/stores/${encodeURIComponent(store.id)}`)
                     setOpen(false)
                     setQuery('')
                   }}
@@ -169,8 +168,7 @@ export function SearchBar({ className }: { className?: string }) {
                   key={model}
                   className="w-full text-right p-2 hover:bg-muted/50 rounded flex items-center gap-3 transition"
                   onClick={() => {
-                    setSearchQuery(model)
-                    setView({ name: 'parts' })
+                    router.push(`/parts?search=${encodeURIComponent(model)}`)
                     setOpen(false)
                     setQuery('')
                   }}

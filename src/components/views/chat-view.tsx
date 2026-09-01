@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -23,7 +24,8 @@ interface Message {
 }
 
 export function ChatView({ orderId, partId, participantId }: { orderId?: string; partId?: string; participantId?: string }) {
-  const { user, setView } = useAppStore()
+  const navigate = useAppNavigation()
+  const user = useAppStore((state) => state.user)
   const { toast } = useToast()
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
@@ -120,7 +122,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
       <div className="container mx-auto px-4 py-16 text-center">
         <MessageSquare className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold mb-4">سجّل الدخول للدردشة</h2>
-        <Button onClick={() => setView({ name: 'login' })}>تسجيل الدخول</Button>
+        <Button onClick={() => navigate({ name: 'login' })}>تسجيل الدخول</Button>
       </div>
     )
   }
@@ -130,7 +132,7 @@ export function ChatView({ orderId, partId, participantId }: { orderId?: string;
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => setView(partId ? { name: 'part', partId } : { name: 'orders' })}
+        onClick={() => navigate(partId ? { name: 'part', partId } : { name: 'orders' })}
         className="mb-4"
       >
         <ArrowRight className="size-4 ml-1" />

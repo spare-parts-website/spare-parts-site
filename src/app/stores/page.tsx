@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { AppShell } from '@/components/app-shell'
 import { StoresView } from '@/components/views/stores-view'
 import { getPublicStoresList, type PublicStoresList } from '@/lib/public-marketplace'
 
@@ -23,11 +22,7 @@ export default async function StoresPage() {
   } catch {
     // The static shell can still load its public API payload after hydration.
   }
-  return (
-    <AppShell initialView={{ name: 'stores' }} initialUser={null}>
-      <Suspense fallback={<StoresFallback />}>
-        <StoresView initialData={initialData} initialSearch="" initialPage={1} />
-      </Suspense>
-    </AppShell>
-  )
+  return <Suspense fallback={<StoresFallback />}>
+    <StoresView initialData={initialData} initialSearch="" initialPage={1} />
+  </Suspense>
 }

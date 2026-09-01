@@ -12,10 +12,11 @@ export function FavoriteStoreButton({
   storeId: string
   onChange?: (favorite: boolean) => void
 }) {
-  const { user, toggleFavoriteStore, isFavoriteStore } = useAppStore()
+  const user = useAppStore((state) => state.user)
+  const toggleFavoriteStore = useAppStore((state) => state.toggleFavoriteStore)
+  const favorite = useAppStore((state) => state.favoriteStores.has(storeId))
   const { toast } = useToast()
   const canFavorite = user?.role === 'BUYER' || user?.role === 'SHOP_OWNER'
-  const favorite = isFavoriteStore(storeId)
 
   if (!canFavorite) return null
 

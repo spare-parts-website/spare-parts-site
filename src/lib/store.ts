@@ -1,14 +1,6 @@
 import { create } from 'zustand'
 import type { FitmentStatus } from '@/lib/vehicle-compatibility'
 
-type AppNavigator = (path: string) => void
-
-let appNavigator: AppNavigator | null = null
-
-export function setAppNavigator(navigate: AppNavigator | null) {
-  appNavigator = navigate
-}
-
 export type UserRole = 'BUYER' | 'ADMIN' | 'SHOP_OWNER'
 
 export interface AuthUser {
@@ -107,15 +99,9 @@ interface AppState {
   user: AuthUser | null
   setUser: (u: AuthUser | null) => void
 
-  view: View
-  setView: (v: View) => void
-
   // For returning to previous view after auth
   pendingView: View | null
   setPendingView: (v: View | null) => void
-
-  searchQuery: string
-  setSearchQuery: (q: string) => void
 
   // Cart
   cart: CartItem[]
@@ -141,31 +127,8 @@ export const useAppStore = create<AppState>((set) => ({
   user: null,
   setUser: (u) => set({ user: u }),
 
-  view: { name: 'home' },
-  setView: (v) => {
-    if (typeof window !== 'undefined') {
-      const target = viewToPath(v, useAppStore.getState().searchQuery)
-      const current = `${window.location.pathname}${window.location.search}`
-      if (target !== current) {
-        // Update immediately so the persistent shell remains coherent while the
-        // next route streams in, then let Next.js perform a client transition.
-        set({ view: v })
-        if (appNavigator) {
-          appNavigator(target)
-        } else {
-          window.location.assign(target)
-        }
-        return
-      }
-    }
-    set({ view: v })
-  },
-
   pendingView: null,
   setPendingView: (v) => set({ pendingView: v }),
-
-  searchQuery: '',
-  setSearchQuery: (q) => set({ searchQuery: q }),
 
   cart: [],
   cartOpen: false,

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -22,7 +23,9 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export function ProfileView() {
-  const { user, setUser, setView } = useAppStore()
+  const navigate = useAppNavigation()
+  const user = useAppStore((state) => state.user)
+  const setUser = useAppStore((state) => state.setUser)
   const { toast } = useToast()
   const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '', currentPassword: '', newPassword: '', emailNotifications: user?.emailNotifications ?? true })
   const [saving, setSaving] = useState(false)
@@ -38,7 +41,7 @@ export function ProfileView() {
     return (
       <div className="container mx-auto px-4 py-16 text-center">
         <h2 className="text-xl font-semibold mb-4">سجّل الدخول لعرض ملفك</h2>
-        <Button onClick={() => setView({ name: 'login' })}>تسجيل الدخول</Button>
+        <Button onClick={() => navigate({ name: 'login' })}>تسجيل الدخول</Button>
       </div>
     )
   }
@@ -141,7 +144,7 @@ export function ProfileView() {
             </Link></Button>
           )}
           {user.role === 'SHOP_OWNER' && (
-            <Button variant="outline" onClick={() => setView({ name: 'shop-dashboard' })} className="justify-start h-auto p-4">
+            <Button variant="outline" onClick={() => navigate({ name: 'shop-dashboard' })} className="justify-start h-auto p-4">
               <LayoutDashboard className="size-5 ml-2" />
               <div className="text-right">
                 <p className="font-medium">صفحة المحل</p>
@@ -150,7 +153,7 @@ export function ProfileView() {
             </Button>
           )}
           {user.role === 'ADMIN' && (
-            <Button variant="outline" onClick={() => setView({ name: 'admin-dashboard' })} className="justify-start h-auto p-4">
+            <Button variant="outline" onClick={() => navigate({ name: 'admin-dashboard' })} className="justify-start h-auto p-4">
               <ShieldCheck className="size-5 ml-2" />
               <div className="text-right">
                 <p className="font-medium">لوحة المدير</p>

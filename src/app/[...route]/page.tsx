@@ -1,7 +1,6 @@
 import type { Metadata } from 'next'
 import { unstable_noStore } from 'next/cache'
 import { notFound } from 'next/navigation'
-import { AppShell } from '@/components/app-shell'
 import { AdminDashboardView } from '@/components/views/admin-dashboard-view'
 import { AuthView } from '@/components/views/auth-view'
 import { CartView } from '@/components/views/cart-view'
@@ -209,5 +208,5 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     notFound()
   }
 
-  return <AppShell initialView={view} initialSearch={search} initialUser={user}>{structuredData && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />}{breadcrumbItems.length > 0 && <Breadcrumbs items={breadcrumbItems} />}{content}</AppShell>
+  return <>{structuredData && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />}{breadcrumbItems.length > 0 && <Breadcrumbs items={breadcrumbItems} />}{content}</>
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -44,7 +45,10 @@ import { formatCompatibility } from '@/lib/vehicle-compatibility'
 import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 
 export function PartView({ partId, initialPart = null, initialCanReview = false }: { partId: string; initialPart?: PublicPart | null; initialCanReview?: boolean }) {
-  const { setView, user, setPendingView, addToCart } = useAppStore()
+  const navigate = useAppNavigation()
+  const user = useAppStore((state) => state.user)
+  const setPendingView = useAppStore((state) => state.setPendingView)
+  const addToCart = useAppStore((state) => state.addToCart)
   const { toast } = useToast()
   const [part, setPart] = useState<PublicPart | null>(initialPart)
   const [canReview, setCanReview] = useState(initialCanReview)
@@ -116,7 +120,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
   const handleOrder = async () => {
     if (!user) {
       setPendingView({ name: 'part', partId })
-      setView({ name: 'login' })
+      navigate({ name: 'login' })
       toast({ title: 'سجّل الدخول أولاً', description: 'يجب تسجيل الدخول لإتمام الطلب' })
       return
     }
@@ -138,7 +142,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
         description: 'سيتم مراجعة طلبك من قبل المحل',
       })
       setOrderOpen(false)
-      setView({ name: 'orders' })
+      navigate({ name: 'orders' })
     } finally {
       setSubmitting(false)
     }
@@ -147,7 +151,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
   const handleReview = async () => {
     if (!user) {
       setPendingView({ name: 'part', partId })
-      setView({ name: 'login' })
+      navigate({ name: 'login' })
       return
     }
     setSubmitting(true)
@@ -182,17 +186,17 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
   const handleSellerChat = () => {
     if (!user) {
       setPendingView({ name: 'part', partId })
-      setView({ name: 'login' })
+      navigate({ name: 'login' })
       toast({ title: 'سجّل الدخول أولاً', description: 'يجب تسجيل الدخول لمراسلة البائع' })
       return
     }
-    setView({ name: 'chat', partId })
+    navigate({ name: 'chat', partId })
   }
 
   const handleReport = async () => {
     if (!user) {
       setPendingView({ name: 'part', partId })
-      setView({ name: 'login' })
+      navigate({ name: 'login' })
       return
     }
     setSubmitting(true)
@@ -246,7 +250,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
       <div className="container mx-auto px-4 py-16 text-center">
         <Package className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold">قطعة الغيار غير موجودة</h2>
-        <Button className="mt-4" onClick={() => setView({ name: 'parts' })}>
+        <Button className="mt-4" onClick={() => navigate({ name: 'parts' })}>
           العودة لقطع الغيار
         </Button>
       </div>
@@ -262,7 +266,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
 
   return (
     <div className="content-container space-y-7 py-10">
-      <Button variant="ghost" size="sm" onClick={() => setView({ name: 'parts' })}>
+      <Button variant="ghost" size="sm" onClick={() => navigate({ name: 'parts' })}>
         <ArrowRight className="size-4 ml-1" />
         العودة
       </Button>
@@ -359,7 +363,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
 
           <button
             className="surface-panel flex w-full items-center gap-4 border-border/70 bg-muted/25 p-4 text-right transition hover:border-primary/40 hover:bg-primary/5"
-            onClick={() => setView({ name: 'store', storeId: part.store.id })}
+            onClick={() => navigate({ name: 'store', storeId: part.store.id })}
           >
             <UserAvatar name={part.store.name} src={part.store.image} className="size-16 rounded-2xl text-2xl" />
             <div className="min-w-0 flex-1">
@@ -545,7 +549,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   {!hasDeliveryPhone && (
                     <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
                       <p className="font-semibold">أضف رقم موبايل مصري صالح قبل تأكيد الطلب.</p>
-                      <Button type="button" variant="link" className="h-auto p-0" onClick={() => { setOrderOpen(false); setView({ name: 'profile' }) }}>تحديث الملف الشخصي</Button>
+                      <Button type="button" variant="link" className="h-auto p-0" onClick={() => { setOrderOpen(false); navigate({ name: 'profile' }) }}>تحديث الملف الشخصي</Button>
                     </div>
                   )}
                   {fitmentStatus !== 'fits' && (
@@ -707,7 +711,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
               <ShieldCheck className="size-5 mx-auto text-primary mb-1" />
               <p className="text-xs text-muted-foreground">الدفع عند الاستلام</p>
             </div>
-            <button type="button" className="text-center" onClick={() => setView({ name: 'legal', page: 'returns' })}>
+            <button type="button" className="text-center" onClick={() => navigate({ name: 'legal', page: 'returns' })}>
               <RotateCcw className="size-5 mx-auto text-primary mb-1" />
               <p className="text-xs text-muted-foreground underline-offset-2 hover:underline">سياسة الاسترجاع</p>
             </button>

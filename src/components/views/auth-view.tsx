@@ -2,7 +2,8 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { useAppStore } from '@/lib/store'
+import { useRouter } from 'next/navigation'
+import { useAppStore, viewToPath } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -14,7 +15,10 @@ import { useToast } from '@/hooks/use-toast'
 import { ProfileAvatarPicker } from '@/components/profile-avatar-picker'
 
 export function AuthView({ mode }: { mode: 'login' | 'register' }) {
-  const { setView, setUser, pendingView } = useAppStore()
+  const router = useRouter()
+  const setUser = useAppStore((state) => state.setUser)
+  const pendingView = useAppStore((state) => state.pendingView)
+  const setPendingView = useAppStore((state) => state.setPendingView)
   const { toast } = useToast()
   const [loading, setLoading] = useState(false)
   const [verification, setVerification] = useState<{ challengeId: string; emailHint: string } | null>(null)
@@ -58,7 +62,9 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
         title: mode === 'login' ? 'مرحباً بعودتك' : 'تم التسجيل بنجاح',
         description: `أهلاً ${data.name}`,
       })
-      setView(pendingView || { name: 'home' })
+      const destination = pendingView || { name: 'home' }
+      setPendingView(null)
+      router.push(viewToPath(destination))
     } catch {
       toast({ title: 'تعذر الاتصال', description: 'تحقق من اتصالك وحاول مرة أخرى.', variant: 'destructive' })
     } finally {
@@ -84,7 +90,9 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
       }
       setUser(data)
       toast({ title: 'تم التحقق', description: `أهلاً ${data.name}` })
-      setView(pendingView || { name: 'home' })
+      const destination = pendingView || { name: 'home' }
+      setPendingView(null)
+      router.push(viewToPath(destination))
     } catch {
       toast({ title: 'تعذر الاتصال', description: 'تحقق من اتصالك وحاول مرة أخرى.', variant: 'destructive' })
     } finally {
@@ -300,7 +308,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                 <>
                   ليس لديك حساب؟{' '}
                   <button
-                    onClick={() => setView({ name: 'register' })}
+                    onClick={() => router.push('/register')}
                     className="font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
                   >
                     سجّل الآن
@@ -310,7 +318,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                 <>
                   لديك حساب؟{' '}
                   <button
-                    onClick={() => setView({ name: 'login' })}
+                    onClick={() => router.push('/login')}
                     className="font-semibold text-foreground underline-offset-4 hover:text-primary hover:underline"
                   >
                     سجّل الدخول

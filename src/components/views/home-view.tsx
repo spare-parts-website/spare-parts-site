@@ -2,6 +2,7 @@ import 'server-only'
 
 import Image from 'next/image'
 import Link from 'next/link'
+import Form from 'next/form'
 import {
   ArrowLeft,
   BadgeCheck,
@@ -131,14 +132,14 @@ export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
             <p className="mt-5 max-w-xl text-base leading-8 text-white/70 sm:text-lg">
               ابحث وقارن واختر من متاجر متخصصة. معلومات واضحة، تقييمات حقيقية، ودفع آمن عند الاستلام.
             </p>
-            <form action="/parts" method="get" className="mt-8 rounded-2xl border border-white/15 bg-white p-2 shadow-2xl shadow-black/30 sm:flex">
+            <Form action="/parts" className="mt-8 rounded-2xl border border-white/15 bg-white p-2 shadow-2xl shadow-black/30 sm:flex">
               <label className="relative block min-w-0 flex-1">
                 <Search className="absolute right-4 top-1/2 size-5 -translate-y-1/2 text-slate-400" />
                 <span className="sr-only">ابحث عن قطعة غيار</span>
                 <input name="search" type="search" className="h-14 w-full rounded-xl bg-transparent pr-12 pl-4 text-base text-slate-950 outline-none placeholder:text-slate-500" placeholder="مثال: تيل فرامل تويوتا كورولا 2020" />
               </label>
               <Button type="submit" size="lg" className="h-14 w-full rounded-xl px-7 sm:w-auto">ابحث الآن</Button>
-            </form>
+            </Form>
             <div className="mt-5 flex flex-wrap items-center gap-x-5 gap-y-2 text-sm text-white/65">
               <span className="flex items-center gap-1.5"><BadgeCheck className="size-4 text-primary" /> توثيق ظاهر عند اعتماده</span>
               <span className="flex items-center gap-1.5"><Banknote className="size-4 text-primary" /> دفع عند الاستلام</span>

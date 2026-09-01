@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
-import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -23,7 +23,7 @@ import type { PublicPartListItem, PublicPartsList, PublicPartsQuery } from '@/li
 type Part = PublicPartListItem
 
 export function PartsView({ initialData = null, initialQuery = {} }: { initialData?: PublicPartsList | null; initialQuery?: PublicPartsQuery }) {
-  const { setView, searchQuery } = useAppStore()
+  const navigate = useAppNavigation()
   const routeParams = useSearchParams()
   const [parts, setParts] = useState<Part[]>(initialData?.parts || [])
   const [categories, setCategories] = useState<string[]>(initialData?.categories || [])
@@ -31,7 +31,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
   const [loading, setLoading] = useState(!initialData)
   const [failed, setFailed] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
-  const initialSearch = routeParams.get('search') || initialQuery.search || searchQuery
+  const initialSearch = routeParams.get('search') || initialQuery.search || ''
   const [search, setSearch] = useState(initialSearch)
   const [appliedSearch, setAppliedSearch] = useState(initialSearch)
   const [category, setCategory] = useState(routeParams.get('category') || initialQuery.category || '')
@@ -43,11 +43,18 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
   const [totalPages, setTotalPages] = useState(initialData?.pagination.totalPages || 1)
   const [total, setTotal] = useState(initialData?.pagination.total || 0)
 
+  const routeKey = routeParams.toString()
   useEffect(() => {
-    setSearch(searchQuery)
-    setAppliedSearch(searchQuery)
-    setPage(1)
-  }, [searchQuery])
+    const nextParams = new URLSearchParams(routeKey)
+    const nextSearch = nextParams.get('search') || initialQuery.search || ''
+    setSearch(nextSearch)
+    setAppliedSearch(nextSearch)
+    setCategory(nextParams.get('category') || initialQuery.category || '')
+    setBrand(nextParams.get('brand') || initialQuery.brand || '')
+    setCondition(nextParams.get('condition') || initialQuery.condition || '')
+    setSort(nextParams.get('sort') || initialQuery.sort || 'newest')
+    setPage(Math.max(1, Number(nextParams.get('page')) || initialQuery.page || 1))
+  }, [routeKey, initialQuery.brand, initialQuery.category, initialQuery.condition, initialQuery.page, initialQuery.search, initialQuery.sort])
 
   const buildUrl = useMemo(() => {
     const params = new URLSearchParams()
@@ -110,7 +117,6 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
             e.preventDefault()
             setAppliedSearch(search)
             setPage(1)
-            useAppStore.setState({ searchQuery: search })
           }}
           className="relative w-full max-w-2xl"
         >
@@ -189,7 +195,6 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
                 setBrand('')
                 setCondition('')
                 setPage(1)
-                useAppStore.setState({ searchQuery: '' })
               }}
               className="h-9"
             >
@@ -240,15 +245,15 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
               tabIndex={0}
               aria-label={`عرض تفاصيل ${part.name}`}
               className="market-card w-full overflow-hidden cursor-pointer transition group h-full flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => setView({ name: 'part', partId: part.id })}
+              onClick={() => navigate({ name: 'part', partId: part.id })}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
-                  setView({ name: 'part', partId: part.id })
+                  navigate({ name: 'part', partId: part.id })
                 }
               }}
             >
-              <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative block h-28 w-full overflow-hidden bg-primary/10 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
+              <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative block h-28 w-full overflow-hidden bg-primary/10 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); navigate({ name: 'store', storeId: part.store.id }) }}>
                 {part.store.image ? (
                   <Image src={part.store.image} alt={part.store.name} fill sizes="(max-width: 640px) 100vw, 420px" className="object-cover transition duration-300 hover:scale-105" />
                 ) : (
@@ -305,7 +310,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
                     <span className="text-xs text-red-500">غير متوفر</span>
                   )}
                 </div>
-                <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'part', partId: part.id }) }}>
+                <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); navigate({ name: 'part', partId: part.id }) }}>
                   عرض التفاصيل
                 </Button>
                 </div>

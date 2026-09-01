@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -21,7 +21,7 @@ interface Thread {
 }
 
 export function InboxView() {
-  const { setView } = useAppStore()
+  const navigate = useAppNavigation()
   const { toast } = useToast()
   const [threads, setThreads] = useState<Thread[]>([])
   const [loading, setLoading] = useState(true)
@@ -78,7 +78,7 @@ export function InboxView() {
                   <p className="text-xs text-muted-foreground truncate mt-1">{thread.lastMessage.message || 'صورة مرفقة'}</p>
                 </div>
                 {thread.unreadCount > 0 && <Badge variant="destructive">جديد</Badge>}
-                <Button size="sm" onClick={() => setView(thread.kind === 'order' ? { name: 'chat', orderId: thread.orderId! } : { name: 'chat', partId: thread.partId!, participantId: thread.participantId })}>
+                <Button size="sm" onClick={() => navigate(thread.kind === 'order' ? { name: 'chat', orderId: thread.orderId! } : { name: 'chat', partId: thread.partId!, participantId: thread.participantId })}>
                   فتح
                 </Button>
               </CardContent>

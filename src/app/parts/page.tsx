@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
-import { AppShell } from '@/components/app-shell'
 import { PartsView } from '@/components/views/parts-view'
 import { getPublicPartsList, type PublicPartsList } from '@/lib/public-marketplace'
 
@@ -23,11 +22,7 @@ export default async function PartsPage() {
   } catch {
     // The static shell can still load its public API payload after hydration.
   }
-  return (
-    <AppShell initialView={{ name: 'parts' }} initialUser={null}>
-      <Suspense fallback={<PartsFallback />}>
-        <PartsView initialData={initialData} initialQuery={{ sort: 'newest', page: 1 }} />
-      </Suspense>
-    </AppShell>
-  )
+  return <Suspense fallback={<PartsFallback />}>
+    <PartsView initialData={initialData} initialQuery={{ sort: 'newest', page: 1 }} />
+  </Suspense>
 }

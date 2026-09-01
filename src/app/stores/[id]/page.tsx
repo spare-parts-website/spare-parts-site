@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { AppShell } from '@/components/app-shell'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { StoreView } from '@/components/views/store-view'
 import { db } from '@/lib/db'
@@ -36,10 +35,10 @@ export default async function StorePage({ params }: Params) {
   const breadcrumbItems = [{ label: 'الرئيسية', href: '/' }, { label: 'المتاجر', href: '/stores' }, { label: store.name }]
   const structuredData = { '@context': 'https://schema.org', '@type': 'AutoPartsStore', name: store.name, description: store.description || undefined, image: store.image || undefined, address: store.address || undefined, telephone: store.phone || undefined, url: `https://ghyarmarket-eg.com/stores/${id}` }
   return (
-    <AppShell initialView={{ name: 'store', storeId: id }} initialUser={null}>
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
       <Breadcrumbs items={breadcrumbItems} />
       <StoreView storeId={id} initialStore={store} initialCanReview={canReview} />
-    </AppShell>
+    </>
   )
 }

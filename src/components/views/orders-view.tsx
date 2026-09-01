@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -65,7 +66,8 @@ interface Order {
 }
 
 export function OrdersView() {
-  const { user, setView } = useAppStore()
+  const navigate = useAppNavigation()
+  const user = useAppStore((state) => state.user)
   const { toast } = useToast()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
@@ -109,7 +111,7 @@ export function OrdersView() {
       <div className="container mx-auto px-4 py-16 text-center">
         <ShoppingBag className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold">سجّل الدخول لعرض طلباتك</h2>
-        <Button className="mt-4" onClick={() => setView({ name: 'login' })}>
+        <Button className="mt-4" onClick={() => navigate({ name: 'login' })}>
           تسجيل الدخول
         </Button>
       </div>
@@ -121,7 +123,7 @@ export function OrdersView() {
       <div className="container mx-auto px-4 py-16 text-center">
         <ShoppingBag className="size-16 mx-auto mb-3 text-muted-foreground/50" />
         <h2 className="text-xl font-semibold">طلبات العملاء متاحة للمشترين وأصحاب المحلات فقط</h2>
-        <Button className="mt-4" onClick={() => setView({ name: 'admin-dashboard', tab: 'orders' })}>لوحة المدير</Button>
+        <Button className="mt-4" onClick={() => navigate({ name: 'admin-dashboard', tab: 'orders' })}>لوحة المدير</Button>
       </div>
     )
   }
@@ -149,7 +151,7 @@ export function OrdersView() {
           <CardContent className="py-16 text-center text-muted-foreground">
             <ShoppingBag className="size-12 mx-auto mb-3 opacity-50" />
             <p className="mb-3">لا توجد طلبات بعد</p>
-            <Button onClick={() => setView({ name: 'parts' })}>
+            <Button onClick={() => navigate({ name: 'parts' })}>
               تصفح قطع الغيار
             </Button>
           </CardContent>
@@ -182,14 +184,14 @@ export function OrdersView() {
                       <div>
                         <button
                           className="font-semibold hover:text-primary transition text-right"
-                          onClick={() => setView({ name: 'part', partId: order.items?.[0]?.partId || order.part.id })}
+                          onClick={() => navigate({ name: 'part', partId: order.items?.[0]?.partId || order.part.id })}
                         >
                           {order.items && order.items.length > 1 ? `${order.items.length} منتجات من نفس المتجر` : order.items?.[0]?.productName || order.part.name}
                         </button>
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1">
                           <StoreIcon className="size-3" />
                           <button
-                            onClick={() => setView({ name: 'store', storeId: order.store.id })}
+                            onClick={() => navigate({ name: 'store', storeId: order.store.id })}
                             className="hover:text-primary"
                           >
                             {order.store.name}
@@ -207,7 +209,7 @@ export function OrdersView() {
                               type="button"
                               className="min-w-0 truncate text-right font-medium hover:text-primary disabled:pointer-events-none"
                               disabled={!item.partId}
-                              onClick={() => item.partId && setView({ name: 'part', partId: item.partId })}
+                              onClick={() => item.partId && navigate({ name: 'part', partId: item.partId })}
                             >
                               {item.productName}
                             </button>
@@ -329,7 +331,7 @@ export function OrdersView() {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setView({ name: 'chat', orderId: order.id } as any)}
+                        onClick={() => navigate({ name: 'chat', orderId: order.id })}
                       >
                         <MessageSquare className="size-4 ml-1" />
                         دردشة

@@ -6,9 +6,14 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { formatPrice } from '@/components/common'
 import { useAppStore } from '@/lib/store'
+import { useAppNavigation } from '@/lib/use-navigation'
 
 export function CartView() {
-  const { cart, removeFromCart, updateCartQuantity, setView, user } = useAppStore()
+  const navigate = useAppNavigation()
+  const cart = useAppStore((state) => state.cart)
+  const removeFromCart = useAppStore((state) => state.removeFromCart)
+  const updateCartQuantity = useAppStore((state) => state.updateCartQuantity)
+  const user = useAppStore((state) => state.user)
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
 
   if (cart.length === 0) {
@@ -20,7 +25,7 @@ export function CartView() {
           </span>
           <h1 className="text-2xl font-black">سلة المشتريات فارغة</h1>
           <p className="mt-3 text-muted-foreground">اكتشف قطع الغيار المتاحة من المتاجر الموثوقة وأضف ما يناسب سيارتك.</p>
-          <Button className="mt-7" onClick={() => setView({ name: 'parts' })}>تصفح قطع الغيار</Button>
+          <Button className="mt-7" onClick={() => navigate({ name: 'parts' })}>تصفح قطع الغيار</Button>
         </div>
       </section>
     )
@@ -39,12 +44,12 @@ export function CartView() {
               <CardContent className="flex gap-4 p-4 sm:p-5">
                 <button
                   className="grid size-24 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted sm:size-28"
-                  onClick={() => setView({ name: 'part', partId: item.partId })}
+                  onClick={() => navigate({ name: 'part', partId: item.partId })}
                 >
                   {item.image ? <img src={item.image} alt={item.name} className="size-full object-contain" /> : <Package className="size-9 text-muted-foreground" />}
                 </button>
                 <div className="min-w-0 flex-1">
-                  <button className="line-clamp-2 text-right font-bold hover:text-primary" onClick={() => setView({ name: 'part', partId: item.partId })}>{item.name}</button>
+                  <button className="line-clamp-2 text-right font-bold hover:text-primary" onClick={() => navigate({ name: 'part', partId: item.partId })}>{item.name}</button>
                   <p className="mt-1 text-sm text-muted-foreground">{item.storeName}</p>
                   <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                     <div className="flex items-center gap-1">
@@ -69,7 +74,7 @@ export function CartView() {
               <span className="text-muted-foreground">الإجمالي</span>
               <strong className="text-2xl text-primary">{formatPrice(total)}</strong>
             </div>
-            <Button className="w-full" size="lg" onClick={() => setView(user ? { name: 'checkout' } : { name: 'login' })}>متابعة إتمام الطلب</Button>
+            <Button className="w-full" size="lg" onClick={() => navigate(user ? { name: 'checkout' } : { name: 'login' })}>متابعة إتمام الطلب</Button>
             <p className="mt-3 text-center text-xs leading-5 text-muted-foreground">الدفع عند الاستلام متاح. يؤكد كل متجر طلبه بشكل مستقل.</p>
           </CardContent>
         </Card>

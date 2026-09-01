@@ -1,7 +1,8 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { useAppStore, type View } from '@/lib/store'
+import { useRouter } from 'next/navigation'
+import { useAppStore, viewToPath, type View } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import {
@@ -84,7 +85,10 @@ function getNotificationDestination(notification: Notification, userRole: string
 }
 
 export function NotificationsBell() {
-  const { user, setView, notificationCount, setNotificationCount } = useAppStore()
+  const router = useRouter()
+  const user = useAppStore((state) => state.user)
+  const notificationCount = useAppStore((state) => state.notificationCount)
+  const setNotificationCount = useAppStore((state) => state.setNotificationCount)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const [connected, setConnected] = useState(false)
@@ -168,7 +172,7 @@ export function NotificationsBell() {
     setNotificationCount(Math.max(0, useAppStore.getState().notificationCount - 1))
     setOpen(false)
     const destination = getNotificationDestination(notification, user?.role || '')
-    if (destination) setView(destination)
+    if (destination) router.push(viewToPath(destination))
   }
 
   if (!user) return null

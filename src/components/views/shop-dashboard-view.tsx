@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -56,6 +57,7 @@ interface Store {
   description?: string | null
   address?: string | null
   phone?: string | null
+  image?: string | null
 }
 
 interface Part {
@@ -113,10 +115,35 @@ const emptyCompatibility = (): CompatibilityInput => ({
   make: '', model: '', generation: '', yearFrom: null, yearTo: null, engine: '', trim: '', notes: '',
 })
 
+type CachedDashboardData = {
+  fetchedAt: number
+  store?: Store | null
+  parts?: Part[]
+  orders?: Order[]
+}
+
+const DASHBOARD_CACHE_TTL = 30_000
+const dashboardCache = new Map<string, CachedDashboardData>()
+
+function dashboardCacheKey(userId: string, tab: string) {
+  return `${userId}:${tab}`
+}
+
+function readDashboardCache(userId: string, tab: string) {
+  return dashboardCache.get(dashboardCacheKey(userId, tab))
+}
+
+function writeDashboardCache(userId: string, tab: string, data: Omit<CachedDashboardData, 'fetchedAt'>) {
+  dashboardCache.set(dashboardCacheKey(userId, tab), { ...data, fetchedAt: Date.now() })
+}
+
 export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }) {
-  const { user } = useAppStore()
+  const router = useRouter()
+  const pathname = usePathname() || '/seller/parts'
+  const user = useAppStore((state) => state.user)
   const { toast } = useToast()
-  const [tab, setTab] = useState<'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages'>(initialTab || 'parts')
+  const routeTab = pathname.split('/')[2] as 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' | undefined
+  const tab = ['parts', 'orders', 'store', 'analytics', 'coupons', 'messages'].includes(routeTab || '') ? routeTab! : initialTab || 'parts'
   const [store, setStore] = useState<Store | null>(null)
   const [parts, setParts] = useState<Part[]>([])
   const [orders, setOrders] = useState<Order[]>([])
@@ -138,7 +165,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
   useEffect(() => {
     return subscribeAIDraft('listing', (draft) => {
-      setTab('parts')
+      router.push('/seller/parts')
       setPartForm((current) => ({
         ...current,
         name: typeof draft.name === 'string' ? draft.name : current.name,
@@ -156,95 +183,69 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       }))
       requestAnimationFrame(() => partFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     })
-  }, [])
+  }, [router])
 
-  const loadStore = async () => {
-    setLoadError(false)
-    try {
-      const response = await fetch('/api/shop/store', { cache: 'no-store' })
-      const storeData = await response.json()
-      if (!response.ok) throw new Error(storeData.error || 'STORE_LOAD_FAILED')
-      const myStore = storeData.store
-      if (!myStore) {
-        setLoading(false)
-        return
-      }
-      setStore(myStore)
-      setStoreForm({
-        name: myStore.name || '',
-        description: myStore.description || '',
-        address: myStore.address || '',
-        phone: myStore.phone || '',
-        image: myStore.image || '',
-      })
-    } catch {
-      setLoadError(true)
+  const loadTab = useCallback(async (nextTab: typeof tab, force = false) => {
+    const userId = user?.id
+    if (!userId) {
       setLoading(false)
+      return
     }
-  }
-
-  // Better: fetch all parts and filter by store
-  const loadAllParts = async () => {
-    const res = await fetch('/api/parts?scope=mine', { cache: 'no-store' })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'PARTS_LOAD_FAILED')
-    setParts(data.parts || [])
-  }
-
-  const loadOrders = async () => {
-    const res = await fetch('/api/orders?scope=shop', { cache: 'no-store' })
-    const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'ORDERS_LOAD_FAILED')
-    setOrders(data.orders || [])
-  }
-
-  const loadDashboard = async () => {
+    const cached = readDashboardCache(userId, nextTab)
+    const hasCachedData = nextTab === 'parts' ? Boolean(cached?.parts) : nextTab === 'orders' ? Boolean(cached?.orders) : nextTab === 'store' ? Boolean(cached && 'store' in cached) : false
+    if (cached) {
+      if (cached.parts) setParts(cached.parts)
+      if (cached.orders) setOrders(cached.orders)
+      if ('store' in cached) {
+        setStore(cached.store || null)
+        if (cached.store) setStoreForm({ name: cached.store.name || '', description: cached.store.description || '', address: cached.store.address || '', phone: cached.store.phone || '', image: cached.store.image || '' })
+      }
+    }
     setLoadError(false)
-    setLoading(true)
+    setLoading(!hasCachedData && ['parts', 'orders', 'store'].includes(nextTab))
+    if (nextTab === 'analytics' || nextTab === 'coupons' || nextTab === 'messages') return
+    if (!force && hasCachedData && cached && Date.now() - cached.fetchedAt < DASHBOARD_CACHE_TTL) {
+      // Recent tab data is already visible; revalidation is deferred until the
+      // short cache window expires or a mutation explicitly forces a refresh.
+      setLoading(false)
+      return
+    }
     try {
-      // These endpoints all authenticate independently, so starting them together
-      // removes a full network round trip from opening the seller dashboard.
-      const [storeResponse, partsResponse, ordersResponse] = await Promise.all([
-        fetch('/api/shop/store', { cache: 'no-store' }),
-        fetch('/api/parts?scope=mine', { cache: 'no-store' }),
-        fetch('/api/orders?scope=shop', { cache: 'no-store' }),
-      ])
-      const [storeData, partsData, ordersData] = await Promise.all([
-        storeResponse.json(),
-        partsResponse.json(),
-        ordersResponse.json(),
-      ])
-      if (!storeResponse.ok || !partsResponse.ok || !ordersResponse.ok) {
-        throw new Error('SHOP_DASHBOARD_LOAD_FAILED')
-      }
-
-      const myStore = storeData.store
-      if (myStore) {
+      const endpoint = nextTab === 'parts' ? '/api/parts?scope=mine' : nextTab === 'orders' ? '/api/orders?scope=shop' : '/api/shop/store'
+      const response = await fetch(endpoint, { cache: 'no-store' })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'SHOP_TAB_LOAD_FAILED')
+      if (nextTab === 'parts') {
+        const nextParts = data.parts || []
+        setParts(nextParts)
+        writeDashboardCache(userId, nextTab, { parts: nextParts })
+      } else if (nextTab === 'orders') {
+        const nextOrders = data.orders || []
+        setOrders(nextOrders)
+        writeDashboardCache(userId, nextTab, { orders: nextOrders })
+      } else {
+        const myStore = data.store || null
         setStore(myStore)
-        setStoreForm({
-          name: myStore.name || '',
-          description: myStore.description || '',
-          address: myStore.address || '',
-          phone: myStore.phone || '',
-          image: myStore.image || '',
-        })
+        if (myStore) setStoreForm({ name: myStore.name || '', description: myStore.description || '', address: myStore.address || '', phone: myStore.phone || '', image: myStore.image || '' })
+        writeDashboardCache(userId, nextTab, { store: myStore })
       }
-      setParts(partsData.parts || [])
-      setOrders(ordersData.orders || [])
     } catch {
       setLoadError(true)
     } finally {
       setLoading(false)
     }
-  }
+  }, [tab, user?.id])
 
   useEffect(() => {
     if (user?.role !== 'SHOP_OWNER') {
       setLoading(false)
       return
     }
-    void loadDashboard()
-  }, [user])
+    void loadTab(tab)
+  }, [loadTab, tab, user?.role])
+
+  const loadAllParts = () => loadTab('parts', true)
+  const loadOrders = () => loadTab('orders', true)
 
   const handleSavePart = async () => {
     if (imageUploading || isAnyUploadInProgress()) {
@@ -382,11 +383,11 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       {loadError && (
         <div className="rounded-2xl border border-destructive/25 bg-destructive/5 p-5 text-center" role="alert">
           <p className="font-semibold">تعذر تحميل بيانات صفحة المحل</p>
-          <Button className="mt-3" variant="outline" onClick={() => void loadDashboard()}>إعادة المحاولة</Button>
+          <Button className="mt-3" variant="outline" onClick={() => void loadTab(tab, true)}>إعادة المحاولة</Button>
         </div>
       )}
 
-      <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); window.history.pushState({}, '', `/seller/${v}`) }}>
+      <Tabs value={tab} onValueChange={(v) => router.push(`/seller/${v}`)}>
         <TabsList className="grid w-full max-w-4xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
           <TabsTrigger value="parts" className="gap-1.5 text-[11px] sm:text-sm">
             <Package className="size-4" />

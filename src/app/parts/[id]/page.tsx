@@ -1,6 +1,5 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
-import { AppShell } from '@/components/app-shell'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { PartView } from '@/components/views/part-view'
 import { db } from '@/lib/db'
@@ -46,10 +45,10 @@ export default async function PartPage({ params }: Params) {
     offers: { '@type': 'Offer', priceCurrency: 'EGP', price: part.price, availability: part.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', name: part.store.name } },
   }
   return (
-    <AppShell initialView={{ name: 'part', partId: id }} initialUser={null}>
+    <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
       <Breadcrumbs items={breadcrumbItems} />
       <PartView partId={id} initialPart={part} initialCanReview={canReview} />
-    </AppShell>
+    </>
   )
 }

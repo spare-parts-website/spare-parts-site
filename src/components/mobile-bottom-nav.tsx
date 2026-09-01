@@ -2,17 +2,21 @@
 
 import Link from 'next/link'
 import { Heart, Home, PackageSearch, ShoppingCart, Store as StoreIcon, UserRound } from 'lucide-react'
+import { usePathname } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 
 export function MobileBottomNav() {
-  const { view, cart, user, setCartOpen } = useAppStore()
+  const pathname = usePathname() || '/'
+  const cartCount = useAppStore((state) => state.cart.length)
+  const user = useAppStore((state) => state.user)
+  const setCartOpen = useAppStore((state) => state.setCartOpen)
   const items = [
-    { label: 'الرئيسية', href: '/', icon: Home, active: view.name === 'home' },
-    { label: 'القطع', href: '/parts', icon: PackageSearch, active: view.name === 'parts' || view.name === 'part' },
+    { label: 'الرئيسية', href: '/', icon: Home, active: pathname === '/' },
+    { label: 'القطع', href: '/parts', icon: PackageSearch, active: pathname.startsWith('/parts') },
     user?.role === 'SHOP_OWNER'
-      ? { label: 'صفحة المحل', href: '/seller/parts', icon: StoreIcon, active: view.name === 'shop-dashboard' }
-      : { label: 'المفضلة', href: user ? '/account/wishlist' : '/login', icon: Heart, active: view.name === 'wishlist' },
-    { label: 'حسابي', href: user ? '/account/profile' : '/login', icon: UserRound, active: ['profile', 'orders', 'inbox', 'login', 'register', 'forgot-password', 'reset-password'].includes(view.name) },
+      ? { label: 'صفحة المحل', href: '/seller/parts', icon: StoreIcon, active: pathname.startsWith('/seller') }
+      : { label: 'المفضلة', href: user ? '/account/wishlist' : '/login', icon: Heart, active: pathname === '/account/wishlist' },
+    { label: 'حسابي', href: user ? '/account/profile' : '/login', icon: UserRound, active: ['/account/profile', '/account/orders', '/account/messages', '/login', '/register', '/forgot-password', '/reset-password'].includes(pathname) || pathname.startsWith('/messages/') },
   ]
 
   return (
@@ -20,7 +24,7 @@ export function MobileBottomNav() {
       <div className="mx-auto grid max-w-lg grid-cols-5">
         {items.slice(0, 2).map((item) => <NavItem key={item.label} {...item} />)}
         <button type="button" onClick={() => setCartOpen(true)} className="relative -mt-6 flex flex-col items-center gap-1 text-xs font-bold">
-          <span className="relative grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25"><ShoppingCart className="size-6" />{cart.length > 0 && <span className="absolute -left-1 -top-1 grid size-5 place-items-center rounded-full bg-destructive text-[10px] text-white">{cart.length > 9 ? '9+' : cart.length}</span>}</span>
+          <span className="relative grid size-14 place-items-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/25"><ShoppingCart className="size-6" />{cartCount > 0 && <span className="absolute -left-1 -top-1 grid size-5 place-items-center rounded-full bg-destructive text-[10px] text-white">{cartCount > 9 ? '9+' : cartCount}</span>}</span>
           <span>السلة</span>
         </button>
         {items.slice(2).map((item) => <NavItem key={item.label} {...item} />)}

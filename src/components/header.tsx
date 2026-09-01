@@ -1,6 +1,6 @@
 'use client'
 
-import { useAppStore, type AuthUser } from '@/lib/store'
+import { useAppStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -29,14 +29,14 @@ import {
   LifeBuoy,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import {
   Sheet,
   SheetContent,
   SheetTrigger,
   SheetTitle,
 } from '@/components/ui/sheet'
-import { CartDrawer } from '@/components/cart-drawer'
 import { NotificationsBell } from '@/components/notifications-bell'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { SearchBar } from '@/components/search-bar'
@@ -47,15 +47,19 @@ const ROLE_LABELS: Record<string, string> = {
   SHOP_OWNER: 'صاحب محل',
 }
 
-export function Header({ user }: { user: AuthUser | null }) {
+export function Header() {
   const router = useRouter()
-  const { view, setView, setUser, cart, setCartOpen } = useAppStore()
+  const pathname = usePathname() || '/'
+  const user = useAppStore((state) => state.user)
+  const setUser = useAppStore((state) => state.setUser)
+  const cartCount = useAppStore((state) => state.cart.length)
+  const setCartOpen = useAppStore((state) => state.setCartOpen)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
 
   useEffect(() => {
     setSearchOpen(false)
-  }, [view.name])
+  }, [pathname])
 
   // Warm the small, high-frequency route shells after the header mounts. The
   // heavier seller/admin bundles are prefetched only for users who can open
@@ -70,124 +74,41 @@ export function Header({ user }: { user: AuthUser | null }) {
 
   const navItems = (
     <>
-      <Button
-        variant={view.name === 'home' ? 'default' : 'ghost'}
-        size="sm"
-        onClick={() => {
-          setView({ name: 'home' })
-          setMobileOpen(false)
-        }}
-        className="justify-start gap-2"
-      >
-        <Home className="size-4" />
-        الرئيسية
+      <Button asChild variant={pathname === '/' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+        <Link href="/" onClick={() => setMobileOpen(false)}><Home className="size-4" />الرئيسية</Link>
       </Button>
-      <Button
-        variant={view.name === 'support' ? 'default' : 'ghost'}
-        size="sm"
-        onClick={() => {
-          setView({ name: 'support' })
-          setMobileOpen(false)
-        }}
-        className="justify-start gap-2"
-      >
-        <LifeBuoy className="size-4" />
-        الدعم والمساعدة
+      <Button asChild variant={pathname === '/support' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+        <Link href="/support" onClick={() => setMobileOpen(false)}><LifeBuoy className="size-4" />الدعم والمساعدة</Link>
       </Button>
-      <Button
-        variant={view.name === 'stores' ? 'default' : 'ghost'}
-        size="sm"
-        onClick={() => {
-          setView({ name: 'stores' })
-          setMobileOpen(false)
-        }}
-        className="justify-start gap-2"
-      >
-        <StoreIcon className="size-4" />
-        المتاجر
+      <Button asChild variant={pathname.startsWith('/stores') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+        <Link href="/stores" onClick={() => setMobileOpen(false)}><StoreIcon className="size-4" />المتاجر</Link>
       </Button>
-      <Button
-        variant={view.name === 'parts' ? 'default' : 'ghost'}
-        size="sm"
-        onClick={() => {
-          setView({ name: 'parts' })
-          setMobileOpen(false)
-        }}
-        className="justify-start gap-2"
-      >
-        <Package className="size-4" />
-        قطع الغيار
+      <Button asChild variant={pathname.startsWith('/parts') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+        <Link href="/parts" onClick={() => setMobileOpen(false)}><Package className="size-4" />قطع الغيار</Link>
       </Button>
       {user && (
-        <Button
-          variant={view.name === 'inbox' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => {
-            setView({ name: 'inbox' })
-            setMobileOpen(false)
-          }}
-          className="justify-start gap-2"
-        >
-          <MessageSquare className="size-4" />
-          الرسائل
+        <Button asChild variant={pathname === '/account/messages' || pathname.startsWith('/messages/') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+          <Link href="/account/messages" onClick={() => setMobileOpen(false)}><MessageSquare className="size-4" />الرسائل</Link>
         </Button>
       )}
       {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') && (
-        <Button
-          variant={view.name === 'orders' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => {
-            setView({ name: 'orders' })
-            setMobileOpen(false)
-          }}
-          className="justify-start gap-2"
-        >
-          <ShoppingBag className="size-4" />
-          طلباتي
+        <Button asChild variant={pathname === '/account/orders' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+          <Link href="/account/orders" onClick={() => setMobileOpen(false)}><ShoppingBag className="size-4" />طلباتي</Link>
         </Button>
       )}
       {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') && (
-        <Button
-          variant={view.name === 'wishlist' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => {
-            setView({ name: 'wishlist' })
-            setMobileOpen(false)
-          }}
-          className="justify-start gap-2"
-        >
-          <Heart className="size-4" />
-          المفضلة
+        <Button asChild variant={pathname === '/account/wishlist' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+          <Link href="/account/wishlist" onClick={() => setMobileOpen(false)}><Heart className="size-4" />المفضلة</Link>
         </Button>
       )}
       {user?.role === 'SHOP_OWNER' && (
-        <>
-          <Button
-            variant={view.name === 'shop-dashboard' && (!('tab' in view) || view.tab !== 'messages') ? 'default' : 'ghost'}
-            size="sm"
-            onClick={() => {
-              setView({ name: 'shop-dashboard' })
-              setMobileOpen(false)
-            }}
-            className="justify-start gap-2"
-          >
-            <LayoutDashboard className="size-4" />
-            صفحة المحل
-          </Button>
-        </>
+        <Button asChild variant={pathname.startsWith('/seller') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+          <Link href="/seller/parts" onClick={() => setMobileOpen(false)}><LayoutDashboard className="size-4" />صفحة المحل</Link>
+        </Button>
       )}
       {user?.role === 'ADMIN' && (
-        <Button
-          variant={view.name === 'admin-dashboard' ? 'default' : 'ghost'}
-          size="sm"
-          onClick={() => {
-            setView({ name: 'admin-dashboard' })
-            setMobileOpen(false)
-          }}
-          className="justify-start gap-2"
-        >
-          <ShieldCheck className="size-4" />
-          لوحة المدير
+        <Button asChild variant={pathname.startsWith('/admin') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+          <Link href="/admin/users" onClick={() => setMobileOpen(false)}><ShieldCheck className="size-4" />لوحة المدير</Link>
         </Button>
       )}
     </>
@@ -197,8 +118,8 @@ export function Header({ user }: { user: AuthUser | null }) {
     <header className="site-header sticky top-0 z-40 w-full border-b backdrop-blur-xl supports-[backdrop-filter]:bg-card/60">
       <div className="content-container flex min-h-16 items-center gap-2 py-2">
         {/* Logo */}
-        <button
-          onClick={() => setView({ name: 'home' })}
+        <Link
+          href="/"
           aria-label="غيار ماركت - الرئيسية"
           className="group flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-primary/5"
         >
@@ -210,7 +131,7 @@ export function Header({ user }: { user: AuthUser | null }) {
           <span className="hidden text-lg font-extrabold tracking-tight text-foreground sm:inline">
             غيار ماركت
           </span>
-        </button>
+        </Link>
 
         {/* Desktop Search with Autocomplete */}
         <div className="hidden min-w-0 max-w-sm flex-1 md:flex">
@@ -245,9 +166,9 @@ export function Header({ user }: { user: AuthUser | null }) {
               onClick={() => setCartOpen(true)}
             >
               <ShoppingCart className="size-5" />
-              {cart.length > 0 && (
+              {cartCount > 0 && (
                 <span className="absolute -top-0.5 -right-0.5 size-5 rounded-full bg-primary text-primary-foreground text-xs font-bold flex items-center justify-center">
-                  {cart.length > 9 ? '9+' : cart.length}
+                  {cartCount > 9 ? '9+' : cartCount}
                 </span>
               )}
               <span className="sr-only">سلة التسوق</span>
@@ -280,40 +201,54 @@ export function Header({ user }: { user: AuthUser | null }) {
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => setView({ name: 'profile' })}>
+                <DropdownMenuItem asChild>
+                  <Link href="/account/profile">
                   <UserIcon className="size-4 ml-2" />
                   ملفي الشخصي
+                  </Link>
                 </DropdownMenuItem>
                 {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
-                  <DropdownMenuItem onClick={() => setView({ name: 'orders' })}>
+                  <DropdownMenuItem asChild>
+                    <Link href="/account/orders">
                     <ShoppingBag className="size-4 ml-2" />
                     طلباتي
+                    </Link>
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => setView({ name: 'inbox' })}>
+                <DropdownMenuItem asChild>
+                  <Link href="/account/messages">
                   <MessageSquare className="size-4 ml-2" />
                   الرسائل
+                  </Link>
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => setView({ name: 'support' })}>
+                <DropdownMenuItem asChild>
+                  <Link href="/support">
                   <LifeBuoy className="size-4 ml-2" />
                   الدعم والمساعدة
+                  </Link>
                 </DropdownMenuItem>
                 {user.role === 'SHOP_OWNER' && (
                   <>
-                    <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard' })}>
+                    <DropdownMenuItem asChild>
+                      <Link href="/seller/parts">
                       <LayoutDashboard className="size-4 ml-2" />
                       صفحة المحل
+                      </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => setView({ name: 'shop-dashboard', tab: 'messages' })}>
+                    <DropdownMenuItem asChild>
+                      <Link href="/seller/messages">
                       <MessageSquare className="size-4 ml-2" />
                       رسائل العملاء
+                      </Link>
                     </DropdownMenuItem>
                   </>
                 )}
                 {user.role === 'ADMIN' && (
-                  <DropdownMenuItem onClick={() => setView({ name: 'admin-dashboard' })}>
+                  <DropdownMenuItem asChild>
+                    <Link href="/admin/users">
                     <ShieldCheck className="size-4 ml-2" />
                     لوحة المدير
+                    </Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuSeparator />
@@ -322,7 +257,7 @@ export function Header({ user }: { user: AuthUser | null }) {
                   onClick={async () => {
                     await fetch('/api/auth/logout', { method: 'POST' })
                     setUser(null)
-                    setView({ name: 'home' })
+                    router.push('/')
                   }}
                 >
                   <LogOut className="size-4 ml-2" />
@@ -335,14 +270,14 @@ export function Header({ user }: { user: AuthUser | null }) {
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setView({ name: 'login' })}
+                onClick={() => router.push('/login')}
                 className="hidden sm:inline-flex"
               >
                 دخول
               </Button>
               <Button
                 size="sm"
-                onClick={() => setView({ name: 'register' })}
+                onClick={() => router.push('/register')}
                 className="size-10 p-0 sm:h-9 sm:w-auto sm:px-3"
                 aria-label="إنشاء حساب جديد"
               >
@@ -371,7 +306,7 @@ export function Header({ user }: { user: AuthUser | null }) {
               </div>
               {!user && (
                 <div className="flex flex-col gap-2 mt-auto">
-                  <Button variant="outline" onClick={() => { setView({ name: 'login' }); setMobileOpen(false) }}>
+                  <Button variant="outline" onClick={() => { router.push('/login'); setMobileOpen(false) }}>
                     تسجيل الدخول
                   </Button>
                 </div>
