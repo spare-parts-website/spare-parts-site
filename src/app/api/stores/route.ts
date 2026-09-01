@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { isBlockedStoreName } from '@/lib/store-moderation'
+import { getPublicStore } from '@/lib/public-marketplace'
 
 export async function GET(req: NextRequest) {
   try {
@@ -10,37 +11,11 @@ export async function GET(req: NextRequest) {
   const id = searchParams.get('id')
 
   if (id) {
-    const store = await db.store.findUnique({
-      where: { id },
-      include: {
-        owner: { select: { name: true, phone: true, avatar: true } },
-        parts: {
-          where: { blocked: false },
-          orderBy: { createdAt: 'desc' },
-          select: { id: true, name: true, price: true, stock: true, category: true, brand: true, image: true },
-        },
-        reviews: {
-          where: { blocked: false },
-          include: { user: { select: { name: true, avatar: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-      },
-    })
-    if (!store || isBlockedStoreName(store.name)) {
+    const result = await getPublicStore(id, await getSession())
+    if (!result.store) {
       return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
     }
-    const [completedOrderCount, decidedOrderCount] = await Promise.all([
-      db.order.count({ where: { storeId: store.id, status: 'DELIVERED' } }),
-      db.order.count({ where: { storeId: store.id, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } } }),
-    ])
-    const session = await getSession()
-    const canReview = session && ['BUYER', 'SHOP_OWNER'].includes(session.role)
-      ? Boolean(await db.order.findFirst({
-          where: { buyerId: session.id, storeId: store.id, status: { in: ['DELIVERED', 'RETURNED'] } },
-          select: { id: true },
-        }))
-      : false
-    return NextResponse.json({ store: { ...store, completedOrderCount, completionRate: decidedOrderCount ? Math.round(completedOrderCount / decidedOrderCount * 100) : 100 }, canReview })
+    return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   }
 
   const where = search

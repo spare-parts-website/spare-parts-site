@@ -7,6 +7,7 @@ import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
 import { audit } from '@/lib/audit'
+import { getPublicPart } from '@/lib/public-marketplace'
 
 const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
 
@@ -34,40 +35,12 @@ export async function GET(req: NextRequest) {
   const sort = searchParams.get('sort') || 'newest'
 
   if (id) {
-    const part = await db.part.findUnique({
-      where: { id },
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-            address: true,
-            phone: true,
-            ownerId: true,
-            owner: { select: { name: true, avatar: true } },
-          },
-        },
-        reviews: {
-          where: { blocked: false },
-          include: { user: { select: { name: true, avatar: true } } },
-          orderBy: { createdAt: 'desc' },
-        },
-        images: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
-        compatibilities: { orderBy: [{ make: 'asc' }, { model: 'asc' }] },
-      },
-    })
-    if (!part || part.blocked || isBlockedStoreName(part.store.name)) {
+    const result = await getPublicPart(id, await getSession())
+    if (!result.part) {
       return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
     }
-    const session = await getSession()
-    const canReview = session && ['BUYER', 'SHOP_OWNER'].includes(session.role)
-      ? Boolean(await db.order.findFirst({
-          where: { buyerId: session.id, partId: part.id, status: { in: ['DELIVERED', 'RETURNED'] } },
-          select: { id: true },
-        }))
-      : false
     return NextResponse.json(
-      { part, canReview },
+      result,
       { headers: { 'Cache-Control': 'no-store, max-age=0' } }
     )
   }

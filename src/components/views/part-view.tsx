@@ -38,44 +38,14 @@ import { useToast } from '@/hooks/use-toast'
 import { UserAvatar } from '@/components/user-avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { GOVERNORATE_DELIVERY } from '@/lib/delivery'
+import type { PublicPart } from '@/lib/public-marketplace'
 
-interface Review {
-  id: string
-  rating: number
-  comment?: string | null
-  createdAt: string
-  user: { name: string; avatar?: string | null }
-}
-
-interface PartImage {
-  id: string
-  url: string
-  position: number
-}
-
-interface Part {
-  id: string
-  name: string
-  description?: string | null
-  price: number
-  stock: number
-  category?: string | null
-  brand?: string | null
-  condition?: string | null
-  image?: string | null
-  carModels?: string | null
-  compatibilities?: { id: string; make: string; model: string; yearFrom?: number | null; yearTo?: number | null }[]
-  store: { id: string; name: string; address?: string | null; phone?: string | null; ownerId: string; owner: { name: string; avatar?: string | null } }
-  reviews: Review[]
-  images?: PartImage[]
-}
-
-export function PartView({ partId }: { partId: string }) {
+export function PartView({ partId, initialPart = null, initialCanReview = false }: { partId: string; initialPart?: PublicPart | null; initialCanReview?: boolean }) {
   const { setView, user, setPendingView, addToCart } = useAppStore()
   const { toast } = useToast()
-  const [part, setPart] = useState<Part | null>(null)
-  const [canReview, setCanReview] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [part, setPart] = useState<PublicPart | null>(initialPart)
+  const [canReview, setCanReview] = useState(initialCanReview)
+  const [loading, setLoading] = useState(!initialPart)
   const [loadError, setLoadError] = useState(false)
   const [orderOpen, setOrderOpen] = useState(false)
   const [selectedImage, setSelectedImage] = useState(0)
@@ -110,8 +80,16 @@ export function PartView({ partId }: { partId: string }) {
   }
 
   useEffect(() => {
-    load()
-  }, [partId])
+    if (initialPart?.id === partId) {
+      setPart(initialPart)
+      setCanReview(initialCanReview)
+      setLoadError(false)
+      setLoading(false)
+      setSelectedImage(0)
+      return
+    }
+    void load()
+  }, [initialCanReview, initialPart, partId])
 
   const handleOrder = async () => {
     if (!user) {
@@ -256,7 +234,7 @@ export function PartView({ partId }: { partId: string }) {
   const avgRating = part.reviews.length
     ? part.reviews.reduce((s, r) => s + r.rating, 0) / part.reviews.length
     : 0
-  const canShop = !user || (user.role !== 'ADMIN' && user.id !== part.store.ownerId)
+  const canShop = !user || (user.role !== 'ADMIN' && !part.store.isOwnedByViewer)
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -359,13 +337,14 @@ export function PartView({ partId }: { partId: string }) {
             className="surface-panel flex w-full items-center gap-4 border-border/70 bg-muted/25 p-4 text-right transition hover:border-primary/40 hover:bg-primary/5"
             onClick={() => setView({ name: 'store', storeId: part.store.id })}
           >
-            <UserAvatar name={part.store.owner.name} src={part.store.owner.avatar} className="size-16 rounded-2xl text-2xl" />
+            <UserAvatar name={part.store.name} src={part.store.image} className="size-16 rounded-2xl text-2xl" />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 text-primary">
                 <StoreIcon className="size-5 shrink-0" />
                 <span className="truncate text-lg font-bold">{part.store.name}</span>
+                {part.store.verified && <ShieldCheck className="size-4 shrink-0" aria-label="متجر موثق" />}
               </div>
-              <p className="mt-1 truncate text-base font-semibold text-muted-foreground">البائع: {part.store.owner.name}</p>
+              <p className="mt-1 truncate text-sm text-muted-foreground">عرض تفاصيل المتجر وتقييماته</p>
             </div>
             <ArrowRight className="size-4 shrink-0" />
           </button>
@@ -442,7 +421,7 @@ export function PartView({ partId }: { partId: string }) {
           )}
 
           <div className="flex flex-wrap gap-2">
-            {user?.id !== part.store.ownerId && (
+            {!part.store.isOwnedByViewer && (
               <Button size="lg" variant="outline" onClick={handleSellerChat}>
                 <MessageSquare className="size-4 ml-2" />
                 اسأل البائع

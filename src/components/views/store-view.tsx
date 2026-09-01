@@ -31,30 +31,14 @@ import {
 import { useToast } from '@/hooks/use-toast'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
 import { UserAvatar } from '@/components/user-avatar'
+import type { PublicStore } from '@/lib/public-marketplace'
 
-interface Store {
-  id: string
-  name: string
-  description?: string | null
-  address?: string | null
-  phone?: string | null
-  image?: string | null
-  owner: { name: string; phone?: string | null; avatar?: string | null }
-  parts: any[]
-  reviews: Array<{ id: string; rating: number; comment?: string | null; createdAt: string; user: { name: string; avatar?: string | null } }>
-  verified: boolean
-  verificationStatus?: string
-  completionRate?: number
-  completedOrderCount: number
-  canReview?: boolean
-}
-
-export function StoreView({ storeId }: { storeId: string }) {
+export function StoreView({ storeId, initialStore = null, initialCanReview = false }: { storeId: string; initialStore?: PublicStore | null; initialCanReview?: boolean }) {
   const { setView, user, setPendingView } = useAppStore()
   const { toast } = useToast()
-  const [store, setStore] = useState<Store | null>(null)
-  const [canReview, setCanReview] = useState(false)
-  const [loading, setLoading] = useState(true)
+  const [store, setStore] = useState<PublicStore | null>(initialStore)
+  const [canReview, setCanReview] = useState(initialCanReview)
+  const [loading, setLoading] = useState(!initialStore)
   const [loadError, setLoadError] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
   const [reviewForm, setReviewForm] = useState({ rating: 5, comment: '' })
@@ -77,8 +61,15 @@ export function StoreView({ storeId }: { storeId: string }) {
   }
 
   useEffect(() => {
-    load()
-  }, [storeId])
+    if (initialStore?.id === storeId) {
+      setStore(initialStore)
+      setCanReview(initialCanReview)
+      setLoadError(false)
+      setLoading(false)
+      return
+    }
+    void load()
+  }, [initialCanReview, initialStore, storeId])
 
   const handleReview = async () => {
     if (!user) {
@@ -149,7 +140,7 @@ export function StoreView({ storeId }: { storeId: string }) {
   }
 
   const avgRating = store.reviews.length
-    ? store.reviews.reduce((s: number, r: any) => s + r.rating, 0) / store.reviews.length
+    ? store.reviews.reduce((sum, review) => sum + review.rating, 0) / store.reviews.length
     : 0
 
   return (
@@ -164,19 +155,15 @@ export function StoreView({ storeId }: { storeId: string }) {
         <CardContent className="p-5 md:p-8">
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div className="relative size-24 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden sm:size-28">
-              {store.image ? <Image src={store.image} alt={store.name} fill sizes="160px" quality={100} className="object-cover" /> : <StoreIcon className="size-10" />}
+              {store.image ? <Image src={store.image} alt={store.name} fill sizes="112px" className="object-cover" /> : <StoreIcon className="size-10" />}
             </div>
             <div className="flex-1 space-y-2">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <UserAvatar name={store.owner.name} src={store.owner.avatar} className="size-10 rounded-xl" />
-                <span>صاحب المحل: {store.owner.name}</span>
-              </div>
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <div className="flex items-center gap-2">
                     <h1 className="text-3xl font-extrabold md:text-4xl">{store.name}</h1>
-                    {(store.verified || store.verificationStatus === 'APPROVED') && <Badge className="bg-emerald-600 hover:bg-emerald-600"><ShieldCheck className="size-3.5 ml-1" />متجر معتمد</Badge>}
-                    <Badge variant="outline">نسبة الطلبات المكتملة {store.completionRate ?? 100}%</Badge>
+                    {store.verified && <Badge className="bg-emerald-600 hover:bg-emerald-600"><ShieldCheck className="size-3.5 ml-1" />متجر موثق</Badge>}
+                    {store.completionRate !== null && <Badge variant="outline">نسبة الطلبات المكتملة {store.completionRate}%</Badge>}
                   </div>
                   <div className="flex items-center gap-2 mt-1">
                     <Stars value={avgRating} size={16} />
@@ -294,7 +281,7 @@ export function StoreView({ storeId }: { storeId: string }) {
           </Card>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {store.parts.map((part: any) => (
+            {store.parts.map((part) => (
               <Card
                 key={part.id}
                 role="link"
@@ -316,7 +303,6 @@ export function StoreView({ storeId }: { storeId: string }) {
                       alt={store.name}
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 75vw, 1100px"
-                      quality={100}
                       className="object-cover transition duration-500 group-hover:scale-105"
                     />
                   ) : (
@@ -346,10 +332,10 @@ export function StoreView({ storeId }: { storeId: string }) {
                 </div>
                 <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
                   <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/25 p-3">
-                    <UserAvatar name={store.owner.name} src={store.owner.avatar} className="size-12 rounded-xl text-lg" />
+                    <UserAvatar name={store.name} src={store.image} className="size-12 rounded-xl text-lg" />
                     <div className="min-w-0">
                       <p className="truncate text-base font-bold text-primary">{store.name}</p>
-                      <p className="truncate text-sm font-medium text-muted-foreground">البائع: {store.owner.name}</p>
+                      <p className="truncate text-sm font-medium text-muted-foreground">قطعة معروضة من المتجر</p>
                     </div>
                   </div>
                   <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10 flex-1">
@@ -388,7 +374,7 @@ export function StoreView({ storeId }: { storeId: string }) {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {store.reviews.map((review: any) => (
+              {store.reviews.map((review) => (
                 <div key={review.id} className="pb-4 border-b last:border-0 last:pb-0">
                   <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center gap-2">
