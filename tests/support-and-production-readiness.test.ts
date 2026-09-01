@@ -64,6 +64,9 @@ test('support inbox exposes admin filters and route loading feedback', () => {
   assert.match(view, /كل التصنيفات/)
   assert.match(view, /ابحث برقم التذكرة/)
   assert.match(view, /WAITING_FOR_SUPPORT/)
+  assert.match(view, /SUPPORT_REFRESH_INTERVAL/)
+  assert.match(view, /window\.setInterval\(refresh, SUPPORT_REFRESH_INTERVAL\)/)
+  assert.match(view, /visibilitychange/)
   assert.match(loading, /جاري تحميل الصفحة/)
 })
 

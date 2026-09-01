@@ -18,6 +18,7 @@ const CATEGORY_LABELS: Record<string, string> = { GENERAL: 'عام', ORDER: 'ط�
 
 type SupportCacheEntry = { fetchedAt: number; tickets: SupportTicket[] }
 const SUPPORT_CACHE_TTL = 30_000
+const SUPPORT_REFRESH_INTERVAL = 15_000
 const supportCache = new Map<string, SupportCacheEntry>()
 
 function supportCacheKey(userId: string, role: string, status: string, category: string, search: string) {
@@ -90,6 +91,24 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
     }
     for (const key of supportCache.keys()) if (!key.startsWith(`${encodeURIComponent(user.id)}:`)) supportCache.delete(key)
     void load()
+  }, [load, user?.id])
+
+  // Keep an open support conversation current without adding a global polling
+  // loop. Focus/visibility refreshes make a returning tab feel immediate, and
+  // the interval covers the case where the user is simply waiting on-screen.
+  useEffect(() => {
+    if (!user) return
+    const refresh = () => {
+      if (document.visibilityState === 'visible') void load(true)
+    }
+    const interval = window.setInterval(refresh, SUPPORT_REFRESH_INTERVAL)
+    window.addEventListener('focus', refresh)
+    document.addEventListener('visibilitychange', refresh)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refresh)
+      document.removeEventListener('visibilitychange', refresh)
+    }
   }, [load, user?.id])
 
   const selected = useMemo(() => tickets.find((ticket) => ticket.id === selectedId) || null, [selectedId, tickets])
