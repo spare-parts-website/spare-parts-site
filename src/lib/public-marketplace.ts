@@ -2,6 +2,7 @@ import 'server-only'
 
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
+import { findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
 import { BLOCKED_STORE_NAMES, isBlockedStoreName } from '@/lib/store-moderation'
 import { evaluateFitment, type FitmentStatus, type VehicleProfile } from '@/lib/vehicle-compatibility'
 
@@ -97,6 +98,7 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
   const sort = clean(query.sort, 30) || 'newest'
   const minPrice = query.minPrice ? Number(query.minPrice) : null
   const maxPrice = query.maxPrice ? Number(query.maxPrice) : null
+  const fuzzyPartIds = search ? await findTypoTolerantPartIds(search) : []
   const where: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
   const and: Prisma.PartWhereInput[] = []
   let selectedCar: PublicPartsList['selectedCar'] = null
@@ -148,6 +150,7 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
         { trim: { contains: search, mode: 'insensitive' } },
       ] } } },
     ]
+    if (fuzzyPartIds.length) searchFilters.push({ id: { in: fuzzyPartIds } })
     const searchYear = /^\d{4}$/.test(search) ? Number(search) : null
     if (searchYear && searchYear >= 1950 && searchYear <= new Date().getFullYear() + 2) {
       searchFilters.push({ compatibilities: { some: { AND: [{ OR: [{ yearFrom: null }, { yearFrom: { lte: searchYear } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: searchYear } }] }] } } })
@@ -214,9 +217,14 @@ export async function getPublicStoresList(searchValue = '', pageValue = 1): Prom
   const search = clean(searchValue)
   const page = publicPage(pageValue)
   const pageSize = 18
+  const fuzzyStoreIds = search ? await findTypoTolerantStoreIds(search) : []
   const where: Prisma.StoreWhereInput = {
     ...visibleStoreWhere,
-    ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] } : {}),
+    ...(search ? { OR: [
+      { name: { contains: search, mode: 'insensitive' } },
+      { description: { contains: search, mode: 'insensitive' } },
+      ...(fuzzyStoreIds.length ? [{ id: { in: fuzzyStoreIds } }] : []),
+    ] } : {}),
   }
 
   const [records, total] = await Promise.all([

@@ -77,3 +77,14 @@ test('expands structured fitment additively and warns before checkout', () => {
   assert.match(publicData, /universal: true/)
   assert.match(checkout, /راجع توافق القطع قبل تأكيد الطلب/)
 })
+
+test('keeps typo-tolerant marketplace search indexed and bounded', () => {
+  const migration = readFileSync(new URL('../prisma/search-tolerance.sql', import.meta.url), 'utf8')
+  const search = readFileSync(new URL('../src/lib/marketplace-search.ts', import.meta.url), 'utf8')
+
+  assert.match(migration, /VehicleCompatibility_search_trgm_idx/)
+  assert.match(migration, /Store_search_trgm_idx/)
+  assert.doesNotMatch(migration, /\b(?:drop|truncate|delete)\b/i)
+  assert.match(search, /operator\(extensions\.%>\)/)
+  assert.match(search, /Math\.min\(Math\.max\(limit, 1\), 500\)/)
+})

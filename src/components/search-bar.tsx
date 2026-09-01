@@ -19,32 +19,34 @@ export function SearchBar({ className }: { className?: string }) {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!query || query.length < 1) {
       setResults(null)
       setOpen(false)
+      setLoading(false)
       return
     }
 
-    if (debounceRef.current) clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(async () => {
+    const controller = new AbortController()
+    const debounce = window.setTimeout(async () => {
       setLoading(true)
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`)
+        const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: controller.signal })
         const data = await res.json()
+        if (!res.ok) throw new Error('SEARCH_FAILED')
         setResults(data)
         setOpen(true)
-      } catch {
-        // ignore
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === 'AbortError')) setResults(null)
       } finally {
-        setLoading(false)
+        if (!controller.signal.aborted) setLoading(false)
       }
     }, 300)
 
     return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current)
+      window.clearTimeout(debounce)
+      controller.abort()
     }
   }, [query])
 

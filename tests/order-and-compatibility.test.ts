@@ -5,6 +5,7 @@ import { evaluateFitment, parseVehicleCompatibility, serializeLegacyCompatibilit
 import { loginCodeEmailHtml, notificationEmailHtml, passwordResetEmailHtml } from '../src/lib/email-templates.ts'
 import { requiresLoginCode } from '../src/lib/login-policy.ts'
 import { buildGroupedOrderDrafts } from '../src/lib/grouped-orders.ts'
+import { buildMarketplaceSearchQueries, normalizeMarketplaceSearch } from '../src/lib/search-normalization.ts'
 import { readFileSync } from 'node:fs'
 
 test('calculates coupon discount against quantity without floating-point drift', () => {
@@ -101,6 +102,14 @@ test('classifies structured vehicle fitment conservatively', () => {
   assert.equal(evaluateFitment(part, { brand: 'Honda', model: 'Civic', year: 2018 }), 'does-not-fit')
   assert.equal(evaluateFitment({ universal: true, compatibilities: [] }, null), 'fits')
   assert.equal(evaluateFitment({ compatibilities: [] }, { brand: 'Toyota', model: 'Corolla' }), 'unknown')
+})
+
+test('normalizes Arabic search and expands bounded automotive synonyms', () => {
+  assert.equal(normalizeMarketplaceSearch('  مُحَرِّك   تَوْيُوتَا  '), 'محرك تويوتا')
+  const variants = buildMarketplaceSearchQueries('BMW engin')
+  assert.ok(variants.includes('bmw motor'))
+  assert.ok(variants.includes('bmw engine'))
+  assert.ok(variants.length <= 8)
 })
 
 test('renders escaped Arabic RTL transactional email markup', () => {
