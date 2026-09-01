@@ -162,6 +162,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [imageUploading, setImageUploading] = useState(false)
   const [storeImageUploading, setStoreImageUploading] = useState(false)
   const partFormRef = useRef<HTMLDivElement>(null)
+  const requestVersion = useRef(0)
 
   useEffect(() => {
     return subscribeAIDraft('listing', (draft) => {
@@ -186,9 +187,10 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   }, [router])
 
   const loadTab = useCallback(async (nextTab: typeof tab, force = false) => {
+    const requestId = ++requestVersion.current
     const userId = user?.id
     if (!userId) {
-      setLoading(false)
+      if (requestId === requestVersion.current) setLoading(false)
       return
     }
     const cached = readDashboardCache(userId, nextTab)
@@ -215,6 +217,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       const response = await fetch(endpoint, { cache: 'no-store' })
       const data = await response.json()
       if (!response.ok) throw new Error(data.error || 'SHOP_TAB_LOAD_FAILED')
+      if (requestId !== requestVersion.current) return
       if (nextTab === 'parts') {
         const nextParts = data.parts || []
         setParts(nextParts)
@@ -230,14 +233,15 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         writeDashboardCache(userId, nextTab, { store: myStore })
       }
     } catch {
-      setLoadError(true)
+      if (requestId === requestVersion.current) setLoadError(true)
     } finally {
-      setLoading(false)
+      if (requestId === requestVersion.current) setLoading(false)
     }
   }, [tab, user?.id])
 
   useEffect(() => {
     if (user?.role !== 'SHOP_OWNER') {
+      requestVersion.current += 1
       setLoading(false)
       return
     }
