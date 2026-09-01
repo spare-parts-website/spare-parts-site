@@ -74,6 +74,7 @@ test('latest approved logo is wired to favicon, app chrome, and service worker',
   const config = read('next.config.ts')
   const worker = read('public/sw.js')
   assert.match(layout, /icon: "\/ghyar-market-logo\.png"/)
+  assert.match(layout, /alternates: \{ canonical: '\/' \}/)
   assert.match(header, /src="\/ghyar-market-logo\.png"/)
   assert.match(auth, /src="\/ghyar-market-logo\.png"/)
   assert.match(config, /destination: '\/ghyar-market-logo\.png'/)

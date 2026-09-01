@@ -17,6 +17,7 @@ export const metadata: Metadata = {
   manifest: '/manifest.webmanifest',
   applicationName: 'غيار ماركت',
   metadataBase: new URL(applicationOrigin()),
+  alternates: { canonical: '/' },
   title: {
     default: "غيار ماركت | قطع غيار السيارات من متاجر متخصصة",
     template: "%s | غيار ماركت",
