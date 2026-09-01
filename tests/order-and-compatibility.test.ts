@@ -7,6 +7,7 @@ import { requiresLoginCode } from '../src/lib/login-policy.ts'
 import { buildGroupedOrderDrafts } from '../src/lib/grouped-orders.ts'
 import { buildMarketplaceSearchQueries, normalizeMarketplaceSearch } from '../src/lib/search-normalization.ts'
 import { normalizeEgyptianMobile } from '../src/lib/egyptian-phone.ts'
+import { normalizeProductCondition, schemaConditionUrl } from '../src/lib/product-condition.ts'
 import { readFileSync } from 'node:fs'
 
 test('calculates coupon discount against quantity without floating-point drift', () => {
@@ -119,6 +120,16 @@ test('normalizes valid Egyptian mobile formats and rejects invalid prefixes', ()
   assert.equal(normalizeEgyptianMobile('1212345678'), '01212345678')
   assert.equal(normalizeEgyptianMobile('01312345678'), null)
   assert.equal(normalizeEgyptianMobile('0101234'), null)
+})
+
+test('normalizes known product conditions and never guesses unknown Schema.org states', () => {
+  assert.equal(normalizeProductCondition('  import   new '), 'استيراد جديد')
+  assert.equal(normalizeProductCondition('USED'), 'مستعمل')
+  assert.equal(normalizeProductCondition(' استيراد اصلي '), 'استيراد اصلي')
+  assert.equal(schemaConditionUrl('استيراد جديد'), 'https://schema.org/NewCondition')
+  assert.equal(schemaConditionUrl('استيراد مستعمل'), 'https://schema.org/UsedCondition')
+  assert.equal(schemaConditionUrl('مجدد'), 'https://schema.org/RefurbishedCondition')
+  assert.equal(schemaConditionUrl('استيراد اصلي'), undefined)
 })
 
 test('renders escaped Arabic RTL transactional email markup', () => {

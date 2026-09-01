@@ -5,6 +5,7 @@ import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
+import { normalizeProductCondition } from '@/lib/product-condition'
 import { audit } from '@/lib/audit'
 import { getPublicPart, getPublicPartsList } from '@/lib/public-marketplace'
 
@@ -118,7 +119,7 @@ export async function POST(req: NextRequest) {
         partNumber: typeof partNumber === 'string' ? partNumber.trim().slice(0, 100) || null : null,
         oemNumber: typeof oemNumber === 'string' ? oemNumber.trim().slice(0, 100) || null : null,
         searchAliases: typeof searchAliases === 'string' ? searchAliases.trim().slice(0, 500) || null : null,
-        condition: condition.trim(),
+        condition: normalizeProductCondition(condition),
         universal: Boolean(universal),
         fitmentNotes: typeof fitmentNotes === 'string' ? fitmentNotes.trim().slice(0, 1000) || null : null,
         image: gallery[0] || null,
@@ -192,7 +193,7 @@ export async function PUT(req: NextRequest) {
           partNumber: partNumber !== undefined ? String(partNumber).trim().slice(0, 100) || null : undefined,
           oemNumber: oemNumber !== undefined ? String(oemNumber).trim().slice(0, 100) || null : undefined,
           searchAliases: searchAliases !== undefined ? String(searchAliases).trim().slice(0, 500) || null : undefined,
-          condition: condition.trim(),
+          condition: normalizeProductCondition(condition),
           universal: typeof universal === 'boolean' ? universal : undefined,
           fitmentNotes: fitmentNotes !== undefined ? fitmentNotes.trim().slice(0, 1000) || null : undefined,
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,

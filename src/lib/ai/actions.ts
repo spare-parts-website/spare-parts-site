@@ -4,6 +4,7 @@ import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { resolveOrderTransition, type OrderAction } from '@/lib/order-state'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
+import { normalizeProductCondition } from '@/lib/product-condition'
 import { AI_PROPOSAL_TTL_MS } from '@/lib/ai/runtime'
 import { roleCanPrepareAction } from '@/lib/ai/policy'
 import { resolveAdminEntity, resolveOrder, resolvePart, resolveStore, type EntityResolution } from '@/lib/ai/resolver'
@@ -307,7 +308,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
       if (!store) throw new Error('ACTION_FORBIDDEN')
       const compatibilities = parseVehicleCompatibility(input.carModels)
-      await db.part.create({ data: { storeId: store.id, name: input.name!, description: input.description || null, price: input.price!, stock: Math.floor(input.stock!), category: input.category || null, brand: input.brand || null, condition: input.condition!, partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, carModels: serializeLegacyCompatibility(input.carModels), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } })
+      await db.part.create({ data: { storeId: store.id, name: input.name!, description: input.description || null, price: input.price!, stock: Math.floor(input.stock!), category: input.category || null, brand: input.brand || null, condition: normalizeProductCondition(input.condition), partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, carModels: serializeLegacyCompatibility(input.carModels), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } })
       return {}
     }
     case 'seller_coupon_create': {

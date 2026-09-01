@@ -21,6 +21,7 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import type { View } from '@/lib/store'
 import { getPublicPart, getPublicPartsList, getPublicStore, getPublicStoresList, type PublicPartsQuery } from '@/lib/public-marketplace'
+import { schemaConditionUrl } from '@/lib/product-condition'
 
 type RoutePageProps = {
   params: Promise<{ route: string[] }>
@@ -111,7 +112,7 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     const { part, canReview } = await getPublicPart(id, user)
     if (!part) notFound()
     content = <PartView partId={id} initialPart={part} initialCanReview={canReview} />
-    if (part) structuredData = { '@context': 'https://schema.org', '@type': 'Product', name: part.name, description: part.description || undefined, image: part.image ? [part.image] : undefined, brand: part.brand ? { '@type': 'Brand', name: part.brand } : undefined, itemCondition: part.condition === 'جديد' ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition', offers: { '@type': 'Offer', priceCurrency: 'EGP', price: part.price, availability: part.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', name: part.store.name } } }
+    if (part) structuredData = { '@context': 'https://schema.org', '@type': 'Product', name: part.name, description: part.description || undefined, image: part.image ? [part.image] : undefined, brand: part.brand ? { '@type': 'Brand', name: part.brand } : undefined, itemCondition: schemaConditionUrl(part.condition), offers: { '@type': 'Offer', priceCurrency: 'EGP', price: part.price, availability: part.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', name: part.store.name } } }
   } else if (section === 'stores' && !id) {
     view = { name: 'stores' }
     const requestedPage = Number.parseInt(first(query.page) || '1', 10)
