@@ -40,6 +40,7 @@ import { ShopMessagesView } from '@/components/views/shop-messages-view'
 import { SellerVerificationCard } from '@/components/seller-verification-card'
 import { useToast } from '@/hooks/use-toast'
 import { subscribeAIDraft } from '@/lib/ai/draft-client'
+import { parseVehicleCompatibility, type CompatibilityInput } from '@/lib/vehicle-compatibility'
 import {
   Dialog,
   DialogContent,
@@ -69,6 +70,9 @@ interface Part {
   image?: string | null
   images?: { id: string; url: string; position: number }[]
   carModels?: string | null
+  universal: boolean
+  fitmentNotes?: string | null
+  compatibilities?: Array<CompatibilityInput & { id: string }>
   partNumber?: string | null
   oemNumber?: string | null
   searchAliases?: string | null
@@ -99,6 +103,16 @@ interface Order {
   buyer: { id: string; name: string; phone?: string | null }
 }
 
+const emptyPartForm = () => ({
+  name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [] as string[],
+  carModels: '', compatibilities: [] as CompatibilityInput[], universal: false, fitmentNotes: '',
+  partNumber: '', oemNumber: '', searchAliases: '',
+})
+
+const emptyCompatibility = (): CompatibilityInput => ({
+  make: '', model: '', generation: '', yearFrom: null, yearTo: null, engine: '', trim: '', notes: '',
+})
+
 export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }) {
   const { user } = useAppStore()
   const { toast } = useToast()
@@ -109,18 +123,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
   const [editPart, setEditPart] = useState<Part | null>(null)
-  const [partForm, setPartForm] = useState({
-    name: '',
-    description: '',
-    price: '',
-    stock: '',
-    category: '',
-    brand: '',
-    condition: '',
-    images: [] as string[],
-    carModels: '',
-    partNumber: '', oemNumber: '', searchAliases: '',
-  })
+  const [partForm, setPartForm] = useState(emptyPartForm)
   const [storeForm, setStoreForm] = useState({
     name: '',
     description: '',
@@ -149,6 +152,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         oemNumber: typeof draft.oemNumber === 'string' ? draft.oemNumber : current.oemNumber,
         searchAliases: typeof draft.searchAliases === 'string' ? draft.searchAliases : current.searchAliases,
         carModels: typeof draft.carModels === 'string' ? draft.carModels : current.carModels,
+        compatibilities: typeof draft.carModels === 'string' ? parseVehicleCompatibility(draft.carModels) : current.compatibilities,
       }))
       requestAnimationFrame(() => partFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     })
@@ -270,7 +274,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         description: 'تم حفظ قطعة الغيار بنجاح',
       })
       setEditPart(null)
-      setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '', partNumber: '', oemNumber: '', searchAliases: '' })
+      setPartForm(emptyPartForm())
       loadAllParts()
     } finally {
       setSubmitting(false)
@@ -299,6 +303,9 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       condition: part.condition || '',
       images: [part.image, ...(part.images || []).slice().sort((a, b) => a.position - b.position).map((item) => item.url)].filter(Boolean) as string[],
       carModels: part.carModels || '',
+      compatibilities: part.compatibilities?.length ? part.compatibilities.map(({ id: _id, ...item }) => item) : parseVehicleCompatibility(part.carModels),
+      universal: part.universal,
+      fitmentNotes: part.fitmentNotes || '',
       partNumber: part.partNumber || '', oemNumber: part.oemNumber || '', searchAliases: part.searchAliases || '',
     })
     requestAnimationFrame(() => {
@@ -410,7 +417,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
             <Button
               onClick={() => {
                 setEditPart(null)
-                setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '', partNumber: '', oemNumber: '', searchAliases: '' })
+                setPartForm(emptyPartForm())
               }}
             >
               <Plus className="size-4 ml-1" />
@@ -494,18 +501,38 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                   rows={3}
                 />
               </div>
-              <div className="space-y-2">
-                <Label>السيارات المتوافقة</Label>
-                <Textarea
-                  value={partForm.carModels}
-                  onChange={(e) => setPartForm({ ...partForm, carModels: e.target.value })}
-                  placeholder="افصل بين كل سيارة بفاصلة. مثال: Toyota Camry 2018-2023, Honda Civic 2017-2022"
-                  rows={2}
-                  dir="ltr"
-                />
-                <p className="text-xs text-muted-foreground">
-                  اكتب ماركة السيارة وموديلها وسنة الصنع، افصل بين كل سيارة بفاصلة (,)
-                </p>
+              <div className="space-y-4 rounded-2xl border p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <Label className="text-base">توافق السيارة</Label>
+                    <p className="mt-1 text-xs text-muted-foreground">أضف بيانات دقيقة فقط. إذا لم تكن متأكدًا اتركها فارغة ليظهر التوافق كغير مؤكد.</p>
+                  </div>
+                  <label className="flex cursor-pointer items-center gap-2 text-sm font-bold">
+                    <input type="checkbox" checked={partForm.universal} onChange={(event) => setPartForm((current) => ({ ...current, universal: event.target.checked, compatibilities: event.target.checked ? [] : current.compatibilities }))} className="size-4 accent-primary" />
+                    قطعة عامة لكل السيارات
+                  </label>
+                </div>
+                {!partForm.universal && (
+                  <div className="space-y-3">
+                    {partForm.compatibilities.map((item, index) => (
+                      <div key={index} className="space-y-3 rounded-xl bg-muted/35 p-3">
+                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                          <div className="space-y-1"><Label>الشركة *</Label><Input value={item.make} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, make: event.target.value } : entry) }))} placeholder="Toyota" dir="ltr" /></div>
+                          <div className="space-y-1"><Label>الموديل *</Label><Input value={item.model} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, model: event.target.value } : entry) }))} placeholder="Corolla" dir="ltr" /></div>
+                          <div className="space-y-1"><Label>الجيل</Label><Input value={item.generation || ''} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, generation: event.target.value } : entry) }))} placeholder="E170" dir="ltr" /></div>
+                          <div className="space-y-1"><Label>المحرك</Label><Input value={item.engine || ''} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, engine: event.target.value } : entry) }))} placeholder="1.6L" dir="ltr" /></div>
+                          <div className="space-y-1"><Label>من سنة</Label><Input type="number" value={item.yearFrom || ''} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, yearFrom: event.target.value ? Number(event.target.value) : null } : entry) }))} min="1950" max="2030" dir="ltr" /></div>
+                          <div className="space-y-1"><Label>إلى سنة</Label><Input type="number" value={item.yearTo || ''} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, yearTo: event.target.value ? Number(event.target.value) : null } : entry) }))} min="1950" max="2030" dir="ltr" /></div>
+                          <div className="space-y-1"><Label>الفئة / Trim</Label><Input value={item.trim || ''} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, trim: event.target.value } : entry) }))} placeholder="GLI" dir="ltr" /></div>
+                          <div className="flex items-end"><Button type="button" variant="ghost" className="text-destructive" onClick={() => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.filter((_, entryIndex) => entryIndex !== index) }))}><Trash2 className="ml-1 size-4" />حذف السيارة</Button></div>
+                        </div>
+                        <Input value={item.notes || ''} onChange={(event) => setPartForm((current) => ({ ...current, compatibilities: current.compatibilities.map((entry, entryIndex) => entryIndex === index ? { ...entry, notes: event.target.value } : entry) }))} placeholder="ملاحظة خاصة بهذا التوافق (اختياري)" />
+                      </div>
+                    ))}
+                    <Button type="button" variant="outline" onClick={() => setPartForm((current) => ({ ...current, compatibilities: [...current.compatibilities, emptyCompatibility()] }))}><Plus className="ml-1 size-4" />إضافة سيارة متوافقة</Button>
+                  </div>
+                )}
+                <div className="space-y-2"><Label>ملاحظات التوافق العامة</Label><Textarea value={partForm.fitmentNotes} onChange={(event) => setPartForm((current) => ({ ...current, fitmentNotes: event.target.value }))} placeholder="مثال: يحتاج مراجعة رقم الشاسيه قبل الطلب" rows={2} /></div>
               </div>
               <div className="flex gap-2">
                 <Button onClick={handleSavePart} disabled={submitting || imageUploading || isAnyUploadInProgress()}>
@@ -519,7 +546,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                         : 'إضافة القطعة'}
                 </Button>
                 {editPart && (
-                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm({ name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [], carModels: '', partNumber: '', oemNumber: '', searchAliases: '' }) }}>
+                  <Button variant="outline" onClick={() => { setEditPart(null); setPartForm(emptyPartForm()) }}>
                     إلغاء
                   </Button>
                 )}

@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { calculateOrderLine, InvalidOrderTransition, resolveOrderTransition } from '../src/lib/order-state.ts'
-import { parseVehicleCompatibility, serializeLegacyCompatibility } from '../src/lib/vehicle-compatibility.ts'
+import { evaluateFitment, parseVehicleCompatibility, serializeLegacyCompatibility } from '../src/lib/vehicle-compatibility.ts'
 import { loginCodeEmailHtml, notificationEmailHtml, passwordResetEmailHtml } from '../src/lib/email-templates.ts'
 import { requiresLoginCode } from '../src/lib/login-policy.ts'
 import { buildGroupedOrderDrafts } from '../src/lib/grouped-orders.ts'
@@ -83,14 +83,24 @@ test('keeps grouped-order rollout additive, idempotent, and stock-safe', () => {
 
 test('parses, validates, deduplicates, and serializes vehicle compatibility', () => {
   const parsed = parseVehicleCompatibility([
-    { make: 'Toyota', model: 'Corolla', yearFrom: 2018, yearTo: 2022 },
-    { make: 'toyota', model: 'corolla', yearFrom: 2018, yearTo: 2022 },
+    { make: 'Toyota', model: 'Corolla', generation: 'E170', yearFrom: 2018, yearTo: 2022, engine: '1.6L' },
+    { make: 'toyota', model: 'corolla', generation: 'e170', yearFrom: 2018, yearTo: 2022, engine: '1.6l' },
     { make: 'Honda', model: 'Civic', yearFrom: 2020 },
     { make: '', model: 'Invalid' },
   ])
   assert.equal(parsed.length, 2)
-  assert.deepEqual(parsed[0], { make: 'Toyota', model: 'Corolla', yearFrom: 2018, yearTo: 2022 })
+  assert.deepEqual(parsed[0], { make: 'Toyota', model: 'Corolla', generation: 'E170', yearFrom: 2018, yearTo: 2022, engine: '1.6L', trim: null, notes: null })
   assert.equal(serializeLegacyCompatibility(parsed), 'Toyota Corolla 2018-2022, Honda Civic 2020')
+})
+
+test('classifies structured vehicle fitment conservatively', () => {
+  const part = { compatibilities: [{ make: 'Toyota', model: 'Corolla', generation: 'E170', yearFrom: 2014, yearTo: 2019, engine: '1.6L' }] }
+  assert.equal(evaluateFitment(part, { brand: 'toyota', model: 'corolla', generation: 'e170', year: 2018, engine: '1.6l' }), 'fits')
+  assert.equal(evaluateFitment(part, { brand: 'Toyota', model: 'Corolla', year: 2018 }), 'unknown')
+  assert.equal(evaluateFitment(part, { brand: 'Toyota', model: 'Corolla', generation: 'E170', year: 2021, engine: '1.6L' }), 'does-not-fit')
+  assert.equal(evaluateFitment(part, { brand: 'Honda', model: 'Civic', year: 2018 }), 'does-not-fit')
+  assert.equal(evaluateFitment({ universal: true, compatibilities: [] }, null), 'fits')
+  assert.equal(evaluateFitment({ compatibilities: [] }, { brand: 'Toyota', model: 'Corolla' }), 'unknown')
 })
 
 test('renders escaped Arabic RTL transactional email markup', () => {

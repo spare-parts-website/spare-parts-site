@@ -20,6 +20,8 @@ import {
   Car,
   MessageSquare,
   Flag,
+  AlertTriangle,
+  CircleX,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
 import {
@@ -39,6 +41,7 @@ import { UserAvatar } from '@/components/user-avatar'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { GOVERNORATE_DELIVERY } from '@/lib/delivery'
 import type { PublicPart } from '@/lib/public-marketplace'
+import { formatCompatibility } from '@/lib/vehicle-compatibility'
 
 export function PartView({ partId, initialPart = null, initialCanReview = false }: { partId: string; initialPart?: PublicPart | null; initialCanReview?: boolean }) {
   const { setView, user, setPendingView, addToCart } = useAppStore()
@@ -235,6 +238,10 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
     ? part.reviews.reduce((s, r) => s + r.rating, 0) / part.reviews.length
     : 0
   const canShop = !user || (user.role !== 'ADMIN' && !part.store.isOwnedByViewer)
+  const fitmentStatus = part.viewerFitment?.status || 'unknown'
+  const fitmentCarLabel = part.viewerFitment?.car
+    ? [part.viewerFitment.car.brand, part.viewerFitment.car.model, part.viewerFitment.car.generation, part.viewerFitment.car.year, part.viewerFitment.car.engine, part.viewerFitment.car.trim].filter(Boolean).join(' ')
+    : null
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -398,15 +405,28 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
             </div>
           )}
 
-          {(part.compatibilities?.length || part.carModels) && (
+          <div className={`rounded-xl border p-4 ${fitmentStatus === 'fits' ? 'border-emerald-500/30 bg-emerald-500/10' : fitmentStatus === 'does-not-fit' ? 'border-destructive/30 bg-destructive/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
+            <div className="flex items-start gap-3">
+              {fitmentStatus === 'fits' ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : fitmentStatus === 'does-not-fit' ? <CircleX className="mt-0.5 size-5 shrink-0 text-destructive" /> : <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />}
+              <div>
+                <p className="font-bold">{fitmentStatus === 'fits' ? (part.universal ? 'قطعة عامة ومتوافقة' : 'متوافقة مع سيارتك') : fitmentStatus === 'does-not-fit' ? 'لا تطابق سيارتك المحفوظة' : 'التوافق غير مؤكد'}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{fitmentStatus === 'fits' ? (fitmentCarLabel ? `تمت المطابقة مع ${fitmentCarLabel}` : 'هذه القطعة مصنفة كقطعة عامة.') : fitmentStatus === 'does-not-fit' ? `بيانات الإعلان لا تطابق ${fitmentCarLabel || 'السيارة المحددة'}.` : fitmentCarLabel ? `راجع بيانات التوافق أو اسأل البائع قبل الطلب لـ ${fitmentCarLabel}.` : 'أضف سيارة أساسية لعرض نتيجة توافق دقيقة، أو اسأل البائع قبل الطلب.'}</p>
+                {!fitmentCarLabel && !part.universal && <Button type="button" variant="link" className="mt-1 h-auto p-0" onClick={() => setView({ name: 'cars' })}>إضافة سيارتي</Button>}
+              </div>
+            </div>
+          </div>
+
+          {(part.universal || part.compatibilities?.length || part.carModels) && (
             <div>
               <h3 className="font-semibold mb-2 flex items-center gap-2">
                 <Car className="size-4 text-primary" />
                 السيارات المتوافقة
               </h3>
               <div className="flex flex-wrap gap-2">
-                {(part.compatibilities?.length
-                  ? part.compatibilities.map((item) => `${item.make} ${item.model}${item.yearFrom ? ` ${item.yearFrom}${item.yearTo ? `–${item.yearTo}` : ''}` : ''}`)
+                {(part.universal
+                  ? ['كل السيارات (قطعة عامة)']
+                  : part.compatibilities?.length
+                  ? part.compatibilities.map(formatCompatibility)
                   : (part.carModels || '').split(',')).map((car, idx) => {
                   const trimmed = car.trim()
                   if (!trimmed) return null
@@ -417,6 +437,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   )
                 })}
               </div>
+              {part.fitmentNotes && <p className="mt-3 text-sm text-muted-foreground">{part.fitmentNotes}</p>}
             </div>
           )}
 
@@ -471,6 +492,8 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   storeId: part.store.id,
                   storeName: part.store.name,
                   stock: part.stock,
+                  fitmentStatus,
+                  fitmentCarLabel,
                 })
                 toast({ title: 'تمت الإضافة للسلة', description: part.name })
               }}
@@ -494,6 +517,19 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
+                  {fitmentStatus !== 'fits' && (
+                    <div className={`rounded-lg border p-3 text-sm ${fitmentStatus === 'does-not-fit' ? 'border-destructive/30 bg-destructive/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
+                      <div className="flex items-start gap-2">
+                        {fitmentStatus === 'does-not-fit'
+                          ? <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
+                          : <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />}
+                        <div>
+                          <p className="font-semibold">{fitmentStatus === 'does-not-fit' ? 'تنبيه: القطعة لا تطابق سيارتك المحفوظة' : 'تنبيه: توافق القطعة غير مؤكد'}</p>
+                          <p className="mt-1 text-muted-foreground">يمكنك متابعة الطلب، لكن ننصح بمراجعة بيانات التوافق أو سؤال البائع أولاً.</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>الكمية</Label>
                     <Input

@@ -24,9 +24,11 @@ interface UserCar {
   id: string
   brand: string
   model: string
+  generation?: string | null
   year?: number | null
   nickname?: string | null
   engine?: string | null
+  trim?: string | null
   isPrimary: boolean
   createdAt: string
 }
@@ -40,7 +42,7 @@ export function MyCarsView() {
   const [cars, setCars] = useState<UserCar[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
-  const [form, setForm] = useState({ brand: '', model: '', year: '', engine: '', nickname: '', isPrimary: false })
+  const [form, setForm] = useState({ brand: '', model: '', generation: '', year: '', engine: '', trim: '', nickname: '', isPrimary: false })
   const [submitting, setSubmitting] = useState(false)
 
   const load = () => {
@@ -54,7 +56,7 @@ export function MyCarsView() {
     if (user && ['BUYER', 'SHOP_OWNER'].includes(user.role)) {
       load()
       return subscribeAIDraft('car', (draft) => {
-        setForm((current) => ({ ...current, brand: typeof draft.brand === 'string' ? draft.brand : current.brand, model: typeof draft.model === 'string' ? draft.model : current.model, year: draft.year === undefined ? current.year : String(draft.year), engine: typeof draft.engine === 'string' ? draft.engine : current.engine, nickname: typeof draft.nickname === 'string' ? draft.nickname : current.nickname, isPrimary: typeof draft.isPrimary === 'boolean' ? draft.isPrimary : current.isPrimary }))
+        setForm((current) => ({ ...current, brand: typeof draft.brand === 'string' ? draft.brand : current.brand, model: typeof draft.model === 'string' ? draft.model : current.model, generation: typeof draft.generation === 'string' ? draft.generation : current.generation, year: draft.year === undefined ? current.year : String(draft.year), engine: typeof draft.engine === 'string' ? draft.engine : current.engine, trim: typeof draft.trim === 'string' ? draft.trim : current.trim, nickname: typeof draft.nickname === 'string' ? draft.nickname : current.nickname, isPrimary: typeof draft.isPrimary === 'boolean' ? draft.isPrimary : current.isPrimary }))
         setShowForm(true)
       })
     }
@@ -78,7 +80,7 @@ export function MyCarsView() {
         return
       }
       toast({ title: 'تمت الإضافة', description: 'تم حفظ سيارتك' })
-      setForm({ brand: '', model: '', year: '', engine: '', nickname: '', isPrimary: false })
+      setForm({ brand: '', model: '', generation: '', year: '', engine: '', trim: '', nickname: '', isPrimary: false })
       setShowForm(false)
       load()
     } finally {
@@ -176,7 +178,7 @@ export function MyCarsView() {
                   onChange={(e) => setForm({ ...form, year: e.target.value })}
                   placeholder="2019"
                   min="1990"
-                  max="2026"
+                  max={new Date().getFullYear() + 1}
                   dir="ltr"
                 />
               </div>
@@ -189,8 +191,16 @@ export function MyCarsView() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>الجيل (اختياري)</Label>
+                <Input value={form.generation} onChange={(e) => setForm({ ...form, generation: e.target.value })} placeholder="مثال: E170 أو W206" dir="ltr" />
+              </div>
+              <div className="space-y-2">
                 <Label>المحرك (اختياري)</Label>
                 <Input value={form.engine} onChange={(e) => setForm({ ...form, engine: e.target.value })} placeholder="مثال: 1.6 أو 2.0 Turbo" dir="ltr" />
+              </div>
+              <div className="space-y-2">
+                <Label>الفئة / Trim (اختياري)</Label>
+                <Input value={form.trim} onChange={(e) => setForm({ ...form, trim: e.target.value })} placeholder="مثال: GLI أو AMG" dir="ltr" />
               </div>
             </div>
             <div className="flex gap-2">
@@ -232,7 +242,7 @@ export function MyCarsView() {
                     </div>
                     <div>
                       <h3 className="font-bold text-lg">{car.brand} {car.model}</h3>
-                      {car.year && <p className="text-sm text-muted-foreground">{car.year}{car.engine ? ` • ${car.engine}` : ''}</p>}
+                      <p className="text-sm text-muted-foreground">{[car.generation, car.year, car.engine, car.trim].filter(Boolean).join(' • ') || 'بيانات التوافق الأساسية فقط'}</p>
                     </div>
                   </div>
                   <Button size="icon" variant="ghost" onClick={() => handleDelete(car.id)}>

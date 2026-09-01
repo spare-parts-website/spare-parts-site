@@ -81,7 +81,7 @@ export async function POST(req: NextRequest) {
     const limit = await rateLimit(`parts-create:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()
-    const { name, description, price, stock, category, brand, condition, image, images, carModels, partNumber, oemNumber, searchAliases } = body
+    const { name, description, price, stock, category, brand, condition, image, images, carModels, compatibilities: compatibilityEntries, universal, fitmentNotes, partNumber, oemNumber, searchAliases } = body
 
     if (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160 || price == null) {
       return NextResponse.json({ error: 'الاسم والسعر مطلوبان' }, { status: 400 })
@@ -94,6 +94,8 @@ export async function POST(req: NextRequest) {
     }
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
     if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
+    if (universal !== undefined && typeof universal !== 'boolean') return NextResponse.json({ error: 'نوع التوافق غير صالح' }, { status: 400 })
+    if (fitmentNotes !== undefined && typeof fitmentNotes !== 'string') return NextResponse.json({ error: 'ملاحظات التوافق غير صالحة' }, { status: 400 })
 
     const store = await db.store.findUnique({ where: { ownerId: session.id } })
     if (!store) {
@@ -101,8 +103,9 @@ export async function POST(req: NextRequest) {
     }
 
     const gallery = Array.isArray(images) ? images : image ? [image] : []
-    const compatibilities = parseVehicleCompatibility(carModels)
-    const legacyCarModels = serializeLegacyCompatibility(carModels)
+    const compatibilitySource = compatibilityEntries !== undefined ? compatibilityEntries : carModels
+    const compatibilities = universal ? [] : parseVehicleCompatibility(compatibilitySource)
+    const legacyCarModels = universal ? null : serializeLegacyCompatibility(compatibilitySource)
     const part = await db.part.create({
       data: {
         name: name.trim(),
@@ -115,6 +118,8 @@ export async function POST(req: NextRequest) {
         oemNumber: typeof oemNumber === 'string' ? oemNumber.trim().slice(0, 100) || null : null,
         searchAliases: typeof searchAliases === 'string' ? searchAliases.trim().slice(0, 500) || null : null,
         condition: condition.trim(),
+        universal: Boolean(universal),
+        fitmentNotes: typeof fitmentNotes === 'string' ? fitmentNotes.trim().slice(0, 1000) || null : null,
         image: gallery[0] || null,
         carModels: legacyCarModels,
         storeId: store.id,
@@ -141,7 +146,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { id, name, description, price, stock, category, brand, condition, image, images, carModels, partNumber, oemNumber, searchAliases } = body
+    const { id, name, description, price, stock, category, brand, condition, image, images, carModels, compatibilities: compatibilityEntries, universal, fitmentNotes, partNumber, oemNumber, searchAliases } = body
 
     const part = await db.part.findUnique({ where: { id }, include: { store: true, images: true } })
     if (!part) {
@@ -156,6 +161,8 @@ export async function PUT(req: NextRequest) {
     if (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
     if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
+    if (universal !== undefined && typeof universal !== 'boolean') return NextResponse.json({ error: 'نوع التوافق غير صالح' }, { status: 400 })
+    if (fitmentNotes !== undefined && typeof fitmentNotes !== 'string') return NextResponse.json({ error: 'ملاحظات التوافق غير صالحة' }, { status: 400 })
 
     // Only shop owner of this part's store OR admin can edit
     const isOwner = session.role === 'SHOP_OWNER' && part.store.ownerId === session.id
@@ -165,8 +172,10 @@ export async function PUT(req: NextRequest) {
     }
 
     const gallery = Array.isArray(images) ? images : undefined
-    const compatibilities = carModels !== undefined ? parseVehicleCompatibility(carModels) : null
-    const legacyCarModels = carModels !== undefined ? serializeLegacyCompatibility(carModels) : undefined
+    const compatibilitySource = compatibilityEntries !== undefined ? compatibilityEntries : carModels
+    const replaceCompatibilities = compatibilityEntries !== undefined || carModels !== undefined || universal === true
+    const compatibilities = replaceCompatibilities ? (universal ? [] : parseVehicleCompatibility(compatibilitySource)) : null
+    const legacyCarModels = replaceCompatibilities ? (universal ? null : serializeLegacyCompatibility(compatibilitySource)) : undefined
     const updated = await db.$transaction(async (tx) => {
       if (gallery) await tx.partImage.deleteMany({ where: { partId: id } })
       if (compatibilities) await tx.vehicleCompatibility.deleteMany({ where: { partId: id } })
@@ -183,6 +192,8 @@ export async function PUT(req: NextRequest) {
           oemNumber: oemNumber !== undefined ? String(oemNumber).trim().slice(0, 100) || null : undefined,
           searchAliases: searchAliases !== undefined ? String(searchAliases).trim().slice(0, 500) || null : undefined,
           condition: condition.trim(),
+          universal: typeof universal === 'boolean' ? universal : undefined,
+          fitmentNotes: fitmentNotes !== undefined ? fitmentNotes.trim().slice(0, 1000) || null : undefined,
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,
           carModels: legacyCarModels,
           images: gallery && gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,

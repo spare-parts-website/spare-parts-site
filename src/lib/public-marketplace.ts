@@ -3,6 +3,7 @@ import 'server-only'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { BLOCKED_STORE_NAMES, isBlockedStoreName } from '@/lib/store-moderation'
+import { evaluateFitment, type FitmentStatus, type VehicleProfile } from '@/lib/vehicle-compatibility'
 
 type PublicViewer = { id: string; role: string } | null
 
@@ -19,15 +20,18 @@ export type PublicPartListItem = {
   carModels: string | null
   partNumber: string | null
   oemNumber: string | null
+  universal: boolean
+  fitmentNotes: string | null
   images: Array<{ id: string; url: string; position: number }>
-  compatibilities: Array<{ id: string; make: string; model: string; yearFrom: number | null; yearTo: number | null }>
+  compatibilities: Array<{ id: string; make: string; model: string; generation: string | null; yearFrom: number | null; yearTo: number | null; engine: string | null; trim: string | null; notes: string | null }>
   compatibleWithSelectedCar: boolean
+  fitmentStatus: FitmentStatus
   store: { id: string; name: string; image: string | null }
 }
 
 export type PublicPartsList = {
   parts: PublicPartListItem[]
-  selectedCar: { brand: string; model: string; year: number | null; engine: string | null } | null
+  selectedCar: (VehicleProfile & { id?: string }) | null
   pagination: { page: number; pageSize: number; total: number; totalPages: number }
   categories: string[]
   brands: string[]
@@ -100,35 +104,55 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
   if (carId && viewer) {
     selectedCar = await db.userCar.findFirst({
       where: { id: carId, userId: viewer.id },
-      select: { brand: true, model: true, year: true, engine: true },
+      select: { brand: true, model: true, generation: true, year: true, engine: true, trim: true },
     })
     if (selectedCar) {
+      const compatibilityAnd: Prisma.VehicleCompatibilityWhereInput[] = [
+        selectedCar.year
+          ? { AND: [{ OR: [{ yearFrom: null }, { yearFrom: { lte: selectedCar.year } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: selectedCar.year } }] }] }
+          : { yearFrom: null, yearTo: null },
+        selectedCar.generation
+          ? { OR: [{ generation: null }, { generation: { equals: selectedCar.generation, mode: 'insensitive' } }] }
+          : { generation: null },
+        selectedCar.engine
+          ? { OR: [{ engine: null }, { engine: { equals: selectedCar.engine, mode: 'insensitive' } }] }
+          : { engine: null },
+        selectedCar.trim
+          ? { OR: [{ trim: null }, { trim: { equals: selectedCar.trim, mode: 'insensitive' } }] }
+          : { trim: null },
+      ]
       and.push({
-        compatibilities: {
-          some: {
-            make: { contains: selectedCar.brand, mode: 'insensitive' },
-            model: { contains: selectedCar.model, mode: 'insensitive' },
-            AND: selectedCar.year
-              ? [
-                  { OR: [{ yearFrom: null }, { yearFrom: { lte: selectedCar.year } }] },
-                  { OR: [{ yearTo: null }, { yearTo: { gte: selectedCar.year } }] },
-                ]
-              : undefined,
-          },
-        },
+        OR: [
+          { universal: true },
+          { compatibilities: { some: { make: { equals: selectedCar.brand, mode: 'insensitive' }, model: { equals: selectedCar.model, mode: 'insensitive' }, AND: compatibilityAnd } } },
+        ],
       })
     }
   }
   if (search) {
-    where.OR = [
+    const searchFilters: Prisma.PartWhereInput[] = [
       { name: { contains: search, mode: 'insensitive' } },
       { description: { contains: search, mode: 'insensitive' } },
       { brand: { contains: search, mode: 'insensitive' } },
       { condition: { contains: search, mode: 'insensitive' } },
+      { category: { contains: search, mode: 'insensitive' } },
       { partNumber: { contains: search, mode: 'insensitive' } },
       { oemNumber: { contains: search, mode: 'insensitive' } },
       { searchAliases: { contains: search, mode: 'insensitive' } },
+      { store: { is: { name: { contains: search, mode: 'insensitive' } } } },
+      { compatibilities: { some: { OR: [
+        { make: { contains: search, mode: 'insensitive' } },
+        { model: { contains: search, mode: 'insensitive' } },
+        { generation: { contains: search, mode: 'insensitive' } },
+        { engine: { contains: search, mode: 'insensitive' } },
+        { trim: { contains: search, mode: 'insensitive' } },
+      ] } } },
     ]
+    const searchYear = /^\d{4}$/.test(search) ? Number(search) : null
+    if (searchYear && searchYear >= 1950 && searchYear <= new Date().getFullYear() + 2) {
+      searchFilters.push({ compatibilities: { some: { AND: [{ OR: [{ yearFrom: null }, { yearFrom: { lte: searchYear } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: searchYear } }] }] } } })
+    }
+    where.OR = searchFilters
   }
   if (category) where.category = category
   if (brand) where.brand = brand
@@ -158,9 +182,9 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
 
   const publicPartSelect = {
     id: true, name: true, description: true, price: true, stock: true,
-    category: true, brand: true, condition: true, image: true, carModels: true, partNumber: true, oemNumber: true,
+    category: true, brand: true, condition: true, image: true, carModels: true, partNumber: true, oemNumber: true, universal: true, fitmentNotes: true,
     images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }] },
-    compatibilities: { select: { id: true, make: true, model: true, yearFrom: true, yearTo: true } },
+    compatibilities: { select: { id: true, make: true, model: true, generation: true, yearFrom: true, yearTo: true, engine: true, trim: true, notes: true } },
     store: { select: { id: true, name: true, image: true } },
   } satisfies Prisma.PartSelect
 
@@ -174,7 +198,10 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
   ])
 
   return {
-    parts: records.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => ({ ...part, compatibleWithSelectedCar: Boolean(selectedCar) })),
+    parts: records.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => {
+      const fitmentStatus = evaluateFitment(part, selectedCar)
+      return { ...part, fitmentStatus, compatibleWithSelectedCar: fitmentStatus === 'fits' }
+    }),
     selectedCar,
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
     categories: categories.map((item) => item.category).filter((item): item is string => Boolean(item)),
@@ -250,7 +277,10 @@ export type PublicPart = {
   condition: string | null
   image: string | null
   carModels: string | null
-  compatibilities: Array<{ id: string; make: string; model: string; yearFrom: number | null; yearTo: number | null }>
+  universal: boolean
+  fitmentNotes: string | null
+  compatibilities: Array<{ id: string; make: string; model: string; generation: string | null; yearFrom: number | null; yearTo: number | null; engine: string | null; trim: string | null; notes: string | null }>
+  viewerFitment: { status: FitmentStatus; car: VehicleProfile | null }
   store: {
     id: string
     name: string
@@ -292,6 +322,8 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
       condition: true,
       image: true,
       carModels: true,
+      universal: true,
+      fitmentNotes: true,
       blocked: true,
       store: {
         select: {
@@ -310,28 +342,27 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
         orderBy: { createdAt: 'desc' },
       },
       images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
-      compatibilities: { select: { id: true, make: true, model: true, yearFrom: true, yearTo: true }, orderBy: [{ make: 'asc' }, { model: 'asc' }] },
+      compatibilities: { select: { id: true, make: true, model: true, generation: true, yearFrom: true, yearTo: true, engine: true, trim: true, notes: true }, orderBy: [{ make: 'asc' }, { model: 'asc' }] },
     },
   })
 
   if (!record || record.blocked || isBlockedStoreName(record.store.name)) return { part: null, canReview: false }
 
-  const canReview = viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
-    ? Boolean(await db.order.findFirst({
-        where: {
-          buyerId: viewer.id,
-          status: { in: ['DELIVERED', 'RETURNED'] },
-          OR: [{ partId }, { items: { some: { partId } } }],
-        },
-        select: { id: true },
-      }))
-    : false
+  const [canReview, primaryCar] = await Promise.all([
+    viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
+      ? db.order.findFirst({ where: { buyerId: viewer.id, status: { in: ['DELIVERED', 'RETURNED'] }, OR: [{ partId }, { items: { some: { partId } } }] }, select: { id: true } }).then(Boolean)
+      : false,
+    viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
+      ? db.userCar.findFirst({ where: { userId: viewer.id, isPrimary: true }, select: { brand: true, model: true, generation: true, year: true, engine: true, trim: true } })
+      : null,
+  ])
   const { blocked: _blocked, store, reviews, ...part } = record
   void _blocked
 
   return {
     part: {
       ...part,
+      viewerFitment: { status: evaluateFitment(record, primaryCar), car: primaryCar },
       store: {
         id: store.id,
         name: store.name,

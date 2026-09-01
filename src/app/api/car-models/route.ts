@@ -7,11 +7,13 @@ export async function GET() {
       db.part.findMany({
         where: { blocked: false, carModels: { not: null } },
         select: { carModels: true },
+        take: 1000,
       }),
       db.vehicleCompatibility.findMany({
         where: { part: { blocked: false } },
-        select: { make: true, model: true, yearFrom: true, yearTo: true },
+        select: { make: true, model: true, generation: true, yearFrom: true, yearTo: true, engine: true, trim: true },
         orderBy: [{ make: 'asc' }, { model: 'asc' }],
+        take: 2000,
       }),
     ])
 
@@ -25,7 +27,7 @@ export async function GET() {
     }
   })
   compatibilities.forEach((item) => {
-    modelsSet.add(`${item.make} ${item.model}${item.yearFrom ? ` ${item.yearFrom}${item.yearTo ? `-${item.yearTo}` : ''}` : ''}`)
+    modelsSet.add([item.make, item.model, item.generation, item.yearFrom ? `${item.yearFrom}${item.yearTo ? `-${item.yearTo}` : ''}` : null, item.engine, item.trim].filter(Boolean).join(' '))
   })
 
   // Group by brand
@@ -44,7 +46,7 @@ export async function GET() {
 
     return NextResponse.json(
       { models, grouped },
-      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+      { headers: { 'Cache-Control': 'public, s-maxage=300, stale-while-revalidate=1800' } }
     )
   } catch (e) {
     console.error(e)

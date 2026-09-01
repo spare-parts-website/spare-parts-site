@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import type { FitmentStatus } from '@/lib/vehicle-compatibility'
 
 type AppNavigator = (path: string) => void
 
@@ -98,6 +99,8 @@ export interface CartItem {
   storeName: string
   quantity: number
   stock: number
+  fitmentStatus?: FitmentStatus
+  fitmentCarLabel?: string | null
 }
 
 interface AppState {

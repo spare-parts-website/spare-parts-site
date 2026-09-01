@@ -21,22 +21,27 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireRoles(['BUYER', 'SHOP_OWNER'])
-    const { brand, model, year, nickname, engine, isPrimary } = await req.json()
-    if (!brand || !model) return NextResponse.json({ error: 'الماركة والموديل مطلوبان' }, { status: 400 })
+    const { brand, model, generation, year, nickname, engine, trim, isPrimary } = await req.json()
+    const cleanBrand = typeof brand === 'string' ? brand.trim().slice(0, 80) : ''
+    const cleanModel = typeof model === 'string' ? model.trim().slice(0, 80) : ''
+    if (!cleanBrand || !cleanModel) return NextResponse.json({ error: 'الماركة والموديل مطلوبان' }, { status: 400 })
 
     const count = await db.userCar.count({ where: { userId: session.id } })
     if (count >= 5) return NextResponse.json({ error: 'يمكن حفظ 5 سيارات كحد أقصى' }, { status: 400 })
-    const parsedYear = year ? parseInt(year) : null
+    const parsedYear = year ? Number(year) : null
+    if (parsedYear !== null && !Number.isInteger(parsedYear)) return NextResponse.json({ error: 'سنة الصنع غير صالحة' }, { status: 400 })
     if (parsedYear && (parsedYear < 1950 || parsedYear > new Date().getFullYear() + 1)) return NextResponse.json({ error: 'سنة الصنع غير صالحة' }, { status: 400 })
     if (isPrimary || count === 0) await db.userCar.updateMany({ where: { userId: session.id }, data: { isPrimary: false } })
 
     const car = await db.userCar.create({
       data: {
         userId: session.id,
-        brand: String(brand).trim().slice(0, 80),
-        model: String(model).trim().slice(0, 80),
+        brand: cleanBrand,
+        model: cleanModel,
+        generation: typeof generation === 'string' ? generation.trim().slice(0, 80) || null : null,
         year: parsedYear,
         engine: typeof engine === 'string' ? engine.trim().slice(0, 80) || null : null,
+        trim: typeof trim === 'string' ? trim.trim().slice(0, 80) || null : null,
         nickname: typeof nickname === 'string' ? nickname.trim().slice(0, 80) || null : null,
         isPrimary: Boolean(isPrimary || count === 0),
       },

@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
-import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight, RefreshCw, Car, BadgeCheck } from 'lucide-react'
+import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight, RefreshCw, Car, BadgeCheck, AlertTriangle, CircleX } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 import type { PublicPartListItem, PublicPartsList, PublicPartsQuery } from '@/lib/public-marketplace'
 
@@ -279,7 +279,9 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
                     نفد
                   </span>
                 )}
-                {part.compatibleWithSelectedCar && <Badge className="absolute bottom-2 right-2 gap-1"><BadgeCheck className="size-3" />متوافق مع سيارتك</Badge>}
+                {selectedCar && part.fitmentStatus === 'fits' && <Badge className="absolute bottom-2 right-2 gap-1"><BadgeCheck className="size-3" />متوافق مع سيارتك</Badge>}
+                {selectedCar && part.fitmentStatus === 'does-not-fit' && <Badge variant="destructive" className="absolute bottom-2 right-2 gap-1"><CircleX className="size-3" />غير متوافق</Badge>}
+                {selectedCar && part.fitmentStatus === 'unknown' && <Badge variant="secondary" className="absolute bottom-2 right-2 gap-1"><AlertTriangle className="size-3" />توافق غير مؤكد</Badge>}
                 {part.brand && (
                   <span className="absolute top-2 left-2 bg-card/90 backdrop-blur text-xs px-2 py-0.5 rounded-full font-medium">
                     {part.brand}

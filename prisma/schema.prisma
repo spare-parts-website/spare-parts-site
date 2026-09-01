@@ -111,6 +111,8 @@ model Part {
   oemNumber       String?
   searchAliases   String?
   condition       String?
+  universal       Boolean                @default(false)
+  fitmentNotes    String?
   image           String?
   // Car compatibility - stored as JSON string: e.g. '["Toyota Camry 2018-2023", "Honda Accord 2019-2022"]'
   carModels       String?
@@ -142,11 +144,16 @@ model VehicleCompatibility {
   part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
   make      String
   model     String
+  generation String?
+  engine     String?
+  trim       String?
+  notes      String?
   yearFrom  Int?
   yearTo    Int?
   createdAt DateTime @default(now())
 
   @@index([make, model, yearFrom, yearTo])
+  @@index([make, model, generation, engine])
   @@index([partId])
 }
 
@@ -390,8 +397,10 @@ model UserCar {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   brand     String // Toyota, Honda, etc.
   model     String // Camry, Civic, etc.
+  generation String?
   year      Int?
   engine    String?
+  trim      String?
   isPrimary Boolean  @default(false)
   nickname  String? // "سيارة العمل", "سيارة العائلة"
   createdAt DateTime @default(now())

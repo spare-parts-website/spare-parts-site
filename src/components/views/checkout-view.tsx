@@ -15,6 +15,8 @@ import {
   ArrowRight,
   Truck,
   ShieldCheck,
+  AlertTriangle,
+  CircleX,
 } from 'lucide-react'
 import { formatPrice } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
@@ -51,6 +53,8 @@ export function CheckoutView() {
     { total: 0, totalItems: 0 },
   ), [cart])
   const shippingTotal = form.governorate ? GOVERNORATE_DELIVERY[form.governorate].fee * Object.keys(storeGroups).length : 0
+  const incompatibleItems = cart.filter((item) => item.fitmentStatus === 'does-not-fit')
+  const unknownFitmentItems = cart.filter((item) => !item.fitmentStatus || item.fitmentStatus === 'unknown')
 
   if (!user) {
     return (
@@ -147,6 +151,20 @@ export function CheckoutView() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left: Forms */}
         <div className="lg:col-span-2 space-y-6">
+          {(incompatibleItems.length > 0 || unknownFitmentItems.length > 0) && (
+            <Card className={incompatibleItems.length ? 'border-destructive/35 bg-destructive/5' : 'border-amber-500/35 bg-amber-500/5'}>
+              <CardContent className="space-y-3 p-5">
+                <div className="flex items-start gap-3">
+                  {incompatibleItems.length ? <CircleX className="mt-0.5 size-5 shrink-0 text-destructive" /> : <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />}
+                  <div>
+                    <h2 className="font-black">راجع توافق القطع قبل تأكيد الطلب</h2>
+                    {incompatibleItems.length > 0 && <p className="mt-1 text-sm">{incompatibleItems.map((item) => item.name).join('، ')} لا تطابق السيارة المحفوظة في بيانات الإعلان.</p>}
+                    {unknownFitmentItems.length > 0 && <p className="mt-1 text-sm text-muted-foreground">التوافق غير مؤكد لـ: {unknownFitmentItems.map((item) => item.name).join('، ')}. يمكنك المتابعة، لكن ننصح بسؤال البائع أولًا.</p>}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
           {/* Delivery address */}
           <Card className="market-card">
             <CardHeader>
