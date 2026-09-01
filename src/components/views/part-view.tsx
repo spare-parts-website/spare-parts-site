@@ -245,7 +245,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
 
       <div className="grid gap-7 lg:grid-cols-[minmax(0,1.1fr)_minmax(22rem,0.9fr)] lg:items-start">
         {/* Image Gallery */}
-        <Card className="market-card overflow-hidden">
+        <Card className="market-card min-w-0 overflow-hidden">
           {/* Build array of all images (main image + additional images) */}
           {(() => {
             const allImages: string[] = []
@@ -319,7 +319,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
         </Card>
 
         {/* Info */}
-        <div className="space-y-5">
+        <div className="min-w-0 space-y-5">
           <div>
             <div className="flex items-center gap-2 mb-2">
               {part.category && (
