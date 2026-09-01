@@ -6,7 +6,7 @@ export default async function HomePage() {
   const user = await getSession()
   return (
     <AppShell initialView={{ name: 'home' }} initialUser={user}>
-      <HomeView />
+      <HomeView isSeller={user?.role === 'SHOP_OWNER'} />
     </AppShell>
   )
 }

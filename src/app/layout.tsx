@@ -18,10 +18,10 @@ export const metadata: Metadata = {
   applicationName: 'غيار ماركت',
   metadataBase: new URL(applicationOrigin()),
   title: {
-    default: "غيار ماركت | قطع غيار السيارات من متاجر موثوقة",
+    default: "غيار ماركت | قطع غيار السيارات من متاجر متخصصة",
     template: "%s | غيار ماركت",
   },
-  description: "ابحث وقارن واطلب قطع غيار السيارات من متاجر متخصصة وموثوقة في مصر، مع الدفع عند الاستلام.",
+  description: "ابحث وقارن واطلب قطع غيار السيارات من متاجر متخصصة في مصر، مع تقييمات حقيقية وعلامة واضحة للمتاجر الموثقة والدفع عند الاستلام.",
   keywords: ["غيار ماركت", "قطع غيار", "سيارات", "متاجر", "ميكانيكا"],
   icons: {
     icon: "/ghyar-market-logo.png",
@@ -31,8 +31,8 @@ export const metadata: Metadata = {
     type: "website",
     locale: "ar_EG",
     siteName: "غيار ماركت",
-    title: "غيار ماركت | قطع غيار السيارات من متاجر موثوقة",
-    description: "القطعة الصح لسيارتك من متجر تثق فيه.",
+    title: "غيار ماركت | قطع غيار السيارات من متاجر متخصصة",
+    description: "القطعة الصح لسيارتك من متجر تعرف تفاصيله وتقييماته.",
     images: [{ url: "/ghyar-market-hero.png", width: 1680, height: 941, alt: "غيار ماركت" }],
   },
   twitter: { card: "summary_large_image" },
