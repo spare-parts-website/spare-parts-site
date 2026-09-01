@@ -43,15 +43,15 @@ export function WishlistView() {
   }
 
   useEffect(() => {
-    if (user && ['BUYER', 'SHOP_OWNER'].includes(user.role)) load()
+    if (user && ['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(user.role)) load()
   }, [user])
 
   if (!user) {
     return <div className="container mx-auto px-4 py-16 text-center"><Heart className="size-12 mx-auto mb-3 opacity-40" /><h2 className="text-xl font-semibold">سجّل الدخول لعرض المفضلة</h2><Button className="mt-4" onClick={() => navigate({ name: 'login' })}>تسجيل الدخول</Button></div>
   }
 
-  if (!['BUYER', 'SHOP_OWNER'].includes(user.role)) {
-    return <div className="container mx-auto px-4 py-16 text-center"><Heart className="size-12 mx-auto mb-3 opacity-40" /><h2 className="text-xl font-semibold">هذه الصفحة مخصصة للمشترين وأصحاب المحلات</h2></div>
+  if (!['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(user.role)) {
+    return <div className="container mx-auto px-4 py-16 text-center"><Heart className="size-12 mx-auto mb-3 opacity-40" /><h2 className="text-xl font-semibold">هذه الصفحة مخصصة للمشترين وأصحاب المحلات والمديرين</h2></div>
   }
 
   if (loading) {

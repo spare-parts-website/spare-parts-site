@@ -66,7 +66,8 @@ export function Header() {
   // them, keeping buyer navigation fast without loading privileged code.
   useEffect(() => {
     const routes = ['/', '/parts', '/stores', '/support']
-    if (user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') routes.push('/account/orders', '/account/profile', '/account/wishlist')
+    if (user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') routes.push('/account/orders', '/account/profile')
+    if (user?.role === 'ADMIN') routes.push('/account/wishlist')
     if (user?.role === 'SHOP_OWNER') routes.push('/seller/parts', '/seller/orders', '/seller/store')
     if (user?.role === 'ADMIN') routes.push('/admin/users', '/admin/parts', '/admin/support')
     routes.forEach((path) => router.prefetch(path))
@@ -96,7 +97,7 @@ export function Header() {
           <Link href="/account/orders" onClick={() => setMobileOpen(false)}><ShoppingBag className="size-4" />طلباتي</Link>
         </Button>
       )}
-      {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') && (
+      {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER' || user?.role === 'ADMIN') && (
         <Button asChild variant={pathname === '/account/wishlist' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
           <Link href="/account/wishlist" onClick={() => setMobileOpen(false)}><Heart className="size-4" />المفضلة</Link>
         </Button>

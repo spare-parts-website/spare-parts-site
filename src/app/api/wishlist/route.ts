@@ -5,7 +5,7 @@ import { requireRoles } from '@/lib/auth'
 // GET user's favorite stores
 export async function GET() {
   try {
-    const session = await requireRoles(['BUYER', 'SHOP_OWNER'])
+    const session = await requireRoles(['BUYER', 'SHOP_OWNER', 'ADMIN'])
     const items = await db.storeWishlist.findMany({
       where: { userId: session.id },
       include: {
@@ -30,7 +30,7 @@ export async function GET() {
 // POST - add a store to favorites
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireRoles(['BUYER', 'SHOP_OWNER'])
+    const session = await requireRoles(['BUYER', 'SHOP_OWNER', 'ADMIN'])
     const { storeId } = await req.json()
     if (!storeId) return NextResponse.json({ error: 'storeId مطلوب' }, { status: 400 })
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 // DELETE - remove a store from favorites
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await requireRoles(['BUYER', 'SHOP_OWNER'])
+    const session = await requireRoles(['BUYER', 'SHOP_OWNER', 'ADMIN'])
     const { searchParams } = new URL(req.url)
     const storeId = searchParams.get('storeId')
     if (!storeId) return NextResponse.json({ error: 'storeId مطلوب' }, { status: 400 })

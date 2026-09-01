@@ -135,7 +135,8 @@ export function AppShell({
 function rolesForPath(pathname: string): AuthUser['role'][] | null {
   if (pathname === '/seller' || pathname.startsWith('/seller/')) return ['SHOP_OWNER']
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return ['ADMIN']
-  if (pathname === '/checkout' || pathname === '/account/orders' || pathname === '/account/wishlist') return ['BUYER', 'SHOP_OWNER']
+  if (pathname === '/checkout' || pathname === '/account/orders') return ['BUYER', 'SHOP_OWNER']
+  if (pathname === '/account/wishlist') return ['BUYER', 'SHOP_OWNER', 'ADMIN']
   if (pathname === '/account/profile' || pathname === '/account/messages' || pathname === '/support' || pathname.startsWith('/messages/')) return []
   return null
 }

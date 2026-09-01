@@ -83,6 +83,9 @@ test('keeps the shared shell persistent and navigation URL-driven', () => {
   const mobileNav = readFileSync(new URL('../src/components/mobile-bottom-nav.tsx', import.meta.url), 'utf8')
   const cart = readFileSync(new URL('../src/components/cart-drawer.tsx', import.meta.url), 'utf8')
   const admin = readFileSync(new URL('../src/components/views/admin-dashboard-view.tsx', import.meta.url), 'utf8')
+  const wishlistApi = readFileSync(new URL('../src/app/api/wishlist/route.ts', import.meta.url), 'utf8')
+  const favoriteButton = readFileSync(new URL('../src/components/favorite-store-button.tsx', import.meta.url), 'utf8')
+  const wishlist = readFileSync(new URL('../src/components/views/wishlist-view.tsx', import.meta.url), 'utf8')
 
   assert.match(layout, /<AppShell>\{children\}<\/AppShell>/)
   assert.match(shell, /usePathname\(\)/)
@@ -101,6 +104,10 @@ test('keeps the shared shell persistent and navigation URL-driven', () => {
   assert.match(admin, /usePathname\(\)/)
   assert.match(admin, /router\.push\(`\/admin\/\$\{v\}`\)/)
   assert.doesNotMatch(admin, /window\.history\.pushState/)
+  assert.match(shell, /if \(pathname === '\/account\/wishlist'\) return \['BUYER', 'SHOP_OWNER', 'ADMIN'\]/)
+  assert.match(wishlistApi, /requireRoles\(\['BUYER', 'SHOP_OWNER', 'ADMIN'\]\)/)
+  assert.match(favoriteButton, /user\?\.role === 'ADMIN'/)
+  assert.match(wishlist, /\['BUYER', 'SHOP_OWNER', 'ADMIN'\]/)
 })
 
 test('loads seller tabs independently and scopes support cache by user and filters', () => {
