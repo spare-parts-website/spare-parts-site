@@ -147,7 +147,7 @@ function rolesForView(view: View): AuthUser['role'][] | null {
   if (view.name === 'shop-dashboard') return ['SHOP_OWNER']
   if (view.name === 'admin-dashboard') return ['ADMIN']
   if (['orders', 'wishlist', 'checkout'].includes(view.name)) return ['BUYER', 'SHOP_OWNER']
-  if (['profile', 'inbox', 'chat'].includes(view.name)) return []
+  if (['profile', 'inbox', 'chat', 'support'].includes(view.name)) return []
   return null
 }
 

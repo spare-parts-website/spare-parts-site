@@ -9,9 +9,10 @@ export async function GET(req: NextRequest) {
     const id = searchParams.get('id')
 
     if (id) {
-      const result = await getPublicStore(id, await getSession())
+      const viewerRequested = searchParams.get('viewer') === '1'
+      const result = await getPublicStore(id, viewerRequested ? await getSession() : null)
       if (!result.store) return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
-      return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
+      return NextResponse.json(result, { headers: { 'Cache-Control': viewerRequested ? 'private, no-store, max-age=0' : 'public, s-maxage=30, stale-while-revalidate=120' } })
     }
     const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
     const result = await getPublicStoresList(search, requestedPage)

@@ -27,28 +27,32 @@ This checklist describes the current implementation in `codex/preserve-mobile-na
 - [x] User, store, part, order, review, report, verification, and moderation tools remain routed and role-protected.
 - [x] Admin edits use the same positive-price and canonical taxonomy boundaries as seller writes.
 - [x] Admin offer editing covers identifiers, taxonomy, price/stock, images, and structured fitment; seller offer entry omits OEM/search-only fields.
+- [x] Admin can create a listing on behalf of a selected seller store without changing ownership; the mutation is audited.
+- [x] Support inbox is available to admins with ticket ownership isolation, status/category/search filters, replies, statuses, and audit history.
 - [x] Private chat/product attachments, dispute evidence, verification documents, and AI images require resolved resource access; admins may inspect known resources only.
 
 ## Data, search, and trust
 
 - [x] Brand, category, and condition aliases normalize to canonical display values while preserving justified custom values.
 - [x] Additive taxonomy backfill completed without deleting orders, order items, parts, or compatibility rows.
-- [x] Automotive search remains parameterized, bounded, Arabic-normalized, synonym-aware, and weighted toward OEM/part numbers; regression `bww → BMW` is covered.
+- [x] Automotive search remains parameterized, bounded, Arabic-normalized, synonym-aware, and weighted toward OEM/part numbers; regressions `bww`/`بي إم` → BMW and a single-brand precision guard are covered.
 - [x] Blocked reviews remain excluded from public lists, aggregates, and structured data; qualifying-order review authorization is preserved.
+- [x] Explicit development fixture authors are reversibly blocked; legitimate unverified customer reviews are not hidden automatically.
 
 ## Privacy, PWA, and performance
 
-- [x] Public anonymous pages use bounded server data; authenticated identity is a client `/api/auth/me` overlay rather than shared HTML.
+- [x] Public anonymous pages use bounded server data; product/store details are revalidated without cookies and authenticated identity/permissions are private overlays.
 - [x] Account, seller, admin, checkout, messages, APIs, and private-image responses are not service-worker cached.
 - [x] Service-worker cache is an explicit versioned static allowlist and deletes prior caches on upgrade.
 - [x] Notification polling is authenticated, visibility-aware, backoff-capable, and no longer opens Socket.IO in production.
 - [x] The unsafe standalone notification Socket.IO mini-service is decommissioned; the root dependency remains only for the isolated websocket demo.
-- [x] Hero and preset avatars use optimized WebP assets; obsolete multi-megabyte PNGs are removed with legacy rewrites. Favicon resolves to the branded SVG.
+- [x] Hero and preset avatars use optimized WebP assets; the latest approved historical PNG logo is restored and wired to favicon/PWA/service worker surfaces.
 
 ## Email and operations
 
 - [x] In-app notifications remain durable and email failures remain secondary/failure-safe.
 - [x] Resend delivery webhook endpoint verifies Standard Webhooks signatures, is idempotent, updates `EmailDeliveryAttempt`, and audits severe lifecycle events.
+- [x] Support ticket email notification is sent only after ticket persistence, uses `SUPPORT_EMAIL`, logs sent/skipped/failed delivery, and never rolls back the ticket on email failure.
 - [ ] `RESEND_WEBHOOK_SECRET` still needs to be stored in Vercel before enabling exactly one production Resend webhook.
 - [x] CI workflow retains npm install, production audit, lint, test, and build steps; GitHub Actions run 79 for release commit 8d95a3a completed successfully.
 
@@ -58,7 +62,7 @@ This checklist describes the current implementation in `codex/preserve-mobile-na
 - [x] `npm audit --omit=dev --audit-level=high`
 - [x] `npx tsc --noEmit`
 - [x] `npm run lint`
-- [x] `npm test` (69/69)
+- [x] `npm test` (76 passing, 1 isolated-DB checkout harness skipped by default)
 - [x] `npm run build` (exits successfully; local placeholder DB URL emits a handled homepage warning)
 - [x] `git diff --check`
 - [x] `npm run test:smoke` against https://ghyarmarket-eg.com with SMOKE_EXPECT_BMW=1

@@ -18,6 +18,8 @@ const fitmentDocument = Prisma.sql`(
 
 const storeDocument = Prisma.sql`(coalesce(store_record."name", '') || ' ' || coalesce(store_record."description", ''))`
 
+const CANONICAL_BRANDS = ['bmw', 'mercedes', 'toyota', 'hyundai', 'nissan', 'kia', 'honda', 'ford', 'volkswagen', 'audi', 'volvo', 'renault', 'peugeot', 'mitsubishi', 'skoda'] as const
+
 // Keep identifier/OEM matches ahead of descriptive text. The fuzzy query is
 // still gated by the trigram index below, while these weights make the
 // returned IDs deterministic when several fields match the same typo.
@@ -88,6 +90,24 @@ export async function findTypoTolerantPartIds(value: string, limit = 200) {
     })
     return []
   }
+}
+
+/**
+ * Return a brand only when the normalized query has one unambiguous automotive
+ * brand intent. Callers use this as a precision guard around typo expansion so
+ * a short typo such as `bww` cannot pull an unrelated Mercedes-only listing
+ * into the first page just because a trigram happened to match.
+ */
+export function detectMarketplaceBrandHint(value: string) {
+  const queries = buildMarketplaceSearchQueries(value)
+  const matches = new Set<string>()
+  for (const query of queries) {
+    const tokens = query.split(' ')
+    for (const brand of CANONICAL_BRANDS) {
+      if (tokens.includes(brand)) matches.add(brand)
+    }
+  }
+  return matches.size === 1 ? Array.from(matches)[0] : null
 }
 
 export async function findTypoTolerantStoreIds(value: string, limit = 50) {

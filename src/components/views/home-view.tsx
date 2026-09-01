@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { db } from '@/lib/db'
 import { isBlockedStoreName } from '@/lib/store-moderation'
+import { isDevelopmentReviewAuthor } from '@/lib/review-moderation'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -79,21 +80,26 @@ async function loadHomeMarketplace(): Promise<{ parts: Part[]; stores: Store[]; 
 
     const parts = recentParts.filter((part) => !isBlockedStoreName(part.store.name)).slice(0, 8)
     const visibleStores = recentStores.filter((store) => !isBlockedStoreName(store.name)).slice(0, 6)
-    const ratingGroups = visibleStores.length
-      ? await db.storeReview.groupBy({
-          by: ['storeId'],
+    const ratingRows = visibleStores.length
+      ? await db.storeReview.findMany({
           where: { storeId: { in: visibleStores.map((store) => store.id) }, blocked: false },
-          _avg: { rating: true },
-          _count: { _all: true },
+          select: { storeId: true, rating: true, user: { select: { name: true } } },
         })
       : []
-    const ratingByStore = new Map(ratingGroups.map((rating) => [rating.storeId, rating]))
+    const ratingByStore = new Map<string, { total: number; count: number }>()
+    for (const rating of ratingRows) {
+      if (isDevelopmentReviewAuthor(rating.user.name)) continue
+      const current = ratingByStore.get(rating.storeId) || { total: 0, count: 0 }
+      current.total += rating.rating
+      current.count += 1
+      ratingByStore.set(rating.storeId, current)
+    }
     const stores = visibleStores.map((store) => {
       const rating = ratingByStore.get(store.id)
       return {
         ...store,
-        avgRating: rating?._avg.rating || 0,
-        reviewCount: rating?._count._all || 0,
+        avgRating: rating?.count ? rating.total / rating.count : 0,
+        reviewCount: rating?.count || 0,
       }
     })
 

@@ -50,7 +50,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
     setLoading(true)
     setLoadError(false)
     try {
-      const response = await fetch(`/api/stores?id=${storeId}`, { cache: 'no-store' })
+      const response = await fetch(`/api/stores?id=${storeId}${user ? '&viewer=1' : ''}`, { cache: 'no-store' })
       const data = await response.json()
       if (!response.ok && response.status !== 404) throw new Error(data.error || 'STORE_LOAD_FAILED')
       setStore(data.store || null)
@@ -72,6 +72,21 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
     }
     void load()
   }, [initialCanReview, initialStore, storeId])
+
+  // Keep the public store document cacheable; permissions are a private
+  // client-side overlay loaded only after the signed-in identity is known.
+  useEffect(() => {
+    if (!initialStore || !user) {
+      if (!user) setCanReview(false)
+      return
+    }
+    let active = true
+    fetch(`/api/stores?id=${storeId}&viewer=1`, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() as Promise<{ canReview?: boolean }> : null)
+      .then((data) => { if (active && data) setCanReview(Boolean(data.canReview)) })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [initialStore, storeId, user?.id])
 
   const handleReview = async () => {
     if (!user) {

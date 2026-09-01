@@ -17,8 +17,9 @@ import { ShopDashboardView } from '@/components/views/shop-dashboard-view'
 import { StoreView } from '@/components/views/store-view'
 import { StoresView } from '@/components/views/stores-view'
 import { WishlistView } from '@/components/views/wishlist-view'
+import { SupportView } from '@/components/views/support-view'
+import { Breadcrumbs, type BreadcrumbItem } from '@/components/breadcrumbs'
 import { db } from '@/lib/db'
-import { getSession } from '@/lib/auth'
 import type { View } from '@/lib/store'
 import { getPublicPart, getPublicPartsList, getPublicStore, getPublicStoresList, type PublicPartsQuery } from '@/lib/public-marketplace'
 import { schemaConditionUrl } from '@/lib/product-condition'
@@ -28,8 +29,10 @@ type RoutePageProps = {
   searchParams: Promise<Record<string, string | string[] | undefined>>
 }
 
+export const revalidate = 30
+
 const sellerTabs = new Set(['parts', 'orders', 'store', 'analytics', 'coupons', 'messages'])
-const adminTabs = new Set(['users', 'parts', 'orders', 'reviews', 'stores', 'reports'])
+const adminTabs = new Set(['users', 'parts', 'orders', 'reviews', 'stores', 'reports', 'support'])
 const legalPages = new Set(['privacy', 'terms', 'returns', 'contact'])
 
 function first(value: string | string[] | undefined) {
@@ -39,10 +42,15 @@ function first(value: string | string[] | undefined) {
 export async function generateMetadata({ params }: RoutePageProps): Promise<Metadata> {
   const { route } = await params
   const [section, id] = route
+  const siteOrigin = process.env.APP_URL || 'https://ghyarmarket-eg.com'
+  const canonicalPath = section === 'parts' ? (id ? `/parts/${encodeURIComponent(id)}` : '/parts')
+    : section === 'stores' ? (id ? `/stores/${encodeURIComponent(id)}` : '/stores')
+      : `/${section || ''}`
+  const canonical = new URL(canonicalPath || '/', siteOrigin).toString()
 
   if (['login', 'register', 'forgot-password', 'reset-password'].includes(section)) {
     const titles: Record<string, string> = { login: 'تسجيل الدخول', register: 'إنشاء حساب', 'forgot-password': 'استعادة كلمة المرور', 'reset-password': 'تعيين كلمة مرور جديدة' }
-    return { title: titles[section], robots: { index: false, follow: false } }
+    return { title: titles[section], robots: { index: false, follow: false }, alternates: { canonical } }
   }
 
   try {
@@ -53,6 +61,7 @@ export async function generateMetadata({ params }: RoutePageProps): Promise<Meta
           title: part.name,
           description: part.description || `تعرف على سعر وتفاصيل ${part.name} واطلبه من غيار ماركت.`,
           openGraph: part.image ? { images: [part.image] } : undefined,
+          alternates: { canonical },
         }
       }
     }
@@ -63,6 +72,7 @@ export async function generateMetadata({ params }: RoutePageProps): Promise<Meta
           title: store.name,
           description: store.description || `تصفح قطع الغيار المتاحة لدى ${store.name}.`,
           openGraph: store.image ? { images: [store.image] } : undefined,
+          alternates: { canonical },
         }
       }
     }
@@ -75,9 +85,10 @@ export async function generateMetadata({ params }: RoutePageProps): Promise<Meta
     'forgot-password': 'استعادة كلمة المرور', 'reset-password': 'تعيين كلمة مرور جديدة',
     cart: 'سلة المشتريات', checkout: 'إتمام الطلب', account: 'حسابي', seller: 'لوحة المتجر',
     admin: 'لوحة الإدارة', privacy: 'سياسة الخصوصية', terms: 'شروط الاستخدام',
-    returns: 'سياسة الاسترجاع', contact: 'تواصل معنا', messages: 'الرسائل',
+    returns: 'سياسة الاسترجاع', contact: 'تواصل معنا', messages: 'الرسائل', support: 'الدعم والمساعدة',
   }
-  return { title: titles[section] || 'غيار ماركت' }
+  const privateSection = ['account', 'seller', 'admin', 'cart', 'checkout', 'messages', 'support'].includes(section)
+  return { title: titles[section] || 'غيار ماركت', alternates: { canonical }, ...(privateSection ? { robots: { index: false, follow: false } } : {}) }
 }
 
 export default async function RoutePage({ params, searchParams }: RoutePageProps) {
@@ -85,11 +96,13 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
   const query = await searchParams
   const [section, id, childId] = route
   const search = first(query.search)
-  const publicRoute = (section === 'parts' && !id) || (section === 'stores' && !id) || legalPages.has(section) || ['login', 'register', 'forgot-password', 'reset-password'].includes(section)
-  const user = publicRoute ? null : await getSession()
+  // Keep this catch-all identity-free. Private views resolve `/api/auth/me` in
+  // the client shell, so public marketplace HTML can be shared safely.
+  const user = null
   let view: View
   let content: React.ReactNode
   let structuredData: Record<string, unknown> | null = null
+  let breadcrumbItems: BreadcrumbItem[] = []
 
   if (section === 'parts' && !id) {
     view = { name: 'parts' }
@@ -110,10 +123,13 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     content = <PartsView initialData={initialData} initialQuery={initialQuery} />
   } else if (section === 'parts' && id && !childId) {
     view = { name: 'part', partId: id }
-    const { part, canReview } = await getPublicPart(id, user)
+    const { part, canReview } = await getPublicPart(id, null)
     if (!part) notFound()
     content = <PartView partId={id} initialPart={part} initialCanReview={canReview} />
-    if (part) structuredData = { '@context': 'https://schema.org', '@type': 'Product', name: part.name, description: part.description || undefined, image: part.image ? [part.image] : undefined, brand: part.brand ? { '@type': 'Brand', name: part.brand } : undefined, itemCondition: schemaConditionUrl(part.condition), offers: { '@type': 'Offer', priceCurrency: 'EGP', price: part.price, availability: part.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', name: part.store.name } } }
+    if (part) {
+      breadcrumbItems = [{ label: 'الرئيسية', href: '/' }, { label: 'قطع الغيار', href: '/parts' }, { label: part.name }]
+      structuredData = { '@context': 'https://schema.org', '@type': 'Product', name: part.name, description: part.description || undefined, image: part.image ? [part.image] : undefined, brand: part.brand ? { '@type': 'Brand', name: part.brand } : undefined, itemCondition: schemaConditionUrl(part.condition), offers: { '@type': 'Offer', priceCurrency: 'EGP', price: part.price, availability: part.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', name: part.store.name } } }
+    }
   } else if (section === 'stores' && !id) {
     view = { name: 'stores' }
     const requestedPage = Number.parseInt(first(query.page) || '1', 10)
@@ -122,10 +138,13 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     content = <StoresView initialData={initialData} initialSearch={search} initialPage={initialPage} />
   } else if (section === 'stores' && id && !childId) {
     view = { name: 'store', storeId: id }
-    const { store, canReview } = await getPublicStore(id, user)
+    const { store, canReview } = await getPublicStore(id, null)
     if (!store) notFound()
     content = <StoreView storeId={id} initialStore={store} initialCanReview={canReview} />
-    if (store) structuredData = { '@context': 'https://schema.org', '@type': 'AutoPartsStore', name: store.name, description: store.description || undefined, image: store.image || undefined, address: store.address || undefined, telephone: store.phone || undefined, url: `${process.env.APP_URL || 'https://ghyarmarket-eg.com'}/stores/${id}` }
+    if (store) {
+      breadcrumbItems = [{ label: 'الرئيسية', href: '/' }, { label: 'المتاجر', href: '/stores' }, { label: store.name }]
+      structuredData = { '@context': 'https://schema.org', '@type': 'AutoPartsStore', name: store.name, description: store.description || undefined, image: store.image || undefined, address: store.address || undefined, telephone: store.phone || undefined, url: `${process.env.APP_URL || 'https://ghyarmarket-eg.com'}/stores/${id}` }
+    }
   } else if (section === 'login' && !id) {
     view = { name: 'login' }
     content = <AuthView mode="login" />
@@ -156,6 +175,9 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
   } else if (section === 'account' && id === 'messages' && !childId) {
     view = { name: 'inbox' }
     content = <InboxView />
+  } else if (section === 'support' && !id) {
+    view = { name: 'support' }
+    content = <SupportView />
   } else if (section === 'seller' && id && sellerTabs.has(id) && !childId) {
     const tab = id as Extract<View, { name: 'shop-dashboard' }>['tab']
     view = { name: 'shop-dashboard', tab }
@@ -185,5 +207,5 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     notFound()
   }
 
-  return <AppShell initialView={view} initialSearch={search} initialUser={user}>{structuredData && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />}{content}</AppShell>
+  return <AppShell initialView={view} initialSearch={search} initialUser={user}>{structuredData && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />}{breadcrumbItems.length > 0 && <Breadcrumbs items={breadcrumbItems} />}{content}</AppShell>
 }

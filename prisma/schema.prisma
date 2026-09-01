@@ -45,6 +45,8 @@ model User {
   auditLogs               AuditLog[]
   aiConversations         AIConversation[]
   aiActionProposals       AIActionProposal[]
+  supportTickets          SupportTicket[]    @relation("SupportTicketRequester")
+  supportMessages         SupportMessage[]   @relation("SupportMessageAuthor")
 }
 
 model PasswordReset {
@@ -267,6 +269,7 @@ model Order {
   updatedAt           DateTime        @updatedAt
   disputes            Dispute[]
   items               OrderItem[]
+  supportTickets      SupportTicket[]
 
   @@index([buyerId, createdAt])
   @@index([storeId, createdAt])
@@ -461,6 +464,38 @@ model AuditLog {
 
   @@index([createdAt])
   @@index([actorId, createdAt])
+}
+
+model SupportTicket {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation("SupportTicketRequester", fields: [userId], references: [id], onDelete: Cascade)
+  orderId    String?
+  order      Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  category   String           @default("GENERAL")
+  subject    String
+  status     String           @default("OPEN")
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  messages   SupportMessage[]
+
+  @@index([userId, updatedAt])
+  @@index([status, updatedAt])
+  @@index([orderId])
+}
+
+model SupportMessage {
+  id         String         @id @default(cuid())
+  ticketId   String
+  ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId   String?
+  author     User?          @relation("SupportMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  authorRole String
+  body       String
+  createdAt  DateTime       @default(now())
+
+  @@index([ticketId, createdAt])
+  @@index([authorId, createdAt])
 }
 
 // Discount coupons

@@ -69,7 +69,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
     setLoading(true)
     setLoadError(false)
     try {
-      const response = await fetch(`/api/parts?id=${partId}`, { cache: 'no-store' })
+      const response = await fetch(`/api/parts?id=${partId}${user ? '&viewer=1' : ''}`, { cache: 'no-store' })
       const data = await response.json()
       if (!response.ok && response.status !== 404) throw new Error(data.error || 'PART_LOAD_FAILED')
       setPart(data.part || null)
@@ -93,6 +93,25 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
     }
     void load()
   }, [initialCanReview, initialPart, partId])
+
+  // Public product HTML is cacheable and intentionally starts anonymous. Once
+  // the auth overlay resolves, fetch only the viewer-specific permissions.
+  useEffect(() => {
+    if (!initialPart || !user) {
+      if (!user) setCanReview(false)
+      return
+    }
+    let active = true
+    fetch(`/api/parts?id=${partId}&viewer=1`, { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() as Promise<{ canReview?: boolean; part?: PublicPart | null }> : null)
+      .then((data) => {
+        if (!active || !data) return
+        setCanReview(Boolean(data.canReview))
+        if (data.part?.store) setPart((current) => current ? { ...current, store: { ...current.store, isOwnedByViewer: data.part!.store.isOwnedByViewer } } : current)
+      })
+      .catch(() => undefined)
+    return () => { active = false }
+  }, [initialPart, partId, user?.id])
 
   const handleOrder = async () => {
     if (!user) {

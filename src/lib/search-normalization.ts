@@ -2,7 +2,7 @@ const DIACRITICS = /[\u064B-\u065F\u0670]/g
 
 const AUTOMOTIVE_SYNONYMS = [
   ['engine', 'engin', 'motor', 'محرك', 'موتور', 'ماتور'],
-  ['bmw', 'بي ام دبليو', 'بى ام دبليو'],
+  ['bmw', 'بي ام دبليو', 'بى ام دبليو', 'بي ام', 'بى ام', 'بي إم', 'بى إم'],
   ['mercedes', 'mercedes-benz', 'مرسيدس', 'مرسيدس بنز'],
   ['toyota', 'تويوتا'],
   ['brake', 'brakes', 'فرامل'],

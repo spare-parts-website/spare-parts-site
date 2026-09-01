@@ -68,8 +68,8 @@ test('keeps public SSR routes independent from session resolution', () => {
   const routes = readFileSync(new URL('../src/app/[...route]/page.tsx', import.meta.url), 'utf8')
   const shell = readFileSync(new URL('../src/components/app-shell.tsx', import.meta.url), 'utf8')
   assert.doesNotMatch(homePage, /getSession/)
-  assert.match(routes, /const publicRoute =/)
-  assert.match(routes, /publicRoute \? null : await getSession\(\)/)
+  assert.match(routes, /const user = null/)
+  assert.doesNotMatch(routes, /await getSession\(\)/)
   assert.match(shell, /\/api\/auth\/me/)
   assert.match(shell, /Public SSR pages intentionally do not resolve/)
 })
@@ -121,7 +121,8 @@ test('bounds store detail inventory and reviews while preserving aggregate total
 
   assert.match(publicData, /parts:\s*\{[\s\S]*?take:\s*24/)
   assert.match(publicData, /reviews:\s*\{[\s\S]*?take:\s*20/)
-  assert.match(publicData, /storeReview\.aggregate/)
+  assert.match(publicData, /storeReview\.findMany/)
+  assert.match(publicData, /isDevelopmentReviewAuthor/)
   assert.match(storeView, /\/parts\?storeId=/)
   assert.match(storeView, /store\.partCount/)
 })
@@ -166,7 +167,7 @@ test('keeps the service worker privacy-safe and removes the obsolete socket path
   const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8')
   const legacyService = new URL('../mini-services/notifications/index.ts', import.meta.url)
 
-  assert.match(serviceWorker, /ghyar-market-static-v2/)
+  assert.match(serviceWorker, /ghyar-market-static-v3/)
   assert.match(serviceWorker, /STATIC_ASSETS/)
   assert.match(serviceWorker, /STATIC_ASSETS\.includes\(url\.pathname\)/)
   assert.doesNotMatch(serviceWorker, /\/api\//)
@@ -183,15 +184,13 @@ test('uses optimized public hero and preset avatar assets', () => {
   assert.match(home, /ghyar-market-hero\.webp/)
   assert.doesNotMatch(home, /ghyar-market-hero\.png/)
   assert.match(config, /source: '\/ghyar-market-hero\.png', destination: '\/ghyar-market-hero\.webp'/)
-  assert.match(config, /source: '\/ghyar-market-logo\.png', destination: '\/ghyar-market-logo\.svg'/)
+  assert.match(config, /source: '\/favicon\.ico', destination: '\/ghyar-market-logo\.png'/)
   assert.match(avatars, /profile-avatars\/turbocharger\.webp/)
   assert.match(avatars, /profile-avatars\/(?:electric-car|classic-car|fuel-gauge-car)\.webp/)
   for (const asset of ['ghyar-market-hero.webp', 'profile-avatars/turbocharger.webp', 'profile-avatars/electric-car.webp', 'profile-avatars/classic-car.webp', 'profile-avatars/fuel-gauge-car.webp']) {
     assert.equal(existsSync(new URL(`../public/${asset}`, import.meta.url)), true, asset)
   }
-  for (const legacyAsset of ['ghyar-market-hero.png', 'ghyar-market-logo.png']) {
-    assert.equal(existsSync(new URL(`../public/${legacyAsset}`, import.meta.url)), false, legacyAsset)
-  }
+  assert.equal(existsSync(new URL('../public/ghyar-market-logo.png', import.meta.url)), true, 'approved logo')
 })
 
 test('keeps the intentionally removed saved-car feature out of application surfaces', () => {
