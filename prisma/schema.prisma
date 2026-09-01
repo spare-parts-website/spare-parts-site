@@ -358,10 +358,13 @@ model EmailDeliveryAttempt {
   providerId     String?
   status         String
   error          String?
+  lastEventId    String?
+  lastEventAt    DateTime?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
   @@index([status, createdAt])
+  @@index([providerId])
 }
 
 // Wishlist - users save favorite parts

@@ -49,6 +49,17 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  async rewrites() {
+    return [
+      { source: '/favicon.ico', destination: '/ghyar-market-logo.svg' },
+      { source: '/ghyar-market-logo.png', destination: '/ghyar-market-logo.svg' },
+      { source: '/ghyar-market-hero.png', destination: '/ghyar-market-hero.webp' },
+      { source: '/profile-avatars/classic-car.png', destination: '/profile-avatars/classic-car.webp' },
+      { source: '/profile-avatars/electric-car.png', destination: '/profile-avatars/electric-car.webp' },
+      { source: '/profile-avatars/fuel-gauge-car.png', destination: '/profile-avatars/fuel-gauge-car.webp' },
+      { source: '/profile-avatars/turbocharger.png', destination: '/profile-avatars/turbocharger.webp' },
+    ]
+  },
 };
 
 export default nextConfig;

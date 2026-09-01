@@ -24,8 +24,8 @@ export const metadata: Metadata = {
   description: "ابحث وقارن واطلب قطع غيار السيارات من متاجر متخصصة في مصر، مع تقييمات حقيقية وعلامة واضحة للمتاجر الموثقة والدفع عند الاستلام.",
   keywords: ["غيار ماركت", "قطع غيار", "سيارات", "متاجر", "ميكانيكا"],
   icons: {
-    icon: "/ghyar-market-logo.png",
-    apple: "/ghyar-market-logo.png",
+    icon: "/ghyar-market-logo.svg",
+    apple: "/ghyar-market-icon.png",
   },
   openGraph: {
     type: "website",
@@ -33,7 +33,7 @@ export const metadata: Metadata = {
     siteName: "غيار ماركت",
     title: "غيار ماركت | قطع غيار السيارات من متاجر متخصصة",
     description: "القطعة الصح لسيارتك من متجر تعرف تفاصيله وتقييماته.",
-    images: [{ url: "/ghyar-market-hero.png", width: 1680, height: 941, alt: "غيار ماركت" }],
+    images: [{ url: "/ghyar-market-hero.webp", width: 1672, height: 941, alt: "غيار ماركت" }],
   },
   twitter: { card: "summary_large_image" },
 };

@@ -4,7 +4,7 @@ import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { resolveOrderTransition, type OrderAction } from '@/lib/order-state'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
-import { normalizeProductCondition } from '@/lib/product-condition'
+import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '@/lib/marketplace-taxonomy'
 import { AI_PROPOSAL_TTL_MS } from '@/lib/ai/runtime'
 import { roleCanPrepareAction } from '@/lib/ai/policy'
 import { resolveAdminEntity, resolveOrder, resolvePart, resolveStore, type EntityResolution } from '@/lib/ai/resolver'
@@ -72,11 +72,6 @@ function normalizeInput(input: AIProposalInput): AIProposalInput {
     role: input.role,
     trackingNumber: cleanText(input.trackingNumber, 100) || undefined,
     brand: cleanText(input.brand, 80) || undefined,
-    model: cleanText(input.model, 80) || undefined,
-    year: finite(input.year),
-    engine: cleanText(input.engine, 80) || undefined,
-    nickname: cleanText(input.nickname, 80) || undefined,
-    isPrimary: input.isPrimary === true,
   }
 }
 
@@ -117,7 +112,6 @@ export async function prepareActionProposal(input: {
 
 function missingEssentialInput(input: AIProposalInput): AIToolCard | null {
   const fields: Partial<Record<AIProposalInput['action'], Array<[boolean, string]>>> = {
-    car_create: [[!input.brand, 'ماركة السيارة'], [!input.model, 'موديل السيارة']],
     order_action: [[!input.status, 'الإجراء المطلوب للطلب']],
     seller_part_create: [[!input.name, 'اسم القطعة'], [input.price === undefined, 'السعر'], [input.stock === undefined, 'المخزون'], [!input.condition, 'الحالة (جديدة أو مستعملة)']],
     seller_part_update: [[input.price === undefined && input.stock === undefined && !input.description, 'التغيير المطلوب مثل السعر أو المخزون أو الوصف']],
@@ -166,10 +160,6 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
       const store = await db.store.findUnique({ where: { id: input.targetId }, select: { name: true } })
       if (!store) throw new Error('INVALID_ACTION_INPUT')
       return `${input.action.endsWith('add') ? 'إضافة' : 'إزالة'} متجر ${store.name} ${input.action.endsWith('add') ? 'إلى' : 'من'} المفضلة`
-    }
-    case 'car_create': {
-      if (!input.brand || !input.model || (input.year !== undefined && (!Number.isInteger(input.year) || input.year < 1950 || input.year > new Date().getFullYear() + 1))) throw new Error('INVALID_ACTION_INPUT')
-      return `حفظ سيارة ${input.brand} ${input.model}${input.year ? ` ${input.year}` : ''}`
     }
     case 'order_action': {
       const order = await db.order.findUnique({ where: { id: input.targetId }, include: { part: { select: { name: true } }, store: { select: { ownerId: true } } } })
@@ -289,14 +279,6 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
     case 'wishlist_store_remove':
       await db.storeWishlist.deleteMany({ where: { userId: user.id, storeId: input.targetId! } })
       return {}
-    case 'car_create':
-      await db.$transaction(async (tx) => {
-        await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`ai-car:${user.id}`}))`
-        if (await tx.userCar.count({ where: { userId: user.id } }) >= 5) throw new Error('CAR_LIMIT')
-        if (input.isPrimary) await tx.userCar.updateMany({ where: { userId: user.id }, data: { isPrimary: false } })
-        await tx.userCar.create({ data: { userId: user.id, brand: input.brand!, model: input.model!, year: input.year ? Math.floor(input.year) : null, engine: input.engine || null, nickname: input.nickname || null, isPrimary: input.isPrimary === true } })
-      })
-      return {}
     case 'seller_part_update': {
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
       if (!store) throw new Error('ACTION_FORBIDDEN')
@@ -308,7 +290,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       const store = await db.store.findUnique({ where: { ownerId: user.id }, select: { id: true } })
       if (!store) throw new Error('ACTION_FORBIDDEN')
       const compatibilities = parseVehicleCompatibility(input.carModels)
-      await db.part.create({ data: { storeId: store.id, name: input.name!, description: input.description || null, price: input.price!, stock: Math.floor(input.stock!), category: input.category || null, brand: input.brand || null, condition: normalizeProductCondition(input.condition), partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, carModels: serializeLegacyCompatibility(input.carModels), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } })
+      await db.part.create({ data: { storeId: store.id, name: input.name!, description: input.description || null, price: input.price!, stock: Math.floor(input.stock!), category: normalizeMarketplaceCategory(input.category) || null, brand: normalizeMarketplaceBrand(input.brand) || null, condition: normalizeMarketplaceCondition(input.condition), partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, carModels: serializeLegacyCompatibility(input.carModels), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } })
       return {}
     }
     case 'seller_coupon_create': {

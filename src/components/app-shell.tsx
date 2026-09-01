@@ -54,6 +54,19 @@ export function AppShell({
     setAuthResolved(true)
   }, [initialUser, setUser])
 
+  // Public SSR pages intentionally do not resolve cookies/database state. A
+  // small client overlay restores the signed-in header and controls after the
+  // anonymous HTML is delivered, without putting identity into shared caches.
+  useEffect(() => {
+    if (initialUser !== null) return
+    let active = true
+    fetch('/api/auth/me', { cache: 'no-store' })
+      .then((response) => response.ok ? response.json() as Promise<{ user?: AuthUser | null }> : { user: null })
+      .then((data) => { if (active) setUser(data.user || null) })
+      .catch(() => { if (active) setUser(null) })
+    return () => { active = false }
+  }, [initialUser, setUser])
+
   useLayoutEffect(() => {
     setAppNavigator((path) => router.push(path))
     return () => setAppNavigator(null)
@@ -133,7 +146,7 @@ export function AppShell({
 function rolesForView(view: View): AuthUser['role'][] | null {
   if (view.name === 'shop-dashboard') return ['SHOP_OWNER']
   if (view.name === 'admin-dashboard') return ['ADMIN']
-  if (['orders', 'wishlist', 'checkout', 'cars'].includes(view.name)) return ['BUYER', 'SHOP_OWNER']
+  if (['orders', 'wishlist', 'checkout'].includes(view.name)) return ['BUYER', 'SHOP_OWNER']
   if (['profile', 'inbox', 'chat'].includes(view.name)) return []
   return null
 }

@@ -20,7 +20,7 @@ export async function POST(request: Request) {
     if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 32) return NextResponse.json({ error: 'بيانات المحادثة غير صحيحة', requestId }, { status: 400 })
     const user = await getSession(); const role: AIRole = user?.role || 'GUEST'
     const current = sanitizeIncomingUserMessage(body.messages.at(-1), user)
-    const message = textFromMessage(current) || 'حلل الصورة المرفقة وساعدني بناءً على ما يظهر فيها.'
+    const message: string = textFromMessage(current) || 'حلل الصورة المرفقة وساعدني بناءً على ما يظهر فيها.'
     const plan = planAIRequest(message, role); const address = requestAddress(request)
     void purgeExpiredAIData().catch((error) => console.error(JSON.stringify({ event: 'ai.cleanup.failed', requestId, error: errorMessage(error) })))
 

@@ -1,11 +1,18 @@
 const baseUrl = (process.env.SMOKE_URL || process.argv[2] || 'http://localhost:3000').replace(/\/$/, '')
 const healthSecret = process.env.HEALTHCHECK_SECRET
 const skipData = process.env.SMOKE_SKIP_DATA === '1'
+const expectBmw = process.env.SMOKE_EXPECT_BMW === '1'
 const checks = [
   { path: '/', status: 200, html: true },
   { path: '/parts', status: 200, html: true },
   { path: '/stores', status: 200, html: true },
+  { path: '/login', status: 200, html: true },
+  { path: '/register', status: 200, html: true },
   { path: '/privacy', status: 200, html: true },
+  { path: '/terms', status: 200, html: true },
+  { path: '/returns', status: 200, html: true },
+  { path: '/contact', status: 200, html: true },
+  { path: '/favicon.ico', status: 200 },
   { path: '/does-not-exist', statuses: [200, 404], html: true, includes: 'الصفحة غير موجودة' },
   { path: '/api/health', status: 404 },
   { path: '/api/orders', status: 401, json: true },
@@ -17,6 +24,13 @@ const checks = [
 
 if (!skipData) {
   checks.push({ path: '/api/parts', status: 200, json: true }, { path: '/api/stores', status: 200, json: true })
+}
+
+if (expectBmw) {
+  checks.push(
+    { path: '/parts?search=bww', status: 200, html: true, includes: 'BMW' },
+    { path: '/api/search?q=bww', status: 200, json: true, includes: 'BMW' },
+  )
 }
 
 if (healthSecret) {

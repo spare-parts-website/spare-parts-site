@@ -91,21 +91,6 @@ export async function resolveStore(reference: NaturalReference, selection?: AISe
   return finish('store', 'المتجر', rows.map((store) => ({ id: store.id, label: store.name, subtitle: store.verified ? 'متجر معتمد' : 'متجر غير معتمد' })))
 }
 
-export async function resolveCar(user: SessionUser, description?: string, targetId?: string, selection?: AISelectedEntity): Promise<EntityResolution> {
-  const id = selectedId(selection, 'car') || targetId
-  if (id) {
-    const car = await db.userCar.findFirst({ where: { id, userId: user.id } })
-    return finish('car', 'السيارة', car ? [{ id: car.id, label: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model}${car.year ? ` • ${car.year}` : ''}` }] : [])
-  }
-  const query = description?.trim()
-  if (!query || ['الأساسية', 'الرئيسية', 'عربيتي', 'سيارتي', 'main', 'primary'].some((word) => query.toLowerCase().includes(word))) {
-    const car = await db.userCar.findFirst({ where: { userId: user.id }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }] })
-    return finish('car', 'السيارة', car ? [{ id: car.id, label: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model}${car.year ? ` • ${car.year}` : ''}` }] : [])
-  }
-  const rows = await db.userCar.findMany({ where: { userId: user.id, OR: [{ nickname: { contains: query, mode: 'insensitive' } }, { brand: { contains: query, mode: 'insensitive' } }, { model: { contains: query, mode: 'insensitive' } }] }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }], take: 6 })
-  return finish('car', 'السيارة', rows.map((car) => ({ id: car.id, label: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model}${car.year ? ` • ${car.year}` : ''}` })))
-}
-
 export async function resolveOrder(user: SessionUser, reference: NaturalReference, selection?: AISelectedEntity, adminScope = false): Promise<EntityResolution> {
   const id = selectedId(selection, 'order') || reference.targetId
   const owned = adminScope && user.role === 'ADMIN' ? {} : user.role === 'SHOP_OWNER' ? { store: { ownerId: user.id } } : { buyerId: user.id }

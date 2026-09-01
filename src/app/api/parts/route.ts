@@ -5,7 +5,7 @@ import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
-import { normalizeProductCondition } from '@/lib/product-condition'
+import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '@/lib/marketplace-taxonomy'
 import { audit } from '@/lib/audit'
 import { getPublicPart, getPublicPartsList } from '@/lib/public-marketplace'
 
@@ -35,7 +35,6 @@ export async function GET(req: NextRequest) {
     }
 
     if (!mine) {
-      const carId = searchParams.get('carId') || ''
       const result = await getPublicPartsList({
         search,
         category,
@@ -45,12 +44,11 @@ export async function GET(req: NextRequest) {
         minPrice: searchParams.get('minPrice'),
         maxPrice: searchParams.get('maxPrice'),
         carModel: searchParams.get('carModel') || '',
-        carId,
         sort,
         page,
-      }, carId ? await getSession() : null)
+      })
       return NextResponse.json(result, {
-        headers: { 'Cache-Control': carId ? 'no-store, max-age=0' : 'public, s-maxage=30, stale-while-revalidate=120' },
+        headers: { 'Cache-Control': 'public, s-maxage=30, stale-while-revalidate=120' },
       })
     }
 
@@ -114,12 +112,12 @@ export async function POST(req: NextRequest) {
         description: typeof description === 'string' ? description.trim().slice(0, 5000) || null : null,
         price: numericPrice,
         stock: numericStock,
-        category: category || null,
-        brand: brand || null,
+        category: normalizeMarketplaceCategory(category) || null,
+        brand: normalizeMarketplaceBrand(brand) || null,
         partNumber: typeof partNumber === 'string' ? partNumber.trim().slice(0, 100) || null : null,
         oemNumber: typeof oemNumber === 'string' ? oemNumber.trim().slice(0, 100) || null : null,
         searchAliases: typeof searchAliases === 'string' ? searchAliases.trim().slice(0, 500) || null : null,
-        condition: normalizeProductCondition(condition),
+        condition: normalizeMarketplaceCondition(condition),
         universal: Boolean(universal),
         fitmentNotes: typeof fitmentNotes === 'string' ? fitmentNotes.trim().slice(0, 1000) || null : null,
         image: gallery[0] || null,
@@ -188,12 +186,12 @@ export async function PUT(req: NextRequest) {
           description: description !== undefined ? (description || null) : undefined,
           price: numericPrice,
           stock: numericStock,
-          category: category !== undefined ? (category || null) : undefined,
-          brand: brand !== undefined ? (brand || null) : undefined,
+          category: category !== undefined ? (normalizeMarketplaceCategory(category) || null) : undefined,
+          brand: brand !== undefined ? (normalizeMarketplaceBrand(brand) || null) : undefined,
           partNumber: partNumber !== undefined ? String(partNumber).trim().slice(0, 100) || null : undefined,
           oemNumber: oemNumber !== undefined ? String(oemNumber).trim().slice(0, 100) || null : undefined,
           searchAliases: searchAliases !== undefined ? String(searchAliases).trim().slice(0, 500) || null : undefined,
-          condition: normalizeProductCondition(condition),
+          condition: normalizeMarketplaceCondition(condition),
           universal: typeof universal === 'boolean' ? universal : undefined,
           fitmentNotes: fitmentNotes !== undefined ? fitmentNotes.trim().slice(0, 1000) || null : undefined,
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,

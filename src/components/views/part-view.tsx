@@ -21,7 +21,6 @@ import {
   MessageSquare,
   Flag,
   AlertTriangle,
-  CircleX,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
 import {
@@ -240,10 +239,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
     : 0
   const canShop = !user || (user.role !== 'ADMIN' && !part.store.isOwnedByViewer)
   const hasDeliveryPhone = !user || Boolean(normalizeEgyptianMobile(user.phone))
-  const fitmentStatus = part.viewerFitment?.status || 'unknown'
-  const fitmentCarLabel = part.viewerFitment?.car
-    ? [part.viewerFitment.car.brand, part.viewerFitment.car.model, part.viewerFitment.car.generation, part.viewerFitment.car.year, part.viewerFitment.car.engine, part.viewerFitment.car.trim].filter(Boolean).join(' ')
-    : null
+  const fitmentStatus = part.universal ? 'fits' : 'unknown'
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -417,13 +413,12 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
             </div>
           )}
 
-          <div className={`rounded-xl border p-4 ${fitmentStatus === 'fits' ? 'border-emerald-500/30 bg-emerald-500/10' : fitmentStatus === 'does-not-fit' ? 'border-destructive/30 bg-destructive/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
+          <div className={`rounded-xl border p-4 ${fitmentStatus === 'fits' ? 'border-emerald-500/30 bg-emerald-500/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
             <div className="flex items-start gap-3">
-              {fitmentStatus === 'fits' ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : fitmentStatus === 'does-not-fit' ? <CircleX className="mt-0.5 size-5 shrink-0 text-destructive" /> : <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />}
+              {fitmentStatus === 'fits' ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />}
               <div>
-                <p className="font-bold">{fitmentStatus === 'fits' ? (part.universal ? 'قطعة عامة ومتوافقة' : 'متوافقة حسب بيانات الإعلان') : fitmentStatus === 'does-not-fit' ? 'بيانات التوافق لا تطابق المركبة المحددة' : 'التوافق غير مؤكد'}</p>
-                <p className="mt-1 text-sm text-muted-foreground">{fitmentStatus === 'fits' ? (fitmentCarLabel ? `تمت المطابقة مع ${fitmentCarLabel}` : 'هذه القطعة مصنفة كقطعة عامة.') : fitmentStatus === 'does-not-fit' ? `بيانات الإعلان لا تطابق ${fitmentCarLabel || 'المركبة المحددة'}.` : fitmentCarLabel ? `راجع بيانات التوافق أو اسأل البائع قبل الطلب لـ ${fitmentCarLabel}.` : 'لا توجد مطابقة مركبة محددة لهذا العرض. راجع بيانات التوافق أو اسأل البائع قبل الطلب.'}</p>
-                {!fitmentCarLabel && !part.universal && <p className="mt-1 text-sm text-muted-foreground">راجع بيانات التوافق أو اسأل البائع قبل الطلب.</p>}
+                <p className="font-bold">{fitmentStatus === 'fits' ? 'قطعة عامة ومتوافقة' : 'التوافق غير مؤكد'}</p>
+                <p className="mt-1 text-sm text-muted-foreground">{fitmentStatus === 'fits' ? 'هذه القطعة مصنفة كقطعة عامة.' : 'لا توجد مطابقة مركبة محددة لهذا العرض. راجع بيانات التوافق أو اسأل البائع قبل الطلب.'}</p>
               </div>
             </div>
           </div>
@@ -505,7 +500,6 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   storeName: part.store.name,
                   stock: part.stock,
                   fitmentStatus,
-                  fitmentCarLabel,
                 })
                 toast({ title: 'تمت الإضافة للسلة', description: part.name })
               }}
@@ -536,13 +530,11 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                     </div>
                   )}
                   {fitmentStatus !== 'fits' && (
-                    <div className={`rounded-lg border p-3 text-sm ${fitmentStatus === 'does-not-fit' ? 'border-destructive/30 bg-destructive/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
+                    <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">
                       <div className="flex items-start gap-2">
-                        {fitmentStatus === 'does-not-fit'
-                          ? <CircleX className="mt-0.5 size-4 shrink-0 text-destructive" />
-                          : <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />}
+                        <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
                         <div>
-                          <p className="font-semibold">{fitmentStatus === 'does-not-fit' ? 'تنبيه: بيانات التوافق لا تطابق المركبة المحددة' : 'تنبيه: توافق القطعة غير مؤكد'}</p>
+                          <p className="font-semibold">تنبيه: توافق القطعة غير مؤكد</p>
                           <p className="mt-1 text-muted-foreground">يمكنك متابعة الطلب، لكن ننصح بمراجعة بيانات التوافق أو سؤال البائع أولاً.</p>
                         </div>
                       </div>

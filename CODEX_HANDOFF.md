@@ -1,201 +1,81 @@
 # غيار ماركت / Spare Parts Site — Codex Handoff
 
-## How to continue
+## Continue here
 
-Use the real repository:
-C:\Users\HP\Documents\Codex\spare-parts-site-online
+Use this checkout and read `PRODUCTION_READINESS.md` first:
 
-The user wants Codex to:
-1. Inspect the existing implementation.
-2. Edit the files directly.
-3. Preserve unrelated changes and untracked files.
-4. Run npm run lint and npm run build.
-5. Commit only intended files.
-6. Push with: git push origin HEAD:main
-7. Report the commit hash and Vercel deployment status.
+`C:\Users\HP\Documents\Codex\2026-08-16\https-github-com-fakepixelpro-spare-parts\remake`
 
-Paste this after the handoff in a new chat:
-"Use the real project at C:\Users\HP\Documents\Codex\spare-parts-site-online. Make the requested change directly, verify it, commit only intended files, and push to GitHub main so Vercel deploys it automatically."
+- GitHub: `https://github.com/fakepixelpro/spare-parts-site.git`
+- Production branch: `main`
+- Working branch: `codex/preserve-mobile-navigation`
+- Vercel project: `spare-parts-site` (linked through `.vercel/project.json`)
+- Production domain: `https://ghyarmarket-eg.com`
+- Last production commit before this readiness batch: `5969e6c`
 
-Do not add these existing untracked files unless explicitly requested:
-- AGENTS.md
-- CLAUDE.md
-- src/components/marketplace-ui.tsx
+Do not use the old `C:\Users\HP\Documents\Codex\spare-parts-site-online` path or the old `codex/remake-preview` branch. Preserve unrelated work and `.codebase-memory/`; never commit secrets or that generated directory. The authorized release pattern is a normal push such as `git push origin HEAD:main`; never force-push.
 
-Do not expose or commit secrets. Do not reset, checkout, or delete unrelated work.
+## Current architecture
 
-## Repository and deployment
+- Next.js App Router 16, React 19, TypeScript, Prisma/PostgreSQL on Supabase, and Resend.
+- Marketplace, orders, notifications, and admin data are server-side through Prisma; Supabase RLS remains fail-closed for browser roles and the service-role key stays server-only.
+- Grouped seller orders and `OrderItem` stock/coupon transactions are the current checkout architecture. Do not rewrite them without a failing integration test.
+- Public home/catalog pages use bounded anonymous data; authenticated identity is restored by the client `/api/auth/me` overlay. Account, seller, admin, checkout, chat, and private image routes remain private/no-store.
+- The AI assistant remains lazy-loaded. Notification updates use authenticated HTTP polling with hidden-tab backoff; production no longer opens Socket.IO. The unsafe standalone notification mini-service was decommissioned; the remaining Socket.IO dependency is only the isolated `examples/websocket` demo.
 
-GitHub: https://github.com/fakepixelpro/spare-parts-site.git
-Production branch: main
-Vercel is connected to GitHub main.
-Latest known production commit: 3a1c887 Refresh brand logo for light and dark themes
-Current local branch: codex/remake-preview
-A push to GitHub main should trigger Vercel automatically.
+## Intentionally removed
 
-Important: do not use the old worktree:
-C:\Users\HP\Documents\Codex\2026-08-08\he\work\spare-parts-remake-preview
-It previously pushed to a local mirror instead of GitHub. Always use the real checkout above.
+`My Car / Saved Cars / سيارتي` is intentionally removed from customer-facing routes, navigation, AI actions, prompts, and product/checkout UI. Do not restore it. The historical `UserCar` table and migration history remain for backwards compatibility; do not drop them.
 
-Useful commands:
-git status --short --branch
-git remote -v
-git log -5 --oneline --decorate
+Structured vehicle compatibility (`make`, `model`, years, engine, trim, notes, universal) remains supported and must stay conservative: unknown fitment is never presented as a confirmed fit.
+
+## Readiness work already implemented
+
+- `npm ci` lockfile/install path and CI production audit (`npm audit --omit=dev --audit-level=high`).
+- Positive-price (`price > 0`) validation for product and JSON/CSV inventory writes, with row-level errors, limits, ownership checks, and atomic application/CSV preview.
+- Admin part editing exposes offer identifiers, taxonomy, pricing/stock, images, and structured fitment; seller entry keeps internal OEM/search fields out of the offer form.
+- Resource-based private image authorization for chat/product messages, disputes, verification, and AI attachments; participant/admin checks happen after database resolution.
+- Private attachment write validation by upload purpose/uploader; protected storage remains private and marketplace `uploads` remains public.
+- Automotive typo-tolerant search with aliases, bounded variants, weighted OEM/part-number ranking, and the regression `bww → BMW`.
+- Canonical brand/category/condition normalization plus additive production backfill.
+- Duplicate product fitment warning removed; review `blocked` filtering and existing qualifying-order trust rules preserved.
+- Service worker reduced to an explicit static allowlist; old caches are versioned and removed on upgrade.
+- Optimized WebP hero/preset avatars, 512px branding icon, favicon rewrite, and legacy image aliases without shipping the old multi-megabyte PNGs.
+- Public SSR/auth split, safe cache headers, and no saved-car personalization in public loaders.
+- Resend lifecycle webhook endpoint with Standard Webhooks verification, idempotency, delivery status updates, and minimal audit metadata. It requires `RESEND_WEBHOOK_SECRET` in Vercel before enabling the provider webhook.
+
+## Database changes applied safely
+
+Additive/reversible SQL has been applied to Supabase project `sufrsfrrrzhhdluolxdf`:
+
+- `canonical_marketplace_taxonomy`
+- `optimized_profile_assets`
+- `resend_webhook_delivery_tracking`
+
+No reset, drop, truncate, mass delete, or order/order-item deletion was used. Keep future migrations additive and validate row counts before and after any backfill.
+
+## Verification commands
+
+Run from this checkout at phase boundaries and once before release:
+
+```text
+npm ci
+npm audit --omit=dev --audit-level=high
 npm run lint
+npm test
 npm run build
-git add only intended files
-git commit -m "Describe the change"
-git push origin HEAD:main
+npm run test:smoke
+git diff --check
+```
 
-The Windows dev script uses Unix tee and may fail. For local testing, use:
-Start-Process -WindowStyle Hidden -FilePath 'npx.cmd' -ArgumentList 'next','dev','-p','3000','--hostname','127.0.0.1' -WorkingDirectory 'C:\Users\HP\Documents\Codex\spare-parts-site-online'
+The local build may log a handled homepage Prisma initialization warning when the local `.env.local` contains a non-Postgres placeholder; CI/Vercel must use the real server-side database environment and the build must still exit successfully.
 
-## Technology
+## Remaining release work
 
-- Next.js App Router, Next 16
-- React 19 and TypeScript
-- Tailwind CSS v4
-- shadcn/Radix UI
-- Prisma with PostgreSQL/Supabase
-- Supabase Storage for uploads
-- Auth/session helpers
-- Resend email
-- Client-side app view system controlled through the app store
+1. Commit the validated readiness batch and push it normally to GitHub.
+2. Confirm the GitHub Actions run is green (npm ci, audit, lint, tests, build).
+3. Verify the Vercel preview, then promote only that commit to production and run public/protected smoke checks, including `/parts?search=bww`, `/favicon.ico`, logout/offline behavior, and no `/socket.io` requests.
+4. Set `RESEND_WEBHOOK_SECRET` in Vercel without printing it, deploy, then configure exactly one Resend webhook at `/api/webhooks/resend` for delivery/failure events. Verify one signed lifecycle event if available; never send a mass test email.
+5. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after deployment.
 
-Important files:
-- src/app/layout.tsx: metadata, favicon, theme
-- src/app/globals.css: global and responsive CSS
-- src/components/header.tsx: navigation, logo, notifications
-- src/components/footer.tsx: footer branding
-- src/components/views/home-view.tsx: homepage and featured part cards
-- src/components/views/parts-view.tsx: marketplace part cards
-- src/components/views/store-view.tsx: seller store page
-- src/components/views/stores-view.tsx: stores listing
-- src/components/views/wishlist-view.tsx: favorite stores
-- src/components/views/part-view.tsx: part detail
-- src/components/views/shop-dashboard-view.tsx: seller dashboard
-- src/components/views/admin-dashboard-view.tsx: admin dashboard
-- src/components/image-upload.tsx: image upload UI
-- src/app/api/upload/route.ts: upload processing
-- src/app/api/parts/route.ts: part CRUD
-- src/app/api/stores/route.ts: store listing
-- src/app/api/shop/store/route.ts: seller store update
-- src/app/api/notifications/route.ts and notify/route.ts: notifications/email
-- src/app/api/orders/route.ts: orders
-- src/app/api/chat/route.ts: messages
-- src/app/api/wishlist/route.ts: favorites
-- src/lib/store.ts: app state and navigation
-- src/lib/auth.ts: roles and permissions
-- prisma/schema.prisma: database schema
-- next.config.ts: images, caching, security headers
-- public/ghyar-market-logo.png: current supplied logo
-
-## Roles and rules
-
-Buyer:
-- Browse, favorite stores, buy parts, message sellers, and review/order actions.
-
-Shop owner:
-- Can sell their own parts.
-- Can buy parts from other sellers.
-- Must not buy their own listed parts.
-- Can favorite stores.
-
-Admin:
-- Manages users, stores, parts, reports, reviews, and orders.
-- Must not see the heart/favorite control.
-
-Favorites are stores, not parts.
-The favorite page keeps an unfavorited store visible until the user leaves that page, then reloads the saved state.
-The favorite area has no trash/delete button; the heart remains.
-
-Delivery:
-- Buyer sees the action named: تم استلام الطلب و الدفع
-- Seller receives a notification with order details after buyer confirms delivery/payment.
-- Notifications should route to the correct destination, such as relevant shop/comments/messages/order area.
-- Notification-center close X was repositioned away from the bell.
-
-Other completed behavior:
-- Duplicate رسائل العملاء header button removed for normal users; shop dashboard access remains.
-- سيارتي feature/button removed.
-- Browser back/forward behavior was addressed.
-- Dates changed from Hijri to Gregorian where requested.
-- Resend email notifications were configured for verified domain ghyarmarket-eg.com and Vercel variables.
-
-Decisions to revisit before a major remake:
-- Payment method
-- Delivery process
-- Return/refund policy
-- Store verification
-- Whether every part needs admin approval
-- Strict or optional compatibility data
-
-## Images
-
-The upload API:
-- Accepts common image types.
-- Has a 4 MB upload limit.
-- Rotates images.
-- Resizes without enlargement up to 2048px.
-- Converts to WebP at quality 92.
-This was improved from 1280px and quality 78 because shop photos looked blurry.
-Existing old shop photos were already compressed, so re-uploading them once may be needed.
-
-Current card image design:
-1. Wide shop photo banner at the top.
-2. Store name overlaid on the banner.
-3. Clicking the banner opens the seller store.
-4. Part photo below the banner.
-5. Offer information below the part photo.
-6. Card ends at عرض التفاصيل.
-7. No seller/photo section below the details button.
-Implemented in:
-- src/components/views/parts-view.tsx
-- src/components/views/home-view.tsx
-
-## Completed UI work
-
-- Professional Arabic RTL marketplace redesign.
-- Responsive desktop, mobile portrait, and mobile landscape layouts.
-- Admin/shop dashboard alignment and mobile tab fixes.
-- Sheet/menu close X positioning fixes.
-- Smaller, clearer homepage hero:
-  قطع غيار موثوقة، في مكان واحد
-  اطلبها بسهولة من متاجر موثوقة
-- Better store image display and upload quality.
-- Current supplied logo used in header, footer, auth, favicon, and Apple icon.
-- Logo backgrounds adjusted for light and dark mode.
-
-## Recent production commits
-
-- 3a1c887 Refresh brand logo for light and dark themes
-- 480c00f Move shop banner above product photo
-- 444c955 Improve store image quality across marketplace
-- 33282ed Improve shop image upload and display quality
-- 81cf8f6 Compact seller card and link shop photo
-- a6a23d5 Separate offer and seller details on part cards
-- a4e792c Improve shop photo and offer card details
-- 25425f5 Move shop photo into product card details
-- 53f05f7 Refine homepage hero messaging
-- 0e1300f Keep unfavorited stores visible in wishlist session
-- 88ba10f Fix mobile sheet close button placement
-- 1030770 Fix mobile dashboard tab overlap
-- 38adf4d Fix portrait dashboard layouts
-- e07bec8 Add new brand logo
-- e2276be Full UI redesign
-
-## Verification checklist
-
-For every change:
-- Check buyer/shop-owner/admin visibility.
-- Check Arabic RTL.
-- Check desktop, mobile portrait, and mobile landscape.
-- Check light and dark mode.
-- Check loading, empty, error, and signed-out states.
-- Check nested button event propagation.
-- Check notification destinations.
-- Check image sizes and quality.
-- Run lint and build.
-- Push only after checks pass.
-- Never claim deployment unless push succeeds.
-
+Do not mark a release gate complete without evidence. If a provider configuration cannot be completed securely, record it as `BLOCKED` in `PRODUCTION_READINESS.md` with the exact remaining action.

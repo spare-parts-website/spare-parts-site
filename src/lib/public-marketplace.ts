@@ -4,7 +4,6 @@ import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
 import { BLOCKED_STORE_NAMES, isBlockedStoreName } from '@/lib/store-moderation'
-import { evaluateFitment, type FitmentStatus, type VehicleProfile } from '@/lib/vehicle-compatibility'
 
 type PublicViewer = { id: string; role: string } | null
 
@@ -25,14 +24,11 @@ export type PublicPartListItem = {
   fitmentNotes: string | null
   images: Array<{ id: string; url: string; position: number }>
   compatibilities: Array<{ id: string; make: string; model: string; generation: string | null; yearFrom: number | null; yearTo: number | null; engine: string | null; trim: string | null; notes: string | null }>
-  compatibleWithSelectedCar: boolean
-  fitmentStatus: FitmentStatus
   store: { id: string; name: string; image: string | null; verified: boolean }
 }
 
 export type PublicPartsList = {
   parts: PublicPartListItem[]
-  selectedCar: (VehicleProfile & { id?: string }) | null
   pagination: { page: number; pageSize: number; total: number; totalPages: number }
   categories: string[]
   brands: string[]
@@ -48,7 +44,6 @@ export type PublicPartsQuery = {
   minPrice?: string | null
   maxPrice?: string | null
   carModel?: string
-  carId?: string
   sort?: string
   page?: number
 }
@@ -85,7 +80,7 @@ function publicPage(value: number | undefined) {
   return Number.isInteger(value) && Number(value) > 0 ? Math.min(Number(value), 10_000) : 1
 }
 
-export async function getPublicPartsList(query: PublicPartsQuery, viewer: PublicViewer): Promise<PublicPartsList> {
+export async function getPublicPartsList(query: PublicPartsQuery): Promise<PublicPartsList> {
   const page = publicPage(query.page)
   const pageSize = 24
   const search = clean(query.search)
@@ -94,43 +89,12 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
   const condition = clean(query.condition, 120)
   const storeId = clean(query.storeId, 100)
   const carModel = clean(query.carModel, 160)
-  const carId = clean(query.carId, 100)
   const sort = clean(query.sort, 30) || 'newest'
   const minPrice = query.minPrice ? Number(query.minPrice) : null
   const maxPrice = query.maxPrice ? Number(query.maxPrice) : null
   const fuzzyPartIds = search ? await findTypoTolerantPartIds(search) : []
   const where: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
   const and: Prisma.PartWhereInput[] = []
-  let selectedCar: PublicPartsList['selectedCar'] = null
-
-  if (carId && viewer) {
-    selectedCar = await db.userCar.findFirst({
-      where: { id: carId, userId: viewer.id },
-      select: { brand: true, model: true, generation: true, year: true, engine: true, trim: true },
-    })
-    if (selectedCar) {
-      const compatibilityAnd: Prisma.VehicleCompatibilityWhereInput[] = [
-        selectedCar.year
-          ? { AND: [{ OR: [{ yearFrom: null }, { yearFrom: { lte: selectedCar.year } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: selectedCar.year } }] }] }
-          : { yearFrom: null, yearTo: null },
-        selectedCar.generation
-          ? { OR: [{ generation: null }, { generation: { equals: selectedCar.generation, mode: 'insensitive' } }] }
-          : { generation: null },
-        selectedCar.engine
-          ? { OR: [{ engine: null }, { engine: { equals: selectedCar.engine, mode: 'insensitive' } }] }
-          : { engine: null },
-        selectedCar.trim
-          ? { OR: [{ trim: null }, { trim: { equals: selectedCar.trim, mode: 'insensitive' } }] }
-          : { trim: null },
-      ]
-      and.push({
-        OR: [
-          { universal: true },
-          { compatibilities: { some: { make: { equals: selectedCar.brand, mode: 'insensitive' }, model: { equals: selectedCar.model, mode: 'insensitive' }, AND: compatibilityAnd } } },
-        ],
-      })
-    }
-  }
   if (search) {
     const searchFilters: Prisma.PartWhereInput[] = [
       { name: { contains: search, mode: 'insensitive' } },
@@ -201,11 +165,7 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
   ])
 
   return {
-    parts: records.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => {
-      const fitmentStatus = evaluateFitment(part, selectedCar)
-      return { ...part, fitmentStatus, compatibleWithSelectedCar: fitmentStatus === 'fits' }
-    }),
-    selectedCar,
+    parts: records.filter((part) => !isBlockedStoreName(part.store.name)),
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
     categories: categories.map((item) => item.category).filter((item): item is string => Boolean(item)),
     brands: brands.map((item) => item.brand).filter((item): item is string => Boolean(item)),
@@ -290,7 +250,6 @@ export type PublicPart = {
   universal: boolean
   fitmentNotes: string | null
   compatibilities: Array<{ id: string; make: string; model: string; generation: string | null; yearFrom: number | null; yearTo: number | null; engine: string | null; trim: string | null; notes: string | null }>
-  viewerFitment: { status: FitmentStatus; car: VehicleProfile | null }
   store: {
     id: string
     name: string
@@ -354,8 +313,9 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
       },
       reviews: {
         where: { blocked: false },
-        select: { id: true, rating: true, comment: true, createdAt: true, orderId: true, user: { select: { name: true, avatar: true } } },
+        select: { id: true, rating: true, comment: true, createdAt: true, orderId: true, userId: true, user: { select: { name: true, avatar: true } } },
         orderBy: { createdAt: 'desc' },
+        take: 50,
       },
       images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
       compatibilities: { select: { id: true, make: true, model: true, generation: true, yearFrom: true, yearTo: true, engine: true, trim: true, notes: true }, orderBy: [{ make: 'asc' }, { model: 'asc' }] },
@@ -364,21 +324,27 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
 
   if (!record || record.blocked || isBlockedStoreName(record.store.name)) return { part: null, canReview: false }
 
-  const [canReview, primaryCar] = await Promise.all([
-    viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
-      ? db.order.findFirst({ where: { buyerId: viewer.id, status: { in: ['DELIVERED', 'RETURNED'] }, OR: [{ partId }, { items: { some: { partId } } }] }, select: { id: true } }).then(Boolean)
-      : false,
-    viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
-      ? db.userCar.findFirst({ where: { userId: viewer.id, isPrimary: true }, select: { brand: true, model: true, generation: true, year: true, engine: true, trim: true } })
-      : null,
-  ])
+  const canReview = await (viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
+    ? db.order.findFirst({ where: { buyerId: viewer.id, status: { in: ['DELIVERED', 'RETURNED'] }, OR: [{ partId }, { items: { some: { partId } } }] }, select: { id: true } }).then(Boolean)
+    : Promise.resolve(false))
+  const reviewOrderIds = record.reviews.map((review) => review.orderId).filter((id): id is string => Boolean(id))
+  const qualifyingOrders = reviewOrderIds.length
+    ? await db.order.findMany({
+        where: {
+          id: { in: reviewOrderIds },
+          status: { in: ['DELIVERED', 'RETURNED'] },
+          OR: [{ partId }, { items: { some: { partId } } }],
+        },
+        select: { id: true, buyerId: true },
+      })
+    : []
+  const qualifyingReviewKeys = new Set(qualifyingOrders.map((order) => `${order.buyerId}:${order.id}`))
   const { blocked: _blocked, store, reviews, ...part } = record
   void _blocked
 
   return {
     part: {
       ...part,
-      viewerFitment: { status: evaluateFitment(record, primaryCar), car: primaryCar },
       store: {
         id: store.id,
         name: store.name,
@@ -388,7 +354,7 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
         verified: store.verified,
         isOwnedByViewer: viewer?.id === store.ownerId,
       },
-      reviews: reviews.map(({ orderId, ...review }) => ({ ...review, verifiedPurchase: Boolean(orderId), createdAt: review.createdAt.toISOString() })),
+      reviews: reviews.map(({ orderId, userId, ...review }) => ({ ...review, verifiedPurchase: Boolean(orderId && qualifyingReviewKeys.has(`${userId}:${orderId}`)), createdAt: review.createdAt.toISOString() })),
     },
     canReview,
   }

@@ -3,7 +3,7 @@ import type { AIRequestPlan, AIRole, AIToolName } from '@/lib/ai/types'
 const ACTION = /(?:^|[\s،,.])(?:غي[ّ]?ر|عد[ّ]?ل|حد[ّ]?ث|زو[ّ]?د|قل[ّ]?ل|أضف|اضف|ضيف|حط|شيل|احذف|الغ[ِ]?|إلغاء|ارجع|استلم|وافق|ارفض|اشحن|احظر|وث[ّ]?ق|حل النزاع|change|update|set|add|remove|cancel|return|ship|approve|reject|block|verify)(?=$|[\s،,.])/i
 const CURRENT = /(?:سعر|بكام|كام|متاح|توفر|مواصفات|خبر|جديد|أحدث|اليوم|حالي|price|cost|how much|available|availability|specs?|latest|current|news|new model)/i
 const NAVIGATION = /(?:افتح|روح|وديني|صفحة|open|go to|navigate)/i
-const COMPATIBILITY = /(?:متوافق|ينفع|يركب|عربيتي|سيارتي|سيارتي الأساسية|compatible|fit|my car)/i
+const COMPATIBILITY = /(?:متوافق|ينفع|يركب|سيارة|compatible|fit|car)/i
 const SELLER_PRICE = /(?:اقترح|نصيحة|مناسب).*(?:سعر)|(?:سعر).*(?:اقترح|نصيحة|مناسب)|price advice|suggest.*price/i
 const ANALYTICS = /(?:تحليل|أداء|إحصائ|مبيعات|إيراد|ايراد|قيمة الطلبات|متوسط(?:\s+ال)?تقييم|مخزون(?:ها|ه|ي)?\s+(?:قليل|منخفض)|نفد|خلص|ناقص|ملخص|analytics|performance|statistics|insights|low stock|out of stock|revenue|average rating)/i
 const RECORDS = /(?:طلب|طلبات|رسال|رسائ|كوبون|تقييم|قطعة|قطع|مخزون|order|message|coupon|offer|review|listing|stock)|(?:^|\s)(?:عرض|عروض)(?=\s|$)/i
@@ -17,7 +17,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
   let intent = 'conversation'
   let forcedTool: AIToolName | undefined
   const actionRequest = ACTION.test(text) && !/(?:غير\s*(?:ال)?مقروء|not read|unread)/i.test(text)
-  const roleRecordRequest = (role === 'SHOP_OWNER' && RECORDS.test(text)) || (role === 'ADMIN' && ADMIN_RECORDS.test(text)) || (role !== 'GUEST' && role !== 'ADMIN' && /(?:حسابي|طلباتي|مفضل|عربياتي|سياراتي|السلة|account|my orders|wishlist|my cars|cart)/i.test(text))
+  const roleRecordRequest = (role === 'SHOP_OWNER' && RECORDS.test(text)) || (role === 'ADMIN' && ADMIN_RECORDS.test(text)) || (role !== 'GUEST' && role !== 'ADMIN' && /(?:حسابي|طلباتي|مفضل|السلة|account|my orders|wishlist|cart)/i.test(text))
   const liveSearch = CURRENT.test(text) && !actionRequest && !roleRecordRequest && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|رسال|عميل|(?:في|داخل) المتجر|my store|my account|my orders|inventory|platform|message|customer|in (?:my|the) store)/i.test(text)
   const asksForAnalysis = /(?:حل[ّ]?ل|تحليل|أداء|إحصائ|analytics|analy[sz]e|performance|statistics|insights)/i.test(text)
     || /(?:كم|كام|عدد|إجمالي|اجمالي|how many|total number)/i.test(text)
@@ -83,7 +83,7 @@ export function planAIRequest(message: string, role: AIRole): AIRequestPlan {
     intent = 'compatibility'
     tools.add('findCompatibleParts')
     forcedTool = 'findCompatibleParts'
-  } else if (role !== 'GUEST' && role !== 'ADMIN' && /(?:حسابي|طلباتي|آخر طلب|أحدث طلب|مفضل|عربياتي|سياراتي|السيارات المحفوظة|السلة|account|my orders|latest order|last order|wishlist|my cars|saved cars|cart)/i.test(text)) {
+  } else if (role !== 'GUEST' && role !== 'ADMIN' && /(?:حسابي|طلباتي|آخر طلب|أحدث طلب|مفضل|السلة|account|my orders|latest order|last order|wishlist|cart)/i.test(text)) {
     intent = 'account_context'
     tools.add('getAccountContext')
     forcedTool = 'getAccountContext'

@@ -12,7 +12,7 @@ export function MobileBottomNav() {
     user?.role === 'SHOP_OWNER'
       ? { label: 'صفحة المحل', href: '/seller/parts', icon: StoreIcon, active: view.name === 'shop-dashboard' }
       : { label: 'المفضلة', href: user ? '/account/wishlist' : '/login', icon: Heart, active: view.name === 'wishlist' },
-    { label: 'حسابي', href: user ? '/account/profile' : '/login', icon: UserRound, active: ['profile', 'cars', 'orders', 'inbox', 'login', 'register', 'forgot-password', 'reset-password'].includes(view.name) },
+    { label: 'حسابي', href: user ? '/account/profile' : '/login', icon: UserRound, active: ['profile', 'orders', 'inbox', 'login', 'register', 'forgot-password', 'reset-password'].includes(view.name) },
   ]
 
   return (

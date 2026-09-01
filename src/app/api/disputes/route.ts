@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireAuth, requireRole } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
 import { audit } from '@/lib/audit'
+import { isPrivateImageOwnedBy } from '@/lib/private-image'
 
 const EVIDENCE_URL = /^\/api\/private-image\?path=[A-Za-z0-9%._-]+$/
 
@@ -20,7 +21,9 @@ export async function POST(req: NextRequest) {
     const order = await db.order.findFirst({ where: { id: orderId, buyerId: session.id, status: { in: ['SHIPPED', 'DELIVERED'] } }, select: { id: true, storeId: true, store: { select: { ownerId: true } } } })
     if (!order) return NextResponse.json({ error: 'الطلب غير موجود أو غير مؤهل لفتح نزاع' }, { status: 404 })
     if (!['RETURN', 'WRONG_ITEM', 'DAMAGED', 'DELIVERY', 'OTHER'].includes(type) || typeof reason !== 'string' || reason.trim().length < 10 || reason.length > 2000) return NextResponse.json({ error: 'اكتب سببًا واضحًا للنزاع' }, { status: 400 })
-    const urls = Array.isArray(evidenceUrls) ? evidenceUrls.filter((url) => typeof url === 'string' && EVIDENCE_URL.test(url)).slice(0, 3) : []
+    const urls = Array.isArray(evidenceUrls)
+      ? evidenceUrls.filter((url) => typeof url === 'string' && EVIDENCE_URL.test(url) && isPrivateImageOwnedBy(url, 'evidence', session.id)).slice(0, 3)
+      : []
     const dispute = await db.dispute.create({ data: { orderId, buyerId: session.id, storeId: order.storeId, type, reason: reason.trim(), evidenceUrls: urls.length ? JSON.stringify(urls) : null } })
     await Promise.allSettled([createNotification({ userId: order.store.ownerId, title: 'نزاع جديد على طلب', message: 'فتح العميل طلب حماية جديد. راجع تفاصيل الطلب.', type: 'DISPUTE', link: 'shop-dashboard' }), audit({ actorId: session.id, action: 'DISPUTE_OPENED', targetType: 'order', targetId: orderId })])
     return NextResponse.json({ dispute }, { status: 201 })

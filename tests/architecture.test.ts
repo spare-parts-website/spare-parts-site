@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
 test('server-renders bounded homepage marketplace data without exposing owner identity', () => {
@@ -15,7 +15,8 @@ test('server-renders bounded homepage marketplace data without exposing owner id
   assert.doesNotMatch(home, /fetch\(['"]\/api\/(?:parts|stores)/)
   assert.doesNotMatch(home, /owner:\s*\{\s*select/)
   assert.match(home, /action="\/parts" method="get"/)
-  assert.match(page, /<HomeView isSeller=/)
+  assert.match(page, /<HomeView\s*\/>/)
+  assert.match(page, /export const revalidate = 30/)
   assert.doesNotMatch(layout, /متاجر موثوقة/)
 })
 
@@ -45,7 +46,7 @@ test('server-renders bounded marketplace lists without seller profile data', () 
   const partsView = readFileSync(new URL('../src/components/views/parts-view.tsx', import.meta.url), 'utf8')
   const storesView = readFileSync(new URL('../src/components/views/stores-view.tsx', import.meta.url), 'utf8')
 
-  assert.match(routes, /getPublicPartsList\(initialQuery, user\)/)
+  assert.match(routes, /getPublicPartsList\(initialQuery\)/)
   assert.match(routes, /<PartsView initialData=\{initialData\}/)
   assert.match(routes, /getPublicStoresList\(search, initialPage\)/)
   assert.match(routes, /<StoresView initialData=\{initialData\}/)
@@ -62,6 +63,17 @@ test('server-renders bounded marketplace lists without seller profile data', () 
   assert.doesNotMatch(storesView, /completionRate \?\? 100/)
 })
 
+test('keeps public SSR routes independent from session resolution', () => {
+  const homePage = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8')
+  const routes = readFileSync(new URL('../src/app/[...route]/page.tsx', import.meta.url), 'utf8')
+  const shell = readFileSync(new URL('../src/components/app-shell.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(homePage, /getSession/)
+  assert.match(routes, /const publicRoute =/)
+  assert.match(routes, /publicRoute \? null : await getSession\(\)/)
+  assert.match(shell, /\/api\/auth\/me/)
+  assert.match(shell, /Public SSR pages intentionally do not resolve/)
+})
+
 test('expands structured fitment additively and warns before checkout', () => {
   const schema = readFileSync(new URL('../prisma/schema.prisma', import.meta.url), 'utf8')
   const migration = readFileSync(new URL('../prisma/structured-fitment.sql', import.meta.url), 'utf8')
@@ -73,7 +85,8 @@ test('expands structured fitment additively and warns before checkout', () => {
   assert.match(schema, /trim\s+String\?/)
   assert.match(migration, /add column if not exists "universal"/)
   assert.doesNotMatch(migration, /\b(?:drop|truncate|delete)\b/i)
-  assert.match(publicData, /evaluateFitment/)
+  assert.match(publicData, /compatibilities:\s*\{\s*select/)
+  assert.doesNotMatch(publicData, /userCar|selectedCar|carId/)
   assert.match(publicData, /universal: true/)
   assert.match(checkout, /راجع توافق القطع قبل تأكيد الطلب/)
 })
@@ -95,7 +108,9 @@ test('keeps grouped-order reviews authorized and trust claims evidence based', (
   const partView = readFileSync(new URL('../src/components/views/part-view.tsx', import.meta.url), 'utf8')
 
   assert.match(reviewsRoute, /items:\s*\{\s*some:\s*\{\s*partId:\s*targetId/)
-  assert.match(publicData, /verifiedPurchase:\s*Boolean\(orderId\)/)
+  assert.match(publicData, /qualifyingReviewKeys/)
+  assert.match(publicData, /status: \{ in: \['DELIVERED', 'RETURNED'\] \}/)
+  assert.match(publicData, /take: 50/)
   assert.match(partView, /شراء موثق/)
   assert.doesNotMatch(partView, /توصيل سريع|إمكانية الاسترجاع/)
 })
@@ -133,4 +148,92 @@ test('requires positive product prices at every seller write boundary', () => {
   assert.match(sellerView, /min="0\.01"/)
   assert.match(migration, /check \("price" > 0\)/i)
   assert.doesNotMatch(migration, /\b(?:delete|drop|truncate)\b/i)
+})
+
+test('keeps JSON and CSV inventory mutations positive-price and atomic', () => {
+  const inventory = readFileSync(new URL('../src/app/api/shop/inventory/route.ts', import.meta.url), 'utf8')
+  assert.match(inventory, /price <= 0/)
+  assert.match(inventory, /parseCsv/)
+  assert.match(inventory, /preview/)
+  assert.match(inventory, /storeId, id: \{ in:/)
+  assert.match(inventory, /updateMany\(\{\s*where:\s*\{\s*id: item\.id,\s*storeId\s*\}/)
+  assert.match(inventory, /لم يتم حفظ أي صف/)
+})
+
+test('keeps the service worker privacy-safe and removes the obsolete socket path', () => {
+  const serviceWorker = readFileSync(new URL('../public/sw.js', import.meta.url), 'utf8')
+  const notifications = readFileSync(new URL('../src/components/notifications-bell.tsx', import.meta.url), 'utf8')
+  const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8')
+  const legacyService = new URL('../mini-services/notifications/index.ts', import.meta.url)
+
+  assert.match(serviceWorker, /ghyar-market-static-v2/)
+  assert.match(serviceWorker, /STATIC_ASSETS/)
+  assert.match(serviceWorker, /STATIC_ASSETS\.includes\(url\.pathname\)/)
+  assert.doesNotMatch(serviceWorker, /\/api\//)
+  assert.doesNotMatch(notifications, /socket\.io|XTransformPort|authenticate/)
+  assert.match(notifications, /visibilitychange/)
+  assert.match(config, /favicon\.ico/)
+  assert.equal(existsSync(legacyService), false)
+})
+
+test('uses optimized public hero and preset avatar assets', () => {
+  const home = readFileSync(new URL('../src/components/views/home-view.tsx', import.meta.url), 'utf8')
+  const avatars = readFileSync(new URL('../src/lib/profile-avatars.ts', import.meta.url), 'utf8')
+  const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8')
+  assert.match(home, /ghyar-market-hero\.webp/)
+  assert.doesNotMatch(home, /ghyar-market-hero\.png/)
+  assert.match(config, /source: '\/ghyar-market-hero\.png', destination: '\/ghyar-market-hero\.webp'/)
+  assert.match(config, /source: '\/ghyar-market-logo\.png', destination: '\/ghyar-market-logo\.svg'/)
+  assert.match(avatars, /profile-avatars\/turbocharger\.webp/)
+  assert.match(avatars, /profile-avatars\/(?:electric-car|classic-car|fuel-gauge-car)\.webp/)
+  for (const asset of ['ghyar-market-hero.webp', 'profile-avatars/turbocharger.webp', 'profile-avatars/electric-car.webp', 'profile-avatars/classic-car.webp', 'profile-avatars/fuel-gauge-car.webp']) {
+    assert.equal(existsSync(new URL(`../public/${asset}`, import.meta.url)), true, asset)
+  }
+  for (const legacyAsset of ['ghyar-market-hero.png', 'ghyar-market-logo.png']) {
+    assert.equal(existsSync(new URL(`../public/${legacyAsset}`, import.meta.url)), false, legacyAsset)
+  }
+})
+
+test('keeps the intentionally removed saved-car feature out of application surfaces', () => {
+  const types = readFileSync(new URL('../src/lib/ai/types.ts', import.meta.url), 'utf8')
+  const tools = readFileSync(new URL('../src/lib/ai/tools.ts', import.meta.url), 'utf8')
+  const planner = readFileSync(new URL('../src/lib/ai/planner.ts', import.meta.url), 'utf8')
+  const deterministic = readFileSync(new URL('../src/lib/ai/deterministic.ts', import.meta.url), 'utf8')
+  const nav = readFileSync(new URL('../src/components/mobile-bottom-nav.tsx', import.meta.url), 'utf8')
+  const shell = readFileSync(new URL('../src/components/app-shell.tsx', import.meta.url), 'utf8')
+
+  for (const source of [types, tools, planner, deterministic, nav, shell]) {
+    assert.doesNotMatch(source, /car_create|userCar|user-cars|account\/cars|selectedCar|viewerFitment/)
+  }
+  assert.equal(existsSync(new URL('../src/components/views/my-cars-view.tsx', import.meta.url)), false)
+  assert.equal(existsSync(new URL('../src/app/api/user-cars/route.ts', import.meta.url)), false)
+})
+
+test('keeps seller offer entry focused while retaining admin editing controls', () => {
+  const seller = readFileSync(new URL('../src/components/views/shop-dashboard-view.tsx', import.meta.url), 'utf8')
+  const admin = readFileSync(new URL('../src/components/admin-edit-dialog.tsx', import.meta.url), 'utf8')
+  assert.doesNotMatch(seller, /OEM رقم|أسماء بحث إضافية|رقم القطعة/)
+  assert.match(admin, /admin-part-number/)
+  assert.match(admin, /admin-part-oem/)
+  assert.match(admin, /admin-part-aliases/)
+  assert.match(admin, /compatibilities/)
+})
+
+test('authorizes private images from resource participants instead of filenames', () => {
+  const route = readFileSync(new URL('../src/app/api/private-image/route.ts', import.meta.url), 'utf8')
+  const chat = readFileSync(new URL('../src/app/api/chat/route.ts', import.meta.url), 'utf8')
+  const disputes = readFileSync(new URL('../src/app/api/disputes/route.ts', import.meta.url), 'utf8')
+  const verification = readFileSync(new URL('../src/app/api/seller-verification/route.ts', import.meta.url), 'utf8')
+  assert.match(route, /chatMessage\.findFirst/)
+  assert.match(route, /productMessage\.findFirst/)
+  assert.match(route, /dispute\.findFirst/)
+  assert.match(route, /sellerVerification\.findFirst/)
+  assert.match(route, /aIMessage\.findFirst/)
+  assert.match(route, /const privateUrl =/)
+  assert.match(route, /SAFE_PATH = .*\{20,220\}/)
+  assert.match(route, /canAccessPrivateImage\(session/)
+  assert.doesNotMatch(route, /path\.includes\(`-\$\{session\.id\}-`\)/)
+  assert.match(chat, /isPrivateImageOwnedBy\(submittedImageUrl, 'chat', session\.id\)/)
+  assert.match(disputes, /isPrivateImageOwnedBy\(url, 'evidence', session\.id\)/)
+  assert.match(verification, /isPrivateImageOwnedBy\(url, 'verification', session\.id\)/)
 })

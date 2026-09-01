@@ -8,6 +8,7 @@ import { buildGroupedOrderDrafts } from '../src/lib/grouped-orders.ts'
 import { buildMarketplaceSearchQueries, normalizeMarketplaceSearch } from '../src/lib/search-normalization.ts'
 import { normalizeEgyptianMobile } from '../src/lib/egyptian-phone.ts'
 import { normalizeProductCondition, schemaConditionUrl } from '../src/lib/product-condition.ts'
+import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '../src/lib/marketplace-taxonomy.ts'
 import { readFileSync } from 'node:fs'
 
 test('calculates coupon discount against quantity without floating-point drift', () => {
@@ -112,6 +113,10 @@ test('normalizes Arabic search and expands bounded automotive synonyms', () => {
   assert.ok(variants.includes('bmw motor'))
   assert.ok(variants.includes('bmw engine'))
   assert.ok(variants.length <= 8)
+  assert.ok(buildMarketplaceSearchQueries('bww').includes('bmw'), 'BMW typo should expand to the canonical brand')
+  assert.ok(buildMarketplaceSearchQueries('mersedes').includes('mercedes'), 'common Mercedes typo should expand to the canonical brand')
+  assert.ok(buildMarketplaceSearchQueries('mercedez engine').includes('mercedes engine'), 'multi-word typos should preserve the remaining terms')
+  assert.equal(buildMarketplaceSearchQueries('x').length, 0)
 })
 
 test('normalizes valid Egyptian mobile formats and rejects invalid prefixes', () => {
@@ -130,6 +135,15 @@ test('normalizes known product conditions and never guesses unknown Schema.org s
   assert.equal(schemaConditionUrl('استيراد مستعمل'), 'https://schema.org/UsedCondition')
   assert.equal(schemaConditionUrl('مجدد'), 'https://schema.org/RefurbishedCondition')
   assert.equal(schemaConditionUrl('استيراد اصلي'), undefined)
+})
+
+test('canonicalizes common marketplace taxonomy aliases without touching custom values', () => {
+  assert.equal(normalizeMarketplaceBrand('  bMw  '), 'BMW')
+  assert.equal(normalizeMarketplaceBrand('Mercedes '), 'Mercedes')
+  assert.equal(normalizeMarketplaceCategory(' car   engine '), 'محرك')
+  assert.equal(normalizeMarketplaceCategory('جنوط'), 'جنط')
+  assert.equal(normalizeMarketplaceCondition(' import   new '), 'استيراد جديد')
+  assert.equal(normalizeMarketplaceBrand('علامة محلية خاصة'), 'علامة محلية خاصة')
 })
 
 test('renders escaped Arabic RTL transactional email markup', () => {

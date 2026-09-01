@@ -4,6 +4,9 @@ import { requireAuth } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
 import { rateLimit } from '@/lib/rate-limit'
 import { censorChatContent } from '@/lib/content-moderation'
+import { isPrivateImageOwnedBy } from '@/lib/private-image'
+
+const PUBLIC_UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
 
 function unauthorized() {
   return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
@@ -202,11 +205,13 @@ export async function POST(req: NextRequest) {
     const participantId = typeof body.participantId === 'string' ? body.participantId : null
     const rawMessage = typeof body.message === 'string' ? body.message.trim() : ''
     const message = censorChatContent(rawMessage).text
-    const imageUrl = typeof body.imageUrl === 'string' && body.imageUrl.startsWith('https://') ? body.imageUrl : null
-
-    if (session.role === 'BUYER' && imageUrl) {
-      return NextResponse.json({ error: 'يمكن للمشتري إرسال رسائل نصية فقط' }, { status: 400 })
-    }
+    const submittedImageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : ''
+    const imageUrl = submittedImageUrl
+      ? isPrivateImageOwnedBy(submittedImageUrl, 'chat', session.id) || PUBLIC_UPLOAD_URL.test(submittedImageUrl)
+        ? submittedImageUrl
+        : null
+      : null
+    if (submittedImageUrl && !imageUrl) return NextResponse.json({ error: 'مرفق الصورة غير صالح' }, { status: 400 })
 
     if (!message && !imageUrl) return NextResponse.json({ error: 'اكتب رسالة أو أرفق صورة' }, { status: 400 })
     if (rawMessage.length > 2000) return NextResponse.json({ error: 'الرسالة طويلة جداً' }, { status: 400 })

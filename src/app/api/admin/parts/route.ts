@@ -30,6 +30,7 @@ export async function GET() {
       include: {
         store: { select: { id: true, name: true } },
         images: { select: { url: true, position: true }, orderBy: { position: 'asc' } },
+        compatibilities: { orderBy: [{ make: 'asc' }, { model: 'asc' }] },
       },
       orderBy: { createdAt: 'desc' },
     })

@@ -51,9 +51,8 @@ export function deterministicToolInput(toolName: AIToolName, message: string, ro
     return query ? { query: query.slice(0, 120), limit: requestedLimit(message, 8) } : undefined
   }
   if (toolName === 'findCompatibleParts') {
-    const primary = /(?:عربيتي|سيارتي|الأساسية|my (?:primary )?car)/i.test(message)
-    const query = cleanSubject(message, [/(?:هل|دور|ابحث|عايز|find|search|compatible|fit|fits|متوافق|ينفع|يركب)/gi, /(?:^|\s)(?:عن|مع|على|لـ?|for|my car|عربيتي|سيارتي|الأساسية)(?=\s|$)/gi])
-    return { carDescription: primary ? 'السيارة الأساسية' : message.slice(0, 160), ...(query && query.length < message.length ? { query: query.slice(0, 120) } : {}) }
+    const query = cleanSubject(message, [/(?:هل|دور|ابحث|عايز|find|search|compatible|fit|fits|متوافق|ينفع|يركب)/gi, /(?:^|\s)(?:عن|مع|على|لـ?|for)(?=\s|$)/gi])
+    return { carDescription: message.slice(0, 160), ...(query && query.length < message.length ? { query: query.slice(0, 120) } : {}) }
   }
   if (toolName === 'navigate') return navigationInput(message, role)
   if (toolName === 'getSellerWorkspace') return sellerWorkspaceInput(message)
@@ -72,10 +71,9 @@ export function deterministicToolInput(toolName: AIToolName, message: string, ro
   return undefined
 }
 
-export function accountFocus(message: string): 'overview' | 'orders' | 'cart' | 'cars' | 'favorites' {
+export function accountFocus(message: string): 'overview' | 'orders' | 'cart' | 'favorites' {
   if (/(?:طلباتي|آخر طلب|أحدث طلب|my orders?|last order|latest order)/i.test(message)) return 'orders'
   if (/(?:السلة|cart)/i.test(message)) return 'cart'
-  if (/(?:عربياتي|سياراتي|سيارتي|السيارات(?: المحفوظة)?|my cars?|saved cars?)/i.test(message)) return 'cars'
   if (/(?:مفضل|wishlist|favorites?)/i.test(message)) return 'favorites'
   return 'overview'
 }
@@ -201,7 +199,7 @@ function adminLookupInputs(message: string) {
 function navigationInput(message: string, role: AIRole) {
   const destinations: Array<[RegExp, string]> = [
     [/(?:الرئيسية|home)/i, 'home'], [/(?:المتاجر|stores)/i, role === 'ADMIN' ? 'admin_stores' : 'stores'], [/(?:السلة|cart)/i, 'cart'],
-    [/(?:المفضلة|wishlist)/i, 'wishlist'], [/(?:سياراتي|عربياتي|cars)/i, 'cars'], [/(?:حسابي|الملف|profile)/i, 'profile'],
+    [/(?:المفضلة|wishlist)/i, 'wishlist'], [/(?:حسابي|الملف|profile)/i, 'profile'],
     ...(role === 'SHOP_OWNER' ? [[/(?:رسائل|messages)/i, 'seller_messages'] as [RegExp, string]] : []),
     [/(?:كوبونات|coupons)/i, 'seller_coupons'], [/(?:تحليل|إحصائ|analytics)/i, 'seller_analytics'],
     [/(?:بلاغات|reports)/i, 'admin_reports'], [/(?:مستخدمين|users)/i, 'admin_users'],
@@ -220,12 +218,6 @@ function actionInput(message: string, role: AIRole, context: AIClientContext): A
   if (/(?:المفضلة|wishlist|favorite)/i.test(message) && /(?:أضف|اضف|add|شيل|احذف|remove)/i.test(message)) {
     const remove = /(?:شيل|احذف|remove)/i.test(message)
     return { action: remove ? 'wishlist_store_remove' : 'wishlist_store_add', storeName: selectionName || cleanSubject(message, [/(?:أضف|اضف|add|شيل|احذف|remove|من|إلى|الى|المفضلة|wishlist|favorite|متجر|store)/gi]) }
-  }
-  if (/(?:احفظ|أضف|اضف|سجل|save|add).*(?:سيار|عربي|car)/i.test(message)) {
-    const year = Number(message.match(/\b(19\d{2}|20\d{2})\b/)?.[1]) || undefined
-    const subject = cleanSubject(message, [/(?:احفظ|أضف|اضف|سجل|save|add|سيارة|سيارتي|عربية|عربيتي|car|as primary|أساسية)/gi, /\b(?:19\d{2}|20\d{2})\b/g])
-    const [brand, ...modelParts] = subject.split(' ').filter(Boolean)
-    if (brand && modelParts.length) return { action: 'car_create', brand, model: modelParts.join(' '), year, isPrimary: /(?:أساسية|primary)/i.test(message) }
   }
   if (/(?:طلب|order)/i.test(message)) {
     const statuses: Array<[RegExp, string]> = [[/(?:إلغاء|الغ|cancel)/i, 'cancel'], [/(?:استلم|deliver)/i, 'deliver'], [/(?:إرجاع|ارجع|return)/i, 'return'], [/(?:وافق|approve)/i, 'approve'], [/(?:ارفض|reject)/i, 'reject'], [/(?:اشحن|ship)/i, 'ship']]
@@ -287,7 +279,7 @@ function isEnglish(message: string) { return /[A-Za-z]/.test(message) && !/[\u06
 
 function greeting(role: AIRole, english: boolean) {
   if (english) return role === 'SHOP_OWNER' ? 'Hi! I can instantly check your listings, stock, orders, coupons, messages, reviews, pricing, and store performance. Tell me what you need.' : role === 'ADMIN' ? 'Hi! I can instantly show platform statistics and safely look up users, stores, parts, orders, reports, verifications, and disputes.' : 'Hi! I can instantly search parts and stores, check your account, orders, cart, and favorite stores. What do you need?'
-  return role === 'SHOP_OWNER' ? 'أهلاً! أقدر فوراً أراجع قطع متجرك والمخزون والطلبات والكوبونات والرسائل والتقييمات والأسعار والأداء. قل لي ما الذي تحتاجه.' : role === 'ADMIN' ? 'أهلاً! أقدر فوراً أعرض إحصاءات المنصة وأبحث بأمان عن المستخدمين والمتاجر والقطع والطلبات والبلاغات والتوثيقات والنزاعات.' : 'أهلاً! أقدر فوراً أبحث عن القطع والمتاجر وأراجع حسابك وطلباتك وسلتك وسياراتك والقطع المتوافقة. ماذا تحتاج؟'
+  return role === 'SHOP_OWNER' ? 'أهلاً! أقدر فوراً أراجع قطع متجرك والمخزون والطلبات والكوبونات والرسائل والتقييمات والأسعار والأداء. قل لي ما الذي تحتاجه.' : role === 'ADMIN' ? 'أهلاً! أقدر فوراً أعرض إحصاءات المنصة وأبحث بأمان عن المستخدمين والمتاجر والقطع والطلبات والبلاغات والتوثيقات والنزاعات.' : 'أهلاً! أقدر فوراً أبحث عن القطع والمتاجر وأراجع حسابك وطلباتك وسلتك والقطع المتوافقة. ماذا تحتاج؟'
 }
 
 function help(role: AIRole, english: boolean) {

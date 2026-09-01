@@ -110,7 +110,7 @@ export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
   return (
     <div className="overflow-hidden pb-8">
       <section className="relative isolate min-h-[38rem] overflow-hidden bg-[#07111f] text-white sm:min-h-[42rem]">
-        <Image src="/ghyar-market-hero.png" alt="سيارة وقطع غيار داخل مركز خدمة حديث" fill priority sizes="100vw" className="-z-20 object-cover object-[42%_center] opacity-75" />
+        <Image src="/ghyar-market-hero.webp" alt="سيارة وقطع غيار داخل مركز خدمة حديث" fill priority sizes="100vw" className="-z-20 object-cover object-[42%_center] opacity-75" />
         <div className="absolute inset-0 -z-10 bg-gradient-to-l from-[#07111f] via-[#07111f]/90 to-[#07111f]/15" />
         <div className="absolute inset-0 -z-10 premium-grid opacity-30" />
         <div className="content-container flex min-h-[38rem] items-center py-16 sm:min-h-[42rem]">

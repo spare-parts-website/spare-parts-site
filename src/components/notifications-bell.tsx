@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useState, useRef } from 'react'
-import { io, Socket } from 'socket.io-client'
 import { useAppStore, type View } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -89,109 +88,62 @@ export function NotificationsBell() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [open, setOpen] = useState(false)
   const [connected, setConnected] = useState(false)
-  const socketRef = useRef<Socket | null>(null)
-  const connectedRef = useRef(false)
+  const loadingRef = useRef(false)
 
   // Fetch initial notifications
   useEffect(() => {
-    if (!user) {
-      // Clear state when user logs out
-      return
-    }
-
     let cancelled = false
-    const load = () => {
-      fetch('/api/notifications', { cache: 'no-store' })
-        .then((r) => r.json())
-        .then((data) => {
-          if (!cancelled) {
-            setNotifications(data.notifications || [])
-            setNotificationCount(data.unreadCount || 0)
-          }
-        })
-        .catch(() => {})
+    let timer: ReturnType<typeof setTimeout> | undefined
+    let delay = 15000
+
+    if (!user) {
+      setNotifications([])
+      setNotificationCount(0)
+      setConnected(false)
+      return () => { cancelled = true }
     }
-    load()
 
-    // Poll only as a fallback when the socket is unavailable and the tab is visible.
-    const interval = setInterval(() => {
-      if (!connectedRef.current && document.visibilityState === 'visible') load()
-    }, 15000)
+    const load = async (resetDelay = false) => {
+      if (cancelled || loadingRef.current || document.visibilityState !== 'visible') return
+      loadingRef.current = true
+      try {
+        const response = await fetch('/api/notifications', { cache: 'no-store' })
+        if (!response.ok) throw new Error('notifications-request-failed')
+        const data = await response.json()
+        if (cancelled) return
+        setNotifications(data.notifications || [])
+        setNotificationCount(data.unreadCount || 0)
+        setConnected(true)
+        delay = resetDelay ? 15000 : 15000
+      } catch {
+        if (!cancelled) {
+          setConnected(false)
+          delay = Math.min(delay * 2, 120000)
+        }
+      } finally {
+        loadingRef.current = false
+        if (!cancelled) timer = setTimeout(() => void load(), delay)
+      }
+    }
 
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        if (timer) clearTimeout(timer)
+        delay = 15000
+        void load(true)
+      } else if (timer) {
+        clearTimeout(timer)
+      }
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    void load(true)
     return () => {
       cancelled = true
-      clearInterval(interval)
+      if (timer) clearTimeout(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
     }
   }, [user, setNotificationCount])
-
-  // WebSocket connection (with polling fallback)
-  useEffect(() => {
-    if (!user) return
-
-    let socket: Socket | null = null
-
-    const connect = () => {
-      try {
-        socket = io('/?XTransformPort=3003', {
-          transports: ['polling', 'websocket'],
-          forceNew: true,
-          reconnection: true,
-          reconnectionAttempts: 5,
-          reconnectionDelay: 2000,
-          timeout: 5000,
-        })
-        socketRef.current = socket
-
-        socket.on('connect', () => {
-          connectedRef.current = true
-          setConnected(true)
-          socket?.emit('authenticate', { userId: user.id })
-        })
-
-        socket.on('disconnect', () => {
-          connectedRef.current = false
-          setConnected(false)
-        })
-
-        socket.on('connect_error', () => {
-          connectedRef.current = false
-          setConnected(false)
-        })
-
-        socket.on('notification', (notification: Notification) => {
-          setNotifications((prev) => [notification, ...prev].slice(0, 50))
-          setNotificationCount(useAppStore.getState().notificationCount + 1)
-          // Show browser notification
-          if (typeof window !== 'undefined' && 'Notification' in window) {
-            if (Notification.permission === 'granted') {
-              new Notification(notification.title, { body: notification.message })
-            }
-          }
-        })
-      } catch (e) {
-        // WebSocket failed to initialize, rely on polling
-      }
-    }
-
-    connect()
-
-    return () => {
-      connectedRef.current = false
-      if (socket) {
-        socket.disconnect()
-        socketRef.current = null
-      }
-    }
-  }, [user, setNotificationCount])
-
-  // Request browser notification permission
-  useEffect(() => {
-    if (user && typeof window !== 'undefined' && 'Notification' in window) {
-      if (Notification.permission === 'default') {
-        Notification.requestPermission()
-      }
-    }
-  }, [user])
 
   const handleMarkAllRead = async () => {
     await fetch('/api/notifications', {

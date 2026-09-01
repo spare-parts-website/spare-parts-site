@@ -162,14 +162,14 @@ test('answers the exact requested summary instead of returning a generic dashboa
   assert.equal(sellerInsightFocus('اعرض إيرادات المتجر'), 'sales')
   assert.equal(sellerInsightFocus('ما متوسط تقييم منتجاتي؟'), 'rating')
   assert.equal(accountFocus('ما هو آخر طلب لي؟'), 'orders')
-  assert.equal(accountFocus('اعرض السيارات المحفوظة'), 'cars')
+  assert.equal(accountFocus('اعرض السيارات المحفوظة'), 'overview')
   assert.equal(accountFocus('ماذا يوجد في السلة؟'), 'cart')
   assert.equal(adminInsightFocus('كم بلاغ مفتوح؟'), 'reports')
   assert.equal(adminInsightFocus('ما قيمة الطلبات المكتملة؟'), 'revenue')
   assert.deepEqual(deterministicToolInput('getSellerInsights', 'ايه القطع اللي مخزونها قليل؟', 'SHOP_OWNER', emptyContext), { focus: 'low_stock' })
   assert.equal(planAIRequest('كم عدد الطلبات عندي؟', 'SHOP_OWNER').forcedTool, 'getSellerInsights')
   assert.equal(planAIRequest('كم بلاغ مفتوح؟', 'ADMIN').forcedTool, 'getAdminInsights')
-  assert.equal(planAIRequest('اعرض السيارات المحفوظة', 'BUYER').forcedTool, 'getAccountContext')
+  assert.notEqual(planAIRequest('اعرض السيارات المحفوظة', 'BUYER').forcedTool, 'getAccountContext')
   assert.deepEqual(deterministicToolInput('getAccountContext', 'اعرض طلباتي قيد الانتظار', 'BUYER', emptyContext), { focus: 'orders', orderStatus: 'PENDING' })
 })
 
@@ -180,7 +180,7 @@ test('covers every deterministic tool category with usable structured input', ()
     ['navigate', 'افتح صفحة طلباتي', 'BUYER'],
     ['prepareDraft', 'اكتب رسالة أسأل فيها عن التوافق', 'BUYER'],
     ['getAccountContext', 'اعرض طلباتي', 'BUYER'],
-    ['findCompatibleParts', 'ابحث عن تيل فرامل متوافق مع سيارتي الأساسية', 'BUYER'],
+    ['findCompatibleParts', 'ابحث عن تيل فرامل متوافق مع BMW 320i 2020', 'BUYER'],
     ['prepareAction', 'أضف تيل فرامل Bosch إلى السلة', 'BUYER'],
     ['getSellerInsights', 'ايه القطع اللي مخزونها قليل؟', 'SHOP_OWNER'],
     ['suggestSellerPrice', 'اقترح سعر تيل فرامل Bosch', 'SHOP_OWNER'],
@@ -237,7 +237,7 @@ test('turns seller filters into database fields instead of mistaken text searche
 })
 
 test('does not mistake substrings inside ordinary Arabic words for actions', () => {
-  assert.equal(planAIRequest('ابحث عن تيل فرامل متوافق مع سيارتي الأساسية', 'BUYER').forcedTool, 'findCompatibleParts')
+  assert.equal(planAIRequest('ابحث عن تيل فرامل متوافق مع BMW 320i 2020', 'BUYER').forcedTool, 'findCompatibleParts')
   assert.equal(planAIRequest('اعرض أحدث بلاغ', 'ADMIN').forcedTool, 'lookupAdminRecords')
   assert.equal(planAIRequest('اعرض رسائل العملاء غير المقروءة', 'SHOP_OWNER').forcedTool, 'getSellerWorkspace')
   assert.equal(planAIRequest('اعرض تقييمات نجمة واحدة', 'SHOP_OWNER').forcedTool, 'getSellerWorkspace')

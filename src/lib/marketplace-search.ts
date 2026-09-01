@@ -18,6 +18,36 @@ const fitmentDocument = Prisma.sql`(
 
 const storeDocument = Prisma.sql`(coalesce(store_record."name", '') || ' ' || coalesce(store_record."description", ''))`
 
+// Keep identifier/OEM matches ahead of descriptive text. The fuzzy query is
+// still gated by the trigram index below, while these weights make the
+// returned IDs deterministic when several fields match the same typo.
+const partRankScore = Prisma.sql`greatest(
+  case when lower(coalesce(p."oemNumber", '')) = lower(search_query.query) then 1.00 else 0 end,
+  case when lower(coalesce(p."partNumber", '')) = lower(search_query.query) then 0.98 else 0 end,
+  case when lower(coalesce(p."name", '')) = lower(search_query.query) then 0.96 else 0 end,
+  case when lower(coalesce(p."brand", '')) = lower(search_query.query) then 0.94 else 0 end,
+  extensions.word_similarity(search_query.query, coalesce(p."oemNumber", '')) * 0.92,
+  extensions.word_similarity(search_query.query, coalesce(p."partNumber", '')) * 0.90,
+  extensions.word_similarity(search_query.query, coalesce(p."name", '')) * 0.84,
+  extensions.word_similarity(search_query.query, coalesce(p."brand", '')) * 0.82,
+  extensions.word_similarity(search_query.query, coalesce(p."searchAliases", '')) * 0.76,
+  extensions.word_similarity(search_query.query, coalesce(p."description", '')) * 0.50,
+  extensions.word_similarity(search_query.query, ${partDocument}) * 0.70
+)`
+
+const fitmentRankScore = Prisma.sql`greatest(
+  extensions.word_similarity(search_query.query, coalesce(compatibility."make", '')) * 0.82,
+  extensions.word_similarity(search_query.query, coalesce(compatibility."model", '')) * 0.82,
+  extensions.word_similarity(search_query.query, ${fitmentDocument}) * 0.70
+)`
+
+const storeRankScore = Prisma.sql`greatest(
+  case when lower(coalesce(store_record."name", '')) = lower(search_query.query) then 0.94 else 0 end,
+  extensions.word_similarity(search_query.query, coalesce(store_record."name", '')) * 0.82,
+  extensions.word_similarity(search_query.query, coalesce(store_record."description", '')) * 0.50,
+  extensions.word_similarity(search_query.query, ${storeDocument}) * 0.70
+)`
+
 export async function findTypoTolerantPartIds(value: string, limit = 200) {
   const queries = buildMarketplaceSearchQueries(value)
   if (!queries.some((query) => query.length >= 3)) return []
@@ -28,19 +58,19 @@ export async function findTypoTolerantPartIds(value: string, limit = 200) {
       select matched."id", max(matched.score)::float8 as score
       from search_queries search_query
       cross join lateral (
-        select p."id", extensions.word_similarity(search_query.query, ${partDocument}) as score
+        select p."id", ${partRankScore} as score
           from public."Part" p
           where p."blocked" = false
             and ${partDocument} operator(extensions.%>) search_query.query
             and extensions.word_similarity(search_query.query, ${partDocument}) >= 0.64
         union all
-        select p."id", extensions.word_similarity(search_query.query, ${fitmentDocument}) as score
+        select p."id", ${fitmentRankScore} as score
           from public."VehicleCompatibility" compatibility
           join public."Part" p on p."id" = compatibility."partId" and p."blocked" = false
           where ${fitmentDocument} operator(extensions.%>) search_query.query
             and extensions.word_similarity(search_query.query, ${fitmentDocument}) >= 0.64
         union all
-        select p."id", extensions.word_similarity(search_query.query, ${storeDocument}) as score
+        select p."id", ${storeRankScore} as score
           from public."Store" store_record
           join public."Part" p on p."storeId" = store_record."id" and p."blocked" = false
           where ${storeDocument} operator(extensions.%>) search_query.query
@@ -51,7 +81,11 @@ export async function findTypoTolerantPartIds(value: string, limit = 200) {
       limit ${Math.min(Math.max(limit, 1), 500)}
     `)
     return matches.map(({ id }) => id)
-  } catch {
+  } catch (error) {
+    console.error('Marketplace fuzzy part search failed', {
+      error: error instanceof Error ? error.name : 'UnknownError',
+      queryLength: value.trim().length,
+    })
     return []
   }
 }
@@ -63,7 +97,7 @@ export async function findTypoTolerantStoreIds(value: string, limit = 50) {
   try {
     const matches = await db.$queryRaw<RankedId[]>(Prisma.sql`
       with search_queries(query) as (values ${Prisma.join(queries.map((query) => Prisma.sql`(${query})`))})
-      select store_record."id", max(extensions.word_similarity(search_query.query, ${storeDocument}))::float8 as score
+      select store_record."id", max(${storeRankScore})::float8 as score
       from search_queries search_query
       cross join public."Store" store_record
       where ${storeDocument} operator(extensions.%>) search_query.query
@@ -73,7 +107,11 @@ export async function findTypoTolerantStoreIds(value: string, limit = 50) {
       limit ${Math.min(Math.max(limit, 1), 200)}
     `)
     return matches.map(({ id }) => id)
-  } catch {
+  } catch (error) {
+    console.error('Marketplace fuzzy store search failed', {
+      error: error instanceof Error ? error.name : 'UnknownError',
+      queryLength: value.trim().length,
+    })
     return []
   }
 }

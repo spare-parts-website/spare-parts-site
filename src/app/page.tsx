@@ -1,12 +1,15 @@
 import { AppShell } from '@/components/app-shell'
 import { HomeView } from '@/components/views/home-view'
-import { getSession } from '@/lib/auth'
+
+// Anonymous marketplace data may be regenerated independently of auth state.
+// Keep the window short so inventory changes appear without embedding cookies
+// or user identity in the shared HTML cache.
+export const revalidate = 30
 
 export default async function HomePage() {
-  const user = await getSession()
   return (
-    <AppShell initialView={{ name: 'home' }} initialUser={user}>
-      <HomeView isSeller={user?.role === 'SHOP_OWNER'} />
+    <AppShell initialView={{ name: 'home' }} initialUser={null}>
+      <HomeView />
     </AppShell>
   )
 }

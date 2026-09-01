@@ -6,12 +6,12 @@ import { prepareActionProposal } from '@/lib/ai/actions'
 import { planDeterministicRequest } from '@/lib/ai/deterministic'
 import { presentSellerInventory } from '@/lib/ai/deterministic-presenters'
 import { presentAIResponse } from '@/lib/ai/presentation'
-import { resolutionCard, resolveAdminEntity, resolveCar, resolveOrder, resolvePart, resolveSellerCoupon, resolveSellerMessage, resolveStore } from '@/lib/ai/resolver'
+import { resolutionCard, resolveAdminEntity, resolveOrder, resolvePart, resolveSellerCoupon, resolveSellerMessage, resolveStore } from '@/lib/ai/resolver'
 import { AI_ACTIONS, type AIClientContext, type AIRole, type AIToolCard, type AIToolName } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
 const navigationDestinations = z.enum([
-  'home', 'parts', 'stores', 'cart', 'orders', 'wishlist', 'cars', 'profile',
+  'home', 'parts', 'stores', 'cart', 'orders', 'wishlist', 'profile',
   'seller_parts', 'seller_orders', 'seller_analytics', 'seller_coupons', 'seller_messages',
   'admin_users', 'admin_parts', 'admin_orders', 'admin_stores', 'admin_reports',
 ])
@@ -44,11 +44,6 @@ const actionSchema = z.object({
   role: z.enum(['BUYER', 'SHOP_OWNER', 'ADMIN']).optional(),
   trackingNumber: z.string().max(100).optional(),
   brand: z.string().max(80).optional(),
-  model: z.string().max(80).optional(),
-  year: z.number().optional(),
-  engine: z.string().max(80).optional(),
-  nickname: z.string().max(80).optional(),
-  isPrimary: z.boolean().optional(),
 })
 
 export function createAITools(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; internetSearchEnabled?: boolean; allowedTools?: AIToolName[] }) {
@@ -97,7 +92,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
     }),
     prepareDraft: tool({
       description: 'حضّر مسودة فقط دون حفظها. استخدمها للوصف أو البحث أو الرسائل أو نماذج البائع.',
-      inputSchema: z.object({ target: z.enum(['search', 'car', 'message', 'listing', 'coupon', 'moderation_note']), fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])) }),
+      inputSchema: z.object({ target: z.enum(['search', 'message', 'listing', 'coupon', 'moderation_note']), fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])) }),
       execute: async ({ target, fields }): Promise<AIToolCard> => {
         assertDraftAllowed(target, input.role)
         return { type: 'draft', title: 'تم تجهيز المسودة', description: 'راجعها قبل الحفظ أو الإرسال.', clientAction: { type: 'draft', target, fields } }
@@ -106,49 +101,50 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
   }
 
   const buyerTools = input.user && input.user.role !== 'ADMIN' ? {
-    getAccountContext: tool<{ focus: 'overview' | 'orders' | 'cart' | 'cars' | 'favorites'; orderStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED' }, AIToolCard, Record<string, never>>({
-      description: 'اعرض الجزء المطلوب فقط من حساب المشتري: ملخص أو سيارات أو متاجر مفضلة أو طلبات أو سلة.',
-      inputSchema: z.object({ focus: z.enum(['overview', 'orders', 'cart', 'cars', 'favorites']).default('overview'), orderStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']).optional() }),
+    getAccountContext: tool<{ focus: 'overview' | 'orders' | 'cart' | 'favorites'; orderStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED' }, AIToolCard, Record<string, never>>({
+      description: 'اعرض الجزء المطلوب فقط من حساب المشتري: ملخص أو متاجر مفضلة أو طلبات أو سلة.',
+      inputSchema: z.object({ focus: z.enum(['overview', 'orders', 'cart', 'favorites']).default('overview'), orderStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']).optional() }),
       execute: async ({ focus, orderStatus }): Promise<AIToolCard> => {
-        const [cars, favorites, orders, carCount, favoriteCount, orderCount, wishlistCount] = await Promise.all([
-          db.userCar.findMany({ where: { userId: input.user!.id }, select: { id: true, brand: true, model: true, year: true, engine: true, nickname: true, isPrimary: true }, orderBy: [{ isPrimary: 'desc' }, { createdAt: 'desc' }], take: 5 }),
+        const [favorites, orders, favoriteCount, orderCount, wishlistCount] = await Promise.all([
           db.storeWishlist.findMany({ where: { userId: input.user!.id }, include: { store: { select: { id: true, name: true } } }, take: 10 }),
           db.order.findMany({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) }, include: { part: { select: { name: true } }, items: { select: { productName: true, quantity: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
-          db.userCar.count({ where: { userId: input.user!.id } }),
           db.storeWishlist.count({ where: { userId: input.user!.id } }),
           db.order.count({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) } }),
           db.wishlist.count({ where: { userId: input.user!.id } }),
         ])
         const cartTotal = input.clientContext.cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
         const cartItems = input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `الكمية ${item.quantity} • سعر الوحدة ${item.price.toLocaleString('ar-EG')} ج.م`, value: `${(item.price * item.quantity).toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: item.partId, label: item.name } }))
-        const carItems = cars.map((car) => ({ id: `car-${car.id}`, title: car.nickname || `${car.brand} ${car.model}`, subtitle: `${car.brand} ${car.model}${car.year ? ` ${car.year}` : ''}${car.engine ? ` • ${car.engine}` : ''}${car.isPrimary ? ' • السيارة الأساسية' : ''}`, select: { kind: 'car' as const, id: car.id, label: car.nickname || `${car.brand} ${car.model}` } }))
         const favoriteItems = favorites.map((favorite) => ({ id: `store-${favorite.store.id}`, title: favorite.store.name, subtitle: 'متجر محفوظ في المفضلة', select: { kind: 'store' as const, id: favorite.store.id, label: favorite.store.name } }))
         const orderItems = orders.map((order) => { const label = order.items.length > 1 ? `${order.items.length} منتجات` : order.items[0]?.productName || order.part.name; return { id: `order-${order.id}`, title: label, subtitle: `${order.store.name} • ${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label } } })
         if (focus === 'cart') return { type: 'insight', title: 'سلة مشترياتك', description: cartItems.length ? `${cartItems.length} عناصر بقيمة إجمالية ${cartTotal.toLocaleString('ar-EG')} ج.م. الأسعار والمخزون قد يتغيران حتى إتمام الطلب.` : 'سلة مشترياتك فارغة حالياً.', items: cartItems }
-        if (focus === 'cars') return { type: 'insight', title: 'سياراتك المحفوظة', description: carCount ? `لديك ${carCount} سيارة محفوظة. أعرض أحدث 5 سيارات، والسيارة الأساسية مميزة بوضوح.` : 'لم تحفظ سيارة بعد. أضف الماركة والموديل والسنة للحصول على نتائج توافق أفضل.', items: carItems }
         if (focus === 'favorites') return { type: 'insight', title: 'المفضلة', description: favoriteCount || wishlistCount ? `${favoriteCount} متجر مفضل${wishlistCount ? ` • ${wishlistCount} قطعة محفوظة في البيانات القديمة` : ''}. أعرض أحدث المتاجر المحفوظة.` : 'لا توجد متاجر محفوظة في المفضلة حالياً.', items: favoriteItems }
         if (focus === 'orders') return { type: 'insight', title: orderStatus ? `طلباتك — ${humanStatus(orderStatus)}` : 'طلباتك', description: orderCount ? `لديك ${orderCount} ${orderStatus ? `طلبات بحالة «${humanStatus(orderStatus)}»` : 'طلب إجمالاً'}. أعرض أحدث ${orders.length} مع الحالة والكمية والتاريخ والسعر.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'في حسابك'} حالياً.`, items: orderItems }
-        return { type: 'insight', title: 'ملخص حسابك', description: `${carCount} سيارة محفوظة • ${orderCount} طلب إجمالي • ${favoriteCount} متجر مفضل • ${input.clientContext.cart.length} عناصر في السلة بقيمة ${cartTotal.toLocaleString('ar-EG')} ج.م.`, items: [...orderItems.slice(0, 2), ...cartItems.slice(0, 2), ...carItems.slice(0, 2)] }
+        return { type: 'insight', title: 'ملخص حسابك', description: `${orderCount} طلب إجمالي • ${favoriteCount} متجر مفضل • ${input.clientContext.cart.length} عناصر في السلة بقيمة ${cartTotal.toLocaleString('ar-EG')} ج.م.`, items: [...orderItems.slice(0, 2), ...cartItems.slice(0, 2)] }
       },
     }),
-    findCompatibleParts: tool<{ carId?: string; carDescription?: string; query?: string }, AIToolCard, Record<string, never>>({
-      description: 'ابحث عن قطع متوافقة مع سيارة محفوظة. استخدم وصفاً طبيعياً مثل عربيتي الأساسية أو تويوتا 2020، ولا تطلب معرّف السيارة.',
-      inputSchema: z.object({ carId: z.string().max(100).optional(), carDescription: z.string().max(160).optional(), query: z.string().max(120).optional() }),
-      execute: async ({ carId, carDescription, query }): Promise<AIToolCard> => {
-        const resolution = await resolveCar(input.user!, carDescription, carId, input.clientContext.selection)
-        if (resolution.status !== 'resolved') return resolution.card
-        const car = await db.userCar.findFirst({ where: { id: resolution.entity.id, userId: input.user!.id } })
-        if (!car) return { type: 'insight', title: 'السيارة لم تعد متاحة', description: 'اختر سيارة محفوظة أخرى أو أضف بيانات السيارة.' }
+    findCompatibleParts: tool<{ carDescription?: string; query?: string }, AIToolCard, Record<string, never>>({
+      description: 'ابحث عن قطع متوافقة باستخدام ماركة وموديل مكتوبين مباشرة، مثل BMW 320i 2020. لا توجد سيارات محفوظة داخل المساعد.',
+      inputSchema: z.object({ carDescription: z.string().max(160).optional(), query: z.string().max(120).optional() }),
+      execute: async ({ carDescription, query }): Promise<AIToolCard> => {
+        const vehicle = extractVehicleDescription(carDescription || '')
+        if (!vehicle) return { type: 'insight', title: 'اذكر ماركة وموديل السيارة', description: 'اكتب ماركة السيارة وموديلها وسنة الصنع اختيارياً، وسأطابقها مع بيانات التوافق المسجلة في العروض.' }
         const parts = await db.part.findMany({
           where: {
             blocked: false,
-            ...(query ? { OR: [{ name: { contains: query } }, { brand: { contains: query } }, { category: { contains: query } }] } : {}),
-            compatibilities: { some: { make: { contains: car.brand }, model: { contains: car.model }, AND: car.year ? [{ OR: [{ yearFrom: null }, { yearFrom: { lte: car.year } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: car.year } }] }] : undefined } },
+            ...(query ? { OR: [{ name: { contains: query, mode: 'insensitive' } }, { brand: { contains: query, mode: 'insensitive' } }, { category: { contains: query, mode: 'insensitive' } }] } : {}),
+            compatibilities: {
+              some: {
+                make: { contains: vehicle.make, mode: 'insensitive' },
+                model: { contains: vehicle.model, mode: 'insensitive' },
+                ...(vehicle.year ? { AND: [{ OR: [{ yearFrom: null }, { yearFrom: { lte: vehicle.year } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: vehicle.year } }] }] } : {}),
+              },
+            },
           },
           select: { id: true, name: true, price: true, stock: true, store: { select: { name: true } } },
           orderBy: { createdAt: 'desc' }, take: 10,
         })
-        return { type: 'results', title: `قطع متوافقة مع ${car.brand} ${car.model}`, description: `التوافق مبني على بيانات البائع المسجلة${car.year ? ` لسنة ${car.year}` : ''}. راجع رقم القطعة قبل الشراء.`, items: parts.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.store.name} • مخزون ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
+        const visible = parts.filter((part) => !isBlockedStoreName(part.store.name))
+        return { type: 'results', title: `قطع متوافقة مع ${vehicle.make} ${vehicle.model}`, description: `التوافق مبني على بيانات البائع المسجلة${vehicle.year ? ` لسنة ${vehicle.year}` : ''}. راجع رقم القطعة قبل الشراء.`, items: visible.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.store.name} • مخزون ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
       },
     }),
   } : {}
@@ -407,7 +403,7 @@ export async function getSellerInsightsCard(user: SessionUser, focus: 'overview'
   const lowStock = parts.filter((part) => part.stock <= 3)
   const pendingOrders = orders.filter((order) => !['DELIVERED', 'RETURNED', 'CANCELLED', 'REJECTED'].includes(order.status))
   const paidRevenue = orders.filter((order) => order.paymentStatus === 'PAID').reduce((sum, order) => sum + order.totalPrice, 0)
-  const statusCounts = [...new Set(orders.map((order) => order.status))].map((status) => ({ status, count: orders.filter((order) => order.status === status).length }))
+  const statusCounts: Array<{ status: string; count: number }> = [...new Set(orders.map((order) => String(order.status)))].map((status) => ({ status, count: orders.filter((order) => String(order.status) === status).length }))
   const lowStockItems = lowStock.slice(0, 20).map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.stock === 0 ? 'نفد من المخزون' : `متبقي ${part.stock}`} • ${part.blocked ? 'محظورة' : 'نشطة'}`, value: `${part.price.toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } }))
   if (focus === 'out_of_stock' || focus === 'low_stock') return presentSellerInventory({ storeName: store.name, totalParts: partCount, lowStockCount, parts, focus })
   if (focus === 'sales') return {
@@ -434,7 +430,7 @@ export async function getSellerInsightsCard(user: SessionUser, focus: 'overview'
 function navigationHref(destination: NavigationDestination, role: AIRole, query?: string) {
   const publicPaths: Partial<Record<NavigationDestination, string>> = { home: '/', parts: query ? `/parts?search=${encodeURIComponent(query)}` : '/parts', stores: '/stores', cart: '/cart' }
   if (destination in publicPaths) return publicPaths[destination]!
-  const accountPaths: Partial<Record<NavigationDestination, string>> = { orders: '/account/orders', wishlist: '/account/wishlist', cars: '/account/cars', profile: '/account/profile' }
+  const accountPaths: Partial<Record<NavigationDestination, string>> = { orders: '/account/orders', wishlist: '/account/wishlist', profile: '/account/profile' }
   if (destination in accountPaths && role !== 'GUEST' && role !== 'ADMIN') return accountPaths[destination]!
   const sellerPaths: Partial<Record<NavigationDestination, string>> = { seller_parts: '/seller/parts', seller_orders: '/seller/orders', seller_analytics: '/seller/analytics', seller_coupons: '/seller/coupons', seller_messages: '/seller/messages' }
   if (destination in sellerPaths && role === 'SHOP_OWNER') return sellerPaths[destination]!
@@ -446,10 +442,27 @@ function navigationHref(destination: NavigationDestination, role: AIRole, query?
 function assertDraftAllowed(target: string, role: AIRole) {
   if (target === 'search') return
   if (role === 'GUEST') throw new Error('DRAFT_FORBIDDEN')
-  if (['car', 'message'].includes(target) && role !== 'ADMIN') return
+  if (target === 'message' && role !== 'ADMIN') return
   if (['listing', 'coupon'].includes(target) && role === 'SHOP_OWNER') return
   if (target === 'moderation_note' && role === 'ADMIN') return
   throw new Error('DRAFT_FORBIDDEN')
+}
+
+function extractVehicleDescription(value: string) {
+  const tokens = value.match(/[\p{L}\p{N}-]+/gu) || []
+  const knownMakes = new Set([
+    'bmw', 'مرسيدس', 'mercedes', 'mercedes-benz', 'toyota', 'تويوتا', 'hyundai', 'هيونداي', 'nissan', 'نيسان',
+    'kia', 'كيا', 'honda', 'هوندا', 'ford', 'فورد', 'volkswagen', 'volkswagen', 'vw', 'فولكس', 'chevrolet', 'شيفروليه',
+    'mitsubishi', 'ميتسوبيشي', 'audi', 'اودي', 'أودي', 'volvo', 'فولفو', 'skoda', 'سكودا', 'peugeot', 'بيجو', 'renault', 'رينو',
+  ])
+  const makeIndex = tokens.findIndex((token) => knownMakes.has(token.toLocaleLowerCase('ar')))
+  if (makeIndex < 0) return null
+  const ignored = new Set(['car', 'سيارة', 'السيارة', 'compatible', 'fit', 'fits', 'متوافق', 'ينفع', 'يركب', 'مع', 'for', 'with', 'موديل', 'model'])
+  const model = tokens.slice(makeIndex + 1).find((token) => !/^\d{4}$/.test(token) && !ignored.has(token.toLocaleLowerCase('ar')))
+  if (!model) return null
+  const yearValue = tokens.find((token) => /^\d{4}$/.test(token))
+  const year = yearValue ? Number(yearValue) : undefined
+  return { make: tokens[makeIndex], model, ...(year && year >= 1950 && year <= new Date().getFullYear() + 2 ? { year } : {}) }
 }
 
 function humanStatus(status: string) {

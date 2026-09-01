@@ -52,6 +52,7 @@ export async function createNotification(input: {
           subject: `غيار ماركت: ${input.title}`,
           text: `${input.title}\n\n${input.message}\n\nعرض التفاصيل: ${actionUrl}\n\nيمكنك إدارة إشعارات البريد من صفحة ملفك الشخصي في غيار ماركت.`,
           html: notificationEmailHtml({ ...input, link: actionUrl }),
+          tags: [{ name: 'notification_id', value: notification.id }],
         }, { idempotencyKey: `notification/${notification.id}` })
         if (result.error) throw new Error(result.error.message)
         await db.emailDeliveryAttempt.upsert({

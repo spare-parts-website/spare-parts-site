@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
 import { audit } from '@/lib/audit'
+import { isPrivateImageOwnedBy } from '@/lib/private-image'
 
 const DOCUMENT_URL = /^\/api\/private-image\?path=[A-Za-z0-9%._-]+$/
 
@@ -20,7 +21,9 @@ export async function POST(req: NextRequest) {
   try {
     const session = await requireRole('SHOP_OWNER'); const { documentUrls, businessName } = await req.json(); const store = await db.store.findUnique({ where: { ownerId: session.id } })
     if (!store) return NextResponse.json({ error: 'لا يوجد متجر' }, { status: 404 })
-    const urls = Array.isArray(documentUrls) ? documentUrls.filter((url) => typeof url === 'string' && DOCUMENT_URL.test(url)).slice(0, 3) : []
+    const urls = Array.isArray(documentUrls)
+      ? documentUrls.filter((url) => typeof url === 'string' && DOCUMENT_URL.test(url) && isPrivateImageOwnedBy(url, 'verification', session.id)).slice(0, 3)
+      : []
     if (!urls.length) return NextResponse.json({ error: 'ارفع مستندًا واحدًا على الأقل' }, { status: 400 })
     const verification = await db.sellerVerification.upsert({ where: { storeId: store.id }, create: { storeId: store.id, documentUrls: JSON.stringify(urls), businessName: typeof businessName === 'string' ? businessName.trim().slice(0, 160) || null : null }, update: { documentUrls: JSON.stringify(urls), businessName: typeof businessName === 'string' ? businessName.trim().slice(0, 160) || null : null, status: 'PENDING', adminNote: null, submittedAt: new Date(), reviewedAt: null } })
     await db.store.update({ where: { id: store.id }, data: { verificationStatus: 'PENDING', verified: false, verifiedAt: null } })

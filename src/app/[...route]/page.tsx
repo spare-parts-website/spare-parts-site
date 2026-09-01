@@ -81,11 +81,12 @@ export async function generateMetadata({ params }: RoutePageProps): Promise<Meta
 }
 
 export default async function RoutePage({ params, searchParams }: RoutePageProps) {
-  const user = await getSession()
   const { route } = await params
   const query = await searchParams
   const [section, id, childId] = route
   const search = first(query.search)
+  const publicRoute = (section === 'parts' && !id) || (section === 'stores' && !id) || legalPages.has(section) || ['login', 'register', 'forgot-password', 'reset-password'].includes(section)
+  const user = publicRoute ? null : await getSession()
   let view: View
   let content: React.ReactNode
   let structuredData: Record<string, unknown> | null = null
@@ -105,7 +106,7 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
       sort: first(query.sort) || 'newest',
       page: Number.isFinite(requestedPage) ? requestedPage : 1,
     }
-    const initialData = await getPublicPartsList(initialQuery, user)
+    const initialData = await getPublicPartsList(initialQuery)
     content = <PartsView initialData={initialData} initialQuery={initialQuery} />
   } else if (section === 'parts' && id && !childId) {
     view = { name: 'part', partId: id }

@@ -1,56 +1,73 @@
-# Feature parity checklist
+# Feature parity and release checklist
 
-Baseline: commit `8317dd3` plus the preserved pre-remake workspace. The remake's visual system remains the source of truth.
-
-## Automated source audit
-
-- [x] Every API route present in `8317dd3` still exists.
-- [x] Every view component present in `8317dd3` still exists.
-- [x] Every baseline route/view state is reachable through the remake router.
-- [x] Paymob code and routes remain excluded from this release.
+This checklist describes the current implementation in `codex/preserve-mobile-navigation`. It is intentionally evidence-based; an unchecked release item is not a claim of failure, only work still requiring remote or browser evidence.
 
 ## Authentication and profiles
 
-- [x] Registration, login verification, resend verification, logout, and current-user session routes remain present.
-- [x] Preset avatar selection remains available during registration and profile editing.
-- [x] Custom avatar upload remains available from `/account/profile` for buyers, sellers, and admins.
-- [x] Avatar persistence remains backed by the existing `User.avatar` field.
-- [x] Avatars render in the header, profile, parts, stores, seller cards, and reviews.
-- [x] `/account/profile` is reachable through desktop account controls and mobile `حسابي` navigation.
-- [x] `/forgot-password` and `/reset-password?token=...` provide an Arabic RTL recovery flow.
-- [x] Reset requests return the same message for known and unknown email addresses.
-- [x] Reset tokens are random, hashed at rest, expire after 30 minutes, are one-time use, and are rate-limited.
-- [x] A successful reset invalidates prior reset tokens, verification challenges, and existing sessions.
+- [x] Registration, login verification, resend verification, logout, current-user session, forgot-password, and reset-password routes remain present.
+- [x] Buyers, sellers, and admins can persist preset or uploaded avatars through the existing `User.avatar` field.
+- [x] Account profile is reachable from desktop controls and mobile `حسابي` navigation.
+- [x] Reset tokens are hashed, one-time, expiring, and rate-limited; successful reset invalidates prior sessions/challenges.
 
 ## Buyer parity
 
-- [x] Parts and store discovery, search, filters, details, reviews, wishlist, saved cars, cart, COD checkout, orders, invoices, and buyer/seller chat remain routed.
-- [x] Existing loading, error/retry, and empty states remain in place.
-- [x] COD order creation and stock updates remain atomic and Paymob is not enabled.
+- [x] Parts and store discovery, search, filters, details, reviews, wishlist, cart, COD checkout, orders, invoices, and buyer/seller chat remain routed.
+- [x] Loading, retry, empty, and signed-out states remain in place.
+- [x] Grouped seller orders keep one `Order` per seller, item-level stock/coupon transactions, and checkout idempotency.
+- [x] `My Car / Saved Cars / سيارتي` is intentionally removed from customer UI, navigation, AI actions, prompts, and checkout. The historical `UserCar` table is retained; no destructive database migration was made.
 
 ## Seller parity
 
-- [x] Store setup/editing, inventory, orders, analytics, coupons, messages, reviews, uploads, and notifications remain routed and role-protected.
-- [x] Seller avatars are visible beside their stores, listings, and marketplace identity.
+- [x] Store setup/editing, inventory, CSV import/export, orders, analytics, coupons, messages, reviews, verification, uploads, and notifications remain routed and role-protected.
+- [x] JSON and CSV bulk inventory updates enforce positive prices, non-negative integer stock, row/file limits, ownership, canonical taxonomy, and atomic apply.
+- [x] Structured fitment supports universal listings, multiple entries, make/model minimums, year ranges, notes, and conservative unknown states.
 
 ## Admin parity
 
-- [x] User, store, part, order, review, and report tools remain routed and role-protected.
-- [x] Existing security headers, protected internal routes, and fail-closed RLS posture remain unchanged.
+- [x] User, store, part, order, review, report, verification, and moderation tools remain routed and role-protected.
+- [x] Admin edits use the same positive-price and canonical taxonomy boundaries as seller writes.
+- [x] Admin offer editing covers identifiers, taxonomy, price/stock, images, and structured fitment; seller offer entry omits OEM/search-only fields.
+- [x] Private chat/product attachments, dispute evidence, verification documents, and AI images require resolved resource access; admins may inspect known resources only.
 
-## Verification completed before preview
+## Data, search, and trust
 
-- [x] Prisma schema formatting and client generation.
-- [x] ESLint.
-- [x] Unit tests, including the Arabic reset email template.
-- [x] Production build.
-- [x] Desktop and mobile browser checks for login, registration, preset avatars, forgot password, malformed reset links, and account navigation.
-- [x] Accessibility audit of login and registration with zero violations.
-- [x] Production migration preserved all user, store, part, order, avatar, upload, and reset records.
+- [x] Brand, category, and condition aliases normalize to canonical display values while preserving justified custom values.
+- [x] Additive taxonomy backfill completed without deleting orders, order items, parts, or compatibility rows.
+- [x] Automotive search remains parameterized, bounded, Arabic-normalized, synonym-aware, and weighted toward OEM/part numbers; regression `bww → BMW` is covered.
+- [x] Blocked reviews remain excluded from public lists, aggregates, and structured data; qualifying-order review authorization is preserved.
 
-## Release gates
+## Privacy, PWA, and performance
 
-- [ ] Preview deployment succeeds with production-like data access.
-- [ ] Preview public marketplace pages and protected-route behavior pass smoke checks.
-- [ ] Production deployment is made only from the previewed commit.
-- [ ] Live-domain smoke checks and Vercel runtime-log checks pass.
+- [x] Public anonymous pages use bounded server data; authenticated identity is a client `/api/auth/me` overlay rather than shared HTML.
+- [x] Account, seller, admin, checkout, messages, APIs, and private-image responses are not service-worker cached.
+- [x] Service-worker cache is an explicit versioned static allowlist and deletes prior caches on upgrade.
+- [x] Notification polling is authenticated, visibility-aware, backoff-capable, and no longer opens Socket.IO in production.
+- [x] The unsafe standalone notification Socket.IO mini-service is decommissioned; the root dependency remains only for the isolated websocket demo.
+- [x] Hero and preset avatars use optimized WebP assets; obsolete multi-megabyte PNGs are removed with legacy rewrites. Favicon resolves to the branded SVG.
+
+## Email and operations
+
+- [x] In-app notifications remain durable and email failures remain secondary/failure-safe.
+- [x] Resend delivery webhook endpoint verifies Standard Webhooks signatures, is idempotent, updates `EmailDeliveryAttempt`, and audits severe lifecycle events.
+- [ ] `RESEND_WEBHOOK_SECRET` still needs to be stored in Vercel before enabling exactly one production Resend webhook.
+- [x] CI workflow retains npm install, production audit, lint, test, and build steps; remote GitHub run must still be confirmed after the final push.
+
+## Local verification completed
+
+- [x] `npm ci`
+- [x] `npm audit --omit=dev --audit-level=high`
+- [x] `npx tsc --noEmit`
+- [x] `npm run lint`
+- [x] `npm test` (68/68)
+- [x] `npm run build` (exits successfully; local placeholder DB URL emits a handled homepage warning)
+- [x] `git diff --check`
+- [ ] `npm run test:smoke` against the final deployed URL
+
+## Release gates still requiring remote evidence
+
+- [ ] Final readiness commit pushed without force-push.
+- [ ] GitHub Actions final run is green.
+- [ ] Vercel preview for the final commit is `READY` and passes public/protected smoke checks.
+- [ ] Production promotion is the previewed commit; live checks pass for `/`, `/parts`, `/parts?search=bww`, `/stores`, legal/auth pages, `/favicon.ico`, relevant APIs, and logout/offline privacy.
+- [ ] Vercel runtime errors/logs show no new checkout, upload, webhook, or favicon/socket regressions.
+- [ ] Supabase post-deploy counts, RLS posture, and public/private storage bucket visibility are rechecked.

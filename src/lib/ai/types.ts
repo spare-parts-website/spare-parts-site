@@ -25,7 +25,6 @@ export const AI_ACTIONS = [
   'cart_add',
   'wishlist_store_add',
   'wishlist_store_remove',
-  'car_create',
   'order_action',
   'seller_part_create',
   'seller_part_update',
@@ -40,7 +39,7 @@ export const AI_ACTIONS = [
 
 export type AIAction = (typeof AI_ACTIONS)[number]
 
-export const AI_ENTITY_KINDS = ['part', 'store', 'car', 'order', 'user', 'report', 'verification', 'dispute', 'coupon', 'message'] as const
+export const AI_ENTITY_KINDS = ['part', 'store', 'order', 'user', 'report', 'verification', 'dispute', 'coupon', 'message'] as const
 export type AIEntityKind = (typeof AI_ENTITY_KINDS)[number]
 
 export interface AISelectedEntity {
@@ -81,11 +80,6 @@ export interface AIProposalInput {
   role?: SessionUser['role']
   trackingNumber?: string
   brand?: string
-  model?: string
-  year?: number
-  engine?: string
-  nickname?: string
-  isPrimary?: boolean
 }
 
 export interface AIClientAction {

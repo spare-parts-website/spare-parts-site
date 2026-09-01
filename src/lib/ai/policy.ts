@@ -9,8 +9,8 @@ export const DEFAULT_AI_QUOTAS: Readonly<Record<AIRole, number>> = {
 
 const ROLE_ACTIONS: Readonly<Record<AIRole, ReadonlySet<AIAction>>> = {
   GUEST: new Set(),
-  BUYER: new Set(['cart_add', 'wishlist_store_add', 'wishlist_store_remove', 'car_create', 'order_action']),
-  SHOP_OWNER: new Set(['cart_add', 'wishlist_store_add', 'wishlist_store_remove', 'car_create', 'order_action', 'seller_part_create', 'seller_part_update', 'seller_coupon_create']),
+  BUYER: new Set(['cart_add', 'wishlist_store_add', 'wishlist_store_remove', 'order_action']),
+  SHOP_OWNER: new Set(['cart_add', 'wishlist_store_add', 'wishlist_store_remove', 'order_action', 'seller_part_create', 'seller_part_update', 'seller_coupon_create']),
   ADMIN: new Set(['admin_part_block', 'admin_user_role', 'admin_store_verify', 'admin_report_decision', 'admin_verification_decision', 'admin_dispute_decision']),
 }
 

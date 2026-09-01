@@ -1,8 +1,8 @@
 export const PROFILE_AVATARS = [
-  { url: '/profile-avatars/fuel-gauge-car.png', label: 'عداد وسيارة رياضية' },
-  { url: '/profile-avatars/classic-car.png', label: 'سيارة كلاسيكية' },
-  { url: '/profile-avatars/electric-car.png', label: 'سيارة كهربائية' },
-  { url: '/profile-avatars/turbocharger.png', label: 'شاحن توربيني' },
+  { url: '/profile-avatars/fuel-gauge-car.webp', label: 'عداد وسيارة رياضية' },
+  { url: '/profile-avatars/classic-car.webp', label: 'سيارة كلاسيكية' },
+  { url: '/profile-avatars/electric-car.webp', label: 'سيارة كهربائية' },
+  { url: '/profile-avatars/turbocharger.webp', label: 'شاحن توربيني' },
 ] as const
 
 export function isProfileAvatar(value: unknown): value is string {
