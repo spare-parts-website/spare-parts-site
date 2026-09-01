@@ -27,7 +27,7 @@ export type PublicPartListItem = {
   compatibilities: Array<{ id: string; make: string; model: string; generation: string | null; yearFrom: number | null; yearTo: number | null; engine: string | null; trim: string | null; notes: string | null }>
   compatibleWithSelectedCar: boolean
   fitmentStatus: FitmentStatus
-  store: { id: string; name: string; image: string | null }
+  store: { id: string; name: string; image: string | null; verified: boolean }
 }
 
 export type PublicPartsList = {
@@ -188,7 +188,7 @@ export async function getPublicPartsList(query: PublicPartsQuery, viewer: Public
     category: true, brand: true, condition: true, image: true, carModels: true, partNumber: true, oemNumber: true, universal: true, fitmentNotes: true,
     images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }] },
     compatibilities: { select: { id: true, make: true, model: true, generation: true, yearFrom: true, yearTo: true, engine: true, trim: true, notes: true } },
-    store: { select: { id: true, name: true, image: true } },
+    store: { select: { id: true, name: true, image: true, verified: true } },
   } satisfies Prisma.PartSelect
 
   const facetBase: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
@@ -285,6 +285,8 @@ export type PublicPart = {
   condition: string | null
   image: string | null
   carModels: string | null
+  partNumber: string | null
+  oemNumber: string | null
   universal: boolean
   fitmentNotes: string | null
   compatibilities: Array<{ id: string; make: string; model: string; generation: string | null; yearFrom: number | null; yearTo: number | null; engine: string | null; trim: string | null; notes: string | null }>
@@ -298,7 +300,7 @@ export type PublicPart = {
     verified: boolean
     isOwnedByViewer: boolean
   }
-  reviews: Array<{ id: string; rating: number; comment: string | null; createdAt: string; user: { name: string; avatar: string | null } }>
+  reviews: Array<{ id: string; rating: number; comment: string | null; createdAt: string; verifiedPurchase: boolean; user: { name: string; avatar: string | null } }>
   images: Array<{ id: string; url: string; position: number }>
 }
 
@@ -330,6 +332,8 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
       condition: true,
       image: true,
       carModels: true,
+      partNumber: true,
+      oemNumber: true,
       universal: true,
       fitmentNotes: true,
       blocked: true,
@@ -346,7 +350,7 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
       },
       reviews: {
         where: { blocked: false },
-        select: { id: true, rating: true, comment: true, createdAt: true, user: { select: { name: true, avatar: true } } },
+        select: { id: true, rating: true, comment: true, createdAt: true, orderId: true, user: { select: { name: true, avatar: true } } },
         orderBy: { createdAt: 'desc' },
       },
       images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
@@ -380,7 +384,7 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
         verified: store.verified,
         isOwnedByViewer: viewer?.id === store.ownerId,
       },
-      reviews: reviews.map((review) => ({ ...review, createdAt: review.createdAt.toISOString() })),
+      reviews: reviews.map(({ orderId, ...review }) => ({ ...review, verifiedPurchase: Boolean(orderId), createdAt: review.createdAt.toISOString() })),
     },
     canReview,
   }

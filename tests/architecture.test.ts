@@ -88,3 +88,14 @@ test('keeps typo-tolerant marketplace search indexed and bounded', () => {
   assert.match(search, /operator\(extensions\.%>\)/)
   assert.match(search, /Math\.min\(Math\.max\(limit, 1\), 500\)/)
 })
+
+test('keeps grouped-order reviews authorized and trust claims evidence based', () => {
+  const reviewsRoute = readFileSync(new URL('../src/app/api/reviews/route.ts', import.meta.url), 'utf8')
+  const publicData = readFileSync(new URL('../src/lib/public-marketplace.ts', import.meta.url), 'utf8')
+  const partView = readFileSync(new URL('../src/components/views/part-view.tsx', import.meta.url), 'utf8')
+
+  assert.match(reviewsRoute, /items:\s*\{\s*some:\s*\{\s*partId:\s*targetId/)
+  assert.match(publicData, /verifiedPurchase:\s*Boolean\(orderId\)/)
+  assert.match(partView, /شراء موثق/)
+  assert.doesNotMatch(partView, /توصيل سريع|إمكانية الاسترجاع/)
+})

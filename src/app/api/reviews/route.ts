@@ -35,8 +35,8 @@ export async function POST(req: NextRequest) {
       const order = await db.order.findFirst({
         where: {
           buyerId: session.id,
-          partId: targetId,
           status: { in: ['DELIVERED', 'RETURNED'] },
+          OR: [{ partId: targetId }, { items: { some: { partId: targetId } } }],
           ...(typeof orderId === 'string' ? { id: orderId } : {}),
         },
       })

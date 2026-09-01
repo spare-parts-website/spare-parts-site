@@ -257,8 +257,9 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
                 ) : (
                   <StoreIcon className="absolute inset-0 m-auto size-10 text-primary/40" />
                 )}
-                <span className="absolute bottom-3 right-3 rounded-full border border-card/30 bg-card/90 px-3 py-1 text-xs font-bold text-primary shadow-sm backdrop-blur">
-                  {part.store.name}
+                <span className="absolute bottom-3 right-3 flex max-w-[calc(100%-1.5rem)] items-center gap-1 rounded-full border border-card/30 bg-card/90 px-3 py-1 text-xs font-bold text-primary shadow-sm backdrop-blur">
+                  <span className="truncate">{part.store.name}</span>
+                  {part.store.verified && <BadgeCheck className="size-3.5 shrink-0" aria-label="متجر موثق" />}
                 </span>
               </button>
               <div className="relative flex aspect-[1.15/1] items-center justify-center overflow-hidden bg-muted/25">

@@ -405,6 +405,16 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
             </div>
           )}
 
+          {(part.oemNumber || part.partNumber) && (
+            <div>
+              <h3 className="mb-2 font-semibold">بيانات تعريف القطعة</h3>
+              <div className="flex flex-wrap gap-2" dir="ltr">
+                {part.oemNumber && <Badge variant="outline" className="max-w-full whitespace-normal break-all">OEM: {part.oemNumber}</Badge>}
+                {part.partNumber && <Badge variant="outline" className="max-w-full whitespace-normal break-all">Part No: {part.partNumber}</Badge>}
+              </div>
+            </div>
+          )}
+
           <div className={`rounded-xl border p-4 ${fitmentStatus === 'fits' ? 'border-emerald-500/30 bg-emerald-500/10' : fitmentStatus === 'does-not-fit' ? 'border-destructive/30 bg-destructive/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
             <div className="flex items-start gap-3">
               {fitmentStatus === 'fits' ? <CheckCircle2 className="mt-0.5 size-5 shrink-0 text-emerald-600" /> : fitmentStatus === 'does-not-fit' ? <CircleX className="mt-0.5 size-5 shrink-0 text-destructive" /> : <AlertTriangle className="mt-0.5 size-5 shrink-0 text-amber-600" />}
@@ -669,20 +679,19 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
             </Dialog>}
           </div>
 
-          {/* Trust signals */}
           <div className="grid grid-cols-3 gap-2 pt-4 border-t">
             <div className="text-center">
               <Truck className="size-5 mx-auto text-primary mb-1" />
-              <p className="text-xs text-muted-foreground">توصيل سريع</p>
+              <p className="text-xs text-muted-foreground">المدة حسب المحافظة</p>
             </div>
             <div className="text-center">
               <ShieldCheck className="size-5 mx-auto text-primary mb-1" />
               <p className="text-xs text-muted-foreground">الدفع عند الاستلام</p>
             </div>
-            <div className="text-center">
+            <button type="button" className="text-center" onClick={() => setView({ name: 'legal', page: 'returns' })}>
               <RotateCcw className="size-5 mx-auto text-primary mb-1" />
-              <p className="text-xs text-muted-foreground">إمكانية الاسترجاع</p>
-            </div>
+              <p className="text-xs text-muted-foreground underline-offset-2 hover:underline">سياسة الاسترجاع</p>
+            </button>
           </div>
         </div>
       </div>
@@ -709,7 +718,10 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                     <div className="flex items-center gap-2">
                       <UserAvatar name={review.user.name} src={review.user.avatar} className="size-8 text-sm" />
                       <div>
-                        <p className="text-sm font-medium">{review.user.name}</p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-medium">{review.user.name}</p>
+                          {review.verifiedPurchase && <Badge variant="secondary" className="h-5 px-1.5 text-[10px]"><ShieldCheck className="ml-1 size-3" />شراء موثق</Badge>}
+                        </div>
                         <p className="text-xs text-muted-foreground">
                           {new Date(review.createdAt).toLocaleDateString('ar-EG')}
                         </p>
