@@ -5,6 +5,7 @@ import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 
 type Params = { params: Promise<{ id: string }> }
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' }
 
 function clean(value: unknown, max: number) {
   return typeof value === 'string' ? value.trim().slice(0, max) : ''
@@ -36,27 +37,27 @@ async function loadTicket(id: string, userId: string, admin: boolean) {
 export async function GET(_req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
-    if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+    if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401, headers: PRIVATE_HEADERS })
     const { id } = await params
     const ticket = await loadTicket(id, session.id, session.role === 'ADMIN')
-    if (!ticket) return NextResponse.json({ error: 'التذكرة غير موجودة' }, { status: 404 })
-    return NextResponse.json({ ticket: serialize(ticket, session.role === 'ADMIN') }, { headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
+    if (!ticket) return NextResponse.json({ error: 'التذكرة غير موجودة' }, { status: 404, headers: PRIVATE_HEADERS })
+    return NextResponse.json({ ticket: serialize(ticket, session.role === 'ADMIN') }, { headers: PRIVATE_HEADERS })
   } catch (error) {
     console.error('Support ticket read failed', error)
-    return NextResponse.json({ error: 'تعذر تحميل التذكرة' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر تحميل التذكرة' }, { status: 500, headers: PRIVATE_HEADERS })
   }
 }
 
 export async function POST(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
-    if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
+    if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401, headers: PRIVATE_HEADERS })
     const { id } = await params
     const ticket = await loadTicket(id, session.id, session.role === 'ADMIN')
-    if (!ticket) return NextResponse.json({ error: 'التذكرة غير موجودة' }, { status: 404 })
+    if (!ticket) return NextResponse.json({ error: 'التذكرة غير موجودة' }, { status: 404, headers: PRIVATE_HEADERS })
     const body = await req.json()
     const message = clean(body.message, 5000)
-    if (message.length < 2) return NextResponse.json({ error: 'الرسالة مطلوبة' }, { status: 400 })
+    if (message.length < 2) return NextResponse.json({ error: 'الرسالة مطلوبة' }, { status: 400, headers: PRIVATE_HEADERS })
 
     const updated = await db.$transaction(async (tx) => {
       await tx.supportMessage.create({ data: { ticketId: ticket.id, authorId: session.id, authorRole: session.role, body: message } })
@@ -68,29 +69,29 @@ export async function POST(req: NextRequest, { params }: Params) {
         audit({ actorId: session.id, action: 'SUPPORT_TICKET_REPLIED', targetType: 'support_ticket', targetId: ticket.id }),
       ])
     }
-    return NextResponse.json({ ticket: serialize(updated, session.role === 'ADMIN') })
+    return NextResponse.json({ ticket: serialize(updated, session.role === 'ADMIN') }, { headers: PRIVATE_HEADERS })
   } catch (error) {
     console.error('Support ticket reply failed', error)
-    return NextResponse.json({ error: 'تعذر إرسال الرد' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر إرسال الرد' }, { status: 500, headers: PRIVATE_HEADERS })
   }
 }
 
 export async function PATCH(req: NextRequest, { params }: Params) {
   try {
     const session = await getSession()
-    if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    if (!session || session.role !== 'ADMIN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403, headers: PRIVATE_HEADERS })
     const { id } = await params
     const current = await loadTicket(id, session.id, true)
-    if (!current) return NextResponse.json({ error: 'التذكرة غير موجودة' }, { status: 404 })
+    if (!current) return NextResponse.json({ error: 'التذكرة غير موجودة' }, { status: 404, headers: PRIVATE_HEADERS })
     const body = await req.json()
     const status = clean(body.status, 40).toUpperCase()
     const allowed = new Set(['OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER', 'WAITING_FOR_SUPPORT', 'RESOLVED', 'CLOSED'])
-    if (!allowed.has(status)) return NextResponse.json({ error: 'حالة التذكرة غير صالحة' }, { status: 400 })
+    if (!allowed.has(status)) return NextResponse.json({ error: 'حالة التذكرة غير صالحة' }, { status: 400, headers: PRIVATE_HEADERS })
     const updated = await db.supportTicket.update({ where: { id }, data: { status }, include })
     await audit({ actorId: session.id, action: 'SUPPORT_TICKET_STATUS_CHANGED', targetType: 'support_ticket', targetId: id, metadata: { from: current.status, to: status } })
-    return NextResponse.json({ ticket: serialize(updated, true) })
+    return NextResponse.json({ ticket: serialize(updated, true) }, { headers: PRIVATE_HEADERS })
   } catch (error) {
     console.error('Support ticket update failed', error)
-    return NextResponse.json({ error: 'تعذر تحديث التذكرة' }, { status: 500 })
+    return NextResponse.json({ error: 'تعذر تحديث التذكرة' }, { status: 500, headers: PRIVATE_HEADERS })
   }
 }

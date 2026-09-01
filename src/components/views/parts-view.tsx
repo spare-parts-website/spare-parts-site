@@ -59,7 +59,10 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
     params.set('page', String(page))
     return params.toString()
   }, [appliedSearch, category, brand, condition, sort, page])
-  const lastLoadedUrl = useRef(initialData ? buildUrl : '')
+  // A statically rendered catalog starts with the unfiltered first page. If a
+  // query/filter is present in the URL, fetch that public result after the
+  // client hydrates instead of treating the default payload as a match.
+  const lastLoadedUrl = useRef(initialData && !routeParams.toString() ? buildUrl : '')
   const lastRetryKey = useRef(0)
 
   useEffect(() => {

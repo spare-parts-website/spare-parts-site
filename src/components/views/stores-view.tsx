@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import { useSearchParams } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -17,11 +18,15 @@ type Store = PublicStoreListItem
 
 export function StoresView({ initialData = null, initialSearch = '', initialPage = 1 }: { initialData?: PublicStoresList | null; initialSearch?: string; initialPage?: number }) {
   const { setView } = useAppStore()
+  const routeParams = useSearchParams()
+  const routeSearch = routeParams.get('search') || initialSearch
+  const routePage = Math.max(1, Number(routeParams.get('page')) || initialPage)
+  const hasRouteParams = Boolean(routeParams.toString())
   const [stores, setStores] = useState<Store[]>(initialData?.stores || [])
   const [loading, setLoading] = useState(!initialData)
   const [failed, setFailed] = useState(false)
-  const [search, setSearch] = useState(initialSearch)
-  const [page, setPage] = useState(initialData?.pagination.page || initialPage)
+  const [search, setSearch] = useState(routeSearch)
+  const [page, setPage] = useState(initialData?.pagination.page || routePage)
   const [totalPages, setTotalPages] = useState(initialData?.pagination.totalPages || 1)
   const [total, setTotal] = useState(initialData?.pagination.total || 0)
 
@@ -48,11 +53,13 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
   }
 
   useEffect(() => {
-    if (initialData) return
+    // The static list payload is unfiltered. Query-string searches and pages
+    // must fetch their own public API response after hydration.
+    if (initialData && !hasRouteParams) return
     let cancelled = false
     const params = new URLSearchParams()
-    if (initialSearch) params.set('search', initialSearch)
-    params.set('page', String(initialPage))
+    if (routeSearch) params.set('search', routeSearch)
+    params.set('page', String(routePage))
     fetch(`/api/stores?${params.toString()}`)
       .then((r) => {
         if (!r.ok) throw new Error('stores-api-failed')
@@ -61,7 +68,7 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
       .then((data: PublicStoresList) => {
         if (!cancelled) {
           setStores(data.stores || [])
-          setPage(data.pagination?.page || initialPage)
+          setPage(data.pagination?.page || routePage)
           setTotalPages(data.pagination?.totalPages || 1)
           setTotal(data.pagination?.total || 0)
           setLoading(false)
@@ -76,7 +83,7 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
     return () => {
       cancelled = true
     }
-  }, [initialData, initialPage, initialSearch])
+  }, [initialData, initialPage, initialSearch, routePage, routeSearch, hasRouteParams])
 
   return (
     <div className="content-container space-y-7 py-10">

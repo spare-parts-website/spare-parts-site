@@ -34,8 +34,13 @@ test('admin assist creates inside the seller store and audits the mutation', () 
 
 test('public marketplace details advertise shared caching while viewer overlays stay private', () => {
   const page = read('src/app/[...route]/page.tsx')
+  const partsPage = read('src/app/parts/page.tsx')
+  const partPage = read('src/app/parts/[id]/page.tsx')
+  const storesPage = read('src/app/stores/page.tsx')
+  const storePage = read('src/app/stores/[id]/page.tsx')
   const parts = read('src/app/api/parts/route.ts')
   const stores = read('src/app/api/stores/route.ts')
+  const support = read('src/app/api/support/tickets/route.ts')
   const breadcrumbs = read('src/components/breadcrumbs.tsx')
   assert.match(page, /export const revalidate = 30/)
   assert.match(page, /getPublicPart\(id, null\)/)
@@ -43,6 +48,12 @@ test('public marketplace details advertise shared caching while viewer overlays 
   assert.match(page, /unstable_noStore\(\)/)
   assert.match(parts, /viewerRequested \? 'private, no-store, max-age=0' : 'public, s-maxage=30/)
   assert.match(stores, /viewerRequested \? 'private, no-store, max-age=0' : 'public, s-maxage=30/)
+  for (const publicPage of [partsPage, partPage, storesPage, storePage]) {
+    assert.match(publicPage, /export const revalidate = 30/)
+  }
+  assert.match(partPage, /generateStaticParams/)
+  assert.match(storePage, /generateStaticParams/)
+  assert.match(support, /const PRIVATE_HEADERS = \{ 'Cache-Control': 'private, no-store, max-age=0' \}/)
   assert.match(breadcrumbs, /BreadcrumbList/)
 })
 
