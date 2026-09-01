@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,7 @@ import {
   ArrowRight,
   Star,
   ShieldCheck,
+  CalendarDays,
 } from 'lucide-react'
 import { Stars, formatPrice } from '@/components/common'
 import { Textarea } from '@/components/ui/textarea'
@@ -139,9 +141,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
     )
   }
 
-  const avgRating = store.reviews.length
-    ? store.reviews.reduce((sum, review) => sum + review.rating, 0) / store.reviews.length
-    : 0
+  const avgRating = store.avgRating
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -168,7 +168,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
                   <div className="flex items-center gap-2 mt-1">
                     <Stars value={avgRating} size={16} />
                     <span className="text-sm text-muted-foreground">
-                      {avgRating > 0 ? avgRating.toFixed(1) : 'لا تقييمات'} ({store.reviews.length} تقييم)
+                      {avgRating > 0 ? avgRating.toFixed(1) : 'لا تقييمات'} ({store.reviewCount} تقييم)
                     </span>
                   </div>
                 </div>
@@ -254,11 +254,15 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
                 )}
                 <div className="flex items-center gap-1.5">
                   <Package className="size-4 text-primary" />
-                  <span>{store.parts.length} قطعة غيار</span>
+                  <span>{store.partCount} قطعة غيار</span>
                 </div>
                 <div className="flex items-center gap-1.5">
                   <ShieldCheck className="size-4 text-primary" />
                   <span>{store.completedOrderCount} طلباً مكتملًا</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <CalendarDays className="size-4 text-primary" />
+                  <span>عضو منذ {new Date(store.createdAt).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long' })}</span>
                 </div>
               </div>
             </div>
@@ -296,21 +300,6 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
                   }
                 }}
               >
-                <div className="relative h-32 overflow-hidden bg-muted/35">
-                  {store.image ? (
-                    <Image
-                      src={store.image}
-                      alt={store.name}
-                      fill
-                      sizes="(max-width: 640px) 100vw, (max-width: 1024px) 75vw, 1100px"
-                      className="object-cover transition duration-500 group-hover:scale-105"
-                    />
-                  ) : (
-                    <div className="flex h-full items-center justify-center bg-primary/5 text-primary/40">
-                      <StoreIcon className="size-10" />
-                    </div>
-                  )}
-                </div>
                 <div className="relative flex aspect-[1.15/1] items-center justify-center overflow-hidden bg-muted/25">
                   {part.image ? (
                      
@@ -331,13 +320,6 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
                   )}
                 </div>
                 <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
-                  <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-muted/25 p-3">
-                    <UserAvatar name={store.name} src={store.image} className="size-12 rounded-xl text-lg" />
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-bold text-primary">{store.name}</p>
-                      <p className="truncate text-sm font-medium text-muted-foreground">قطعة معروضة من المتجر</p>
-                    </div>
-                  </div>
                   <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10 flex-1">
                     {part.name}
                   </h3>
@@ -361,6 +343,13 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
             ))}
           </div>
         )}
+        {store.partCount > store.parts.length && (
+          <div className="mt-6 text-center">
+            <Button asChild variant="outline">
+              <Link href={`/parts?storeId=${encodeURIComponent(store.id)}`}>عرض كل قطع المتجر ({store.partCount})</Link>
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Reviews */}
@@ -369,7 +358,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Star className="size-5 text-amber-400" />
-              تقييمات العملاء ({store.reviews.length})
+              أحدث تقييمات العملاء ({store.reviewCount})
             </CardTitle>
           </CardHeader>
           <CardContent>

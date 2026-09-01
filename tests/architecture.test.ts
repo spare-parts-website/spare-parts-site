@@ -99,3 +99,14 @@ test('keeps grouped-order reviews authorized and trust claims evidence based', (
   assert.match(partView, /شراء موثق/)
   assert.doesNotMatch(partView, /توصيل سريع|إمكانية الاسترجاع/)
 })
+
+test('bounds store detail inventory and reviews while preserving aggregate totals', () => {
+  const publicData = readFileSync(new URL('../src/lib/public-marketplace.ts', import.meta.url), 'utf8')
+  const storeView = readFileSync(new URL('../src/components/views/store-view.tsx', import.meta.url), 'utf8')
+
+  assert.match(publicData, /parts:\s*\{[\s\S]*?take:\s*24/)
+  assert.match(publicData, /reviews:\s*\{[\s\S]*?take:\s*20/)
+  assert.match(publicData, /storeReview\.aggregate/)
+  assert.match(storeView, /\/parts\?storeId=/)
+  assert.match(storeView, /store\.partCount/)
+})

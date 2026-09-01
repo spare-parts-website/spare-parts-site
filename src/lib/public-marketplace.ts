@@ -312,8 +312,12 @@ export type PublicStore = {
   phone: string | null
   image: string | null
   verified: boolean
+  createdAt: string
   parts: Array<{ id: string; name: string; price: number; stock: number; category: string | null; brand: string | null; image: string | null }>
   reviews: Array<{ id: string; rating: number; comment: string | null; createdAt: string; user: { name: string; avatar: string | null } }>
+  partCount: number
+  avgRating: number
+  reviewCount: number
   completedOrderCount: number
   completionRate: number | null
 }
@@ -401,22 +405,27 @@ export async function getPublicStore(storeId: string, viewer: PublicViewer): Pro
       phone: true,
       image: true,
       verified: true,
+      createdAt: true,
       parts: {
         where: { blocked: false },
         orderBy: { createdAt: 'desc' },
         select: { id: true, name: true, price: true, stock: true, category: true, brand: true, image: true },
+        take: 24,
       },
       reviews: {
         where: { blocked: false },
         select: { id: true, rating: true, comment: true, createdAt: true, user: { select: { name: true, avatar: true } } },
         orderBy: { createdAt: 'desc' },
+        take: 20,
       },
     },
   })
 
   if (!record || isBlockedStoreName(record.name)) return { store: null, canReview: false }
 
-  const [completedOrderCount, decidedOrderCount, canReview] = await Promise.all([
+  const [partCount, reviewAggregate, completedOrderCount, decidedOrderCount, canReview] = await Promise.all([
+    db.part.count({ where: { storeId, blocked: false } }),
+    db.storeReview.aggregate({ where: { storeId, blocked: false }, _avg: { rating: true }, _count: { _all: true } }),
     db.order.count({ where: { storeId, status: 'DELIVERED' } }),
     db.order.count({ where: { storeId, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } } }),
     viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
@@ -427,7 +436,11 @@ export async function getPublicStore(storeId: string, viewer: PublicViewer): Pro
   return {
     store: {
       ...record,
+      createdAt: record.createdAt.toISOString(),
       reviews: record.reviews.map((review) => ({ ...review, createdAt: review.createdAt.toISOString() })),
+      partCount,
+      avgRating: reviewAggregate._avg.rating || 0,
+      reviewCount: reviewAggregate._count._all,
       completedOrderCount,
       completionRate: decidedOrderCount ? Math.round(completedOrderCount / decidedOrderCount * 100) : null,
     },
