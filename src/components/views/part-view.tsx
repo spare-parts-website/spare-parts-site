@@ -42,6 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { GOVERNORATE_DELIVERY } from '@/lib/delivery'
 import type { PublicPart } from '@/lib/public-marketplace'
 import { formatCompatibility } from '@/lib/vehicle-compatibility'
+import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 
 export function PartView({ partId, initialPart = null, initialCanReview = false }: { partId: string; initialPart?: PublicPart | null; initialCanReview?: boolean }) {
   const { setView, user, setPendingView, addToCart } = useAppStore()
@@ -238,6 +239,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
     ? part.reviews.reduce((s, r) => s + r.rating, 0) / part.reviews.length
     : 0
   const canShop = !user || (user.role !== 'ADMIN' && !part.store.isOwnedByViewer)
+  const hasDeliveryPhone = !user || Boolean(normalizeEgyptianMobile(user.phone))
   const fitmentStatus = part.viewerFitment?.status || 'unknown'
   const fitmentCarLabel = part.viewerFitment?.car
     ? [part.viewerFitment.car.brand, part.viewerFitment.car.model, part.viewerFitment.car.generation, part.viewerFitment.car.year, part.viewerFitment.car.engine, part.viewerFitment.car.trim].filter(Boolean).join(' ')
@@ -527,6 +529,12 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto scrollbar-thin">
+                  {!hasDeliveryPhone && (
+                    <div className="rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm">
+                      <p className="font-semibold">أضف رقم موبايل مصري صالح قبل تأكيد الطلب.</p>
+                      <Button type="button" variant="link" className="h-auto p-0" onClick={() => { setOrderOpen(false); setView({ name: 'profile' }) }}>تحديث الملف الشخصي</Button>
+                    </div>
+                  )}
                   {fitmentStatus !== 'fits' && (
                     <div className={`rounded-lg border p-3 text-sm ${fitmentStatus === 'does-not-fit' ? 'border-destructive/30 bg-destructive/10' : 'border-amber-500/30 bg-amber-500/10'}`}>
                       <div className="flex items-start gap-2">
@@ -602,7 +610,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   <Button variant="outline" onClick={() => setOrderOpen(false)}>
                     إلغاء
                   </Button>
-                  <Button onClick={handleOrder} disabled={submitting || !orderForm.governorate || !orderForm.deliveryAddress}>
+                  <Button onClick={handleOrder} disabled={submitting || !hasDeliveryPhone || !orderForm.governorate || !orderForm.deliveryAddress}>
                     {submitting ? 'جاري الإرسال...' : 'تأكيد الطلب'}
                   </Button>
                 </DialogFooter>

@@ -21,6 +21,7 @@ import {
 import { formatPrice } from '@/components/common'
 import { useToast } from '@/hooks/use-toast'
 import { GOVERNORATE_DELIVERY, type GovernorateCode } from '@/lib/delivery'
+import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 export function CheckoutView() {
@@ -55,6 +56,7 @@ export function CheckoutView() {
   const shippingTotal = form.governorate ? GOVERNORATE_DELIVERY[form.governorate].fee * Object.keys(storeGroups).length : 0
   const incompatibleItems = cart.filter((item) => item.fitmentStatus === 'does-not-fit')
   const unknownFitmentItems = cart.filter((item) => !item.fitmentStatus || item.fitmentStatus === 'unknown')
+  const hasDeliveryPhone = Boolean(normalizeEgyptianMobile(user?.phone))
 
   if (!user) {
     return (
@@ -151,6 +153,17 @@ export function CheckoutView() {
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Left: Forms */}
         <div className="lg:col-span-2 space-y-6">
+          {!hasDeliveryPhone && (
+            <Card className="border-destructive/35 bg-destructive/5">
+              <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+                <div>
+                  <h2 className="font-black">أضف رقم موبايل للتوصيل</h2>
+                  <p className="mt-1 text-sm text-muted-foreground">يلزم رقم مصري صالح يبدأ بـ 010 أو 011 أو 012 أو 015 حتى يتمكن المتجر من تأكيد الطلب.</p>
+                </div>
+                <Button type="button" variant="outline" onClick={() => setView({ name: 'profile' })}>تحديث الملف الشخصي</Button>
+              </CardContent>
+            </Card>
+          )}
           {(incompatibleItems.length > 0 || unknownFitmentItems.length > 0) && (
             <Card className={incompatibleItems.length ? 'border-destructive/35 bg-destructive/5' : 'border-amber-500/35 bg-amber-500/5'}>
               <CardContent className="space-y-3 p-5">
@@ -179,10 +192,13 @@ export function CheckoutView() {
                 <SelectContent>{Object.entries(GOVERNORATE_DELIVERY).map(([code, item]) => <SelectItem key={code} value={code}>{item.ar} — {formatPrice(item.fee)} — {item.days} أيام تقريبًا</SelectItem>)}</SelectContent>
               </Select>
               <Textarea
+                name="street-address"
+                autoComplete="street-address"
                 value={form.deliveryAddress}
                 onChange={(e) => setForm({ ...form, deliveryAddress: e.target.value })}
                 placeholder="المدينة - الحي - الشارع - تفاصيل الموقع"
                 rows={3}
+                maxLength={500}
                 required
               />
             </CardContent>
@@ -229,6 +245,7 @@ export function CheckoutView() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
                 placeholder="أي تفاصيل إضافية لكل المتاجر..."
                 rows={2}
+                maxLength={1000}
               />
             </CardContent>
           </Card>
@@ -287,7 +304,7 @@ export function CheckoutView() {
                 className="w-full"
                 size="lg"
                 onClick={handleCheckout}
-                disabled={submitting || !form.deliveryAddress || !form.governorate}
+                disabled={submitting || !hasDeliveryPhone || !form.deliveryAddress || !form.governorate}
               >
                 {submitting ? (
                   'جاري إرسال الطلبات...'

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { hashPassword, createSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { isProfileAvatar } from '@/lib/profile-avatars'
+import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,7 +16,8 @@ export async function POST(req: NextRequest) {
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
     const password = typeof body.password === 'string' ? body.password : ''
     const role = body.role
-    const phone = typeof body.phone === 'string' ? body.phone.trim() : ''
+    const phoneInput = typeof body.phone === 'string' ? body.phone.trim() : ''
+    const phone = phoneInput ? normalizeEgyptianMobile(phoneInput) : null
     const avatar = isProfileAvatar(body.avatar) ? body.avatar : null
 
     if (!name || !email || !password) {
@@ -37,6 +39,9 @@ export async function POST(req: NextRequest) {
     if (!['BUYER', 'SHOP_OWNER'].includes(role)) {
       return NextResponse.json({ error: 'دور غير صالح' }, { status: 400 })
     }
+    if (phoneInput && !phone) {
+      return NextResponse.json({ error: 'رقم الموبايل المصري غير صالح' }, { status: 400 })
+    }
 
     const existing = await db.user.findUnique({ where: { email } })
     if (existing) {
@@ -51,7 +56,7 @@ export async function POST(req: NextRequest) {
           email,
           password: hashedPassword,
           role,
-          phone: phone || null,
+          phone,
           avatar,
         },
       })

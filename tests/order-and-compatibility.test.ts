@@ -6,6 +6,7 @@ import { loginCodeEmailHtml, notificationEmailHtml, passwordResetEmailHtml } fro
 import { requiresLoginCode } from '../src/lib/login-policy.ts'
 import { buildGroupedOrderDrafts } from '../src/lib/grouped-orders.ts'
 import { buildMarketplaceSearchQueries, normalizeMarketplaceSearch } from '../src/lib/search-normalization.ts'
+import { normalizeEgyptianMobile } from '../src/lib/egyptian-phone.ts'
 import { readFileSync } from 'node:fs'
 
 test('calculates coupon discount against quantity without floating-point drift', () => {
@@ -110,6 +111,14 @@ test('normalizes Arabic search and expands bounded automotive synonyms', () => {
   assert.ok(variants.includes('bmw motor'))
   assert.ok(variants.includes('bmw engine'))
   assert.ok(variants.length <= 8)
+})
+
+test('normalizes valid Egyptian mobile formats and rejects invalid prefixes', () => {
+  assert.equal(normalizeEgyptianMobile('+20 10 1234 5678'), '01012345678')
+  assert.equal(normalizeEgyptianMobile('0020-11-1234-5678'), '01112345678')
+  assert.equal(normalizeEgyptianMobile('1212345678'), '01212345678')
+  assert.equal(normalizeEgyptianMobile('01312345678'), null)
+  assert.equal(normalizeEgyptianMobile('0101234'), null)
 })
 
 test('renders escaped Arabic RTL transactional email markup', () => {

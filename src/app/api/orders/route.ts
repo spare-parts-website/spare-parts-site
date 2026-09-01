@@ -7,6 +7,7 @@ import { calculateOrderLine, InvalidOrderTransition, isOrderAction, resolveOrder
 import { deliveryQuote } from '@/lib/delivery'
 import type { Prisma } from '@prisma/client'
 import { buildGroupedOrderDrafts } from '@/lib/grouped-orders'
+import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 
 type CheckoutItem = { partId: string; quantity: number }
 type OrderWithItems = Prisma.OrderGetPayload<{ include: { items: true } }>
@@ -229,6 +230,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const session = await requireAuth()
+    if (!['BUYER', 'SHOP_OWNER'].includes(session.role)) {
+      return NextResponse.json({ error: 'يجب تسجيل الدخول كمشترٍ لإنشاء الطلبات' }, { status: 403 })
+    }
+    if (!normalizeEgyptianMobile(session.phone)) {
+      return NextResponse.json({ error: 'أضف رقم موبايل مصري صالح في ملفك الشخصي قبل إنشاء الطلب' }, { status: 400 })
+    }
     const limit = await rateLimit(`orders:${session.id}:${requestAddress(req)}`, 30, 10 * 60 * 1000)
     if (!limit.allowed) return NextResponse.json({ error: 'طلبات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     const body = await req.json()

@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getSession, hashPassword, verifyPassword, createSession } from '@/lib/auth'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { isProfileAvatar } from '@/lib/profile-avatars'
+import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 
 export async function PUT(req: NextRequest) {
   try {
@@ -10,7 +11,8 @@ export async function PUT(req: NextRequest) {
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
     const body = await req.json()
     const name = typeof body.name === 'string' ? body.name.trim() : session.name
-    const phone = typeof body.phone === 'string' ? body.phone.trim() || null : session.phone || null
+    const phoneInput = typeof body.phone === 'string' ? body.phone.trim() : session.phone || ''
+    const phone = phoneInput ? normalizeEgyptianMobile(phoneInput) : null
     const currentPassword = typeof body.currentPassword === 'string' ? body.currentPassword : ''
     const newPassword = typeof body.newPassword === 'string' ? body.newPassword : ''
     const emailNotifications = typeof body.emailNotifications === 'boolean' ? body.emailNotifications : session.emailNotifications ?? true
@@ -23,6 +25,7 @@ export async function PUT(req: NextRequest) {
           : session.avatar || null
 
     if (name.length < 2 || name.length > 100) return NextResponse.json({ error: 'الاسم يجب أن يكون بين حرفين و100 حرف' }, { status: 400 })
+    if (phoneInput && !phone) return NextResponse.json({ error: 'رقم الموبايل المصري غير صالح' }, { status: 400 })
     if (newPassword && (newPassword.length < 8 || newPassword.length > 128)) return NextResponse.json({ error: 'كلمة المرور الجديدة يجب أن تكون 8 أحرف على الأقل' }, { status: 400 })
 
     const user = await db.user.findUnique({ where: { id: session.id } })

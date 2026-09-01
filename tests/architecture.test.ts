@@ -110,3 +110,13 @@ test('bounds store detail inventory and reviews while preserving aggregate total
   assert.match(storeView, /\/parts\?storeId=/)
   assert.match(storeView, /store\.partCount/)
 })
+
+test('requires a normalized delivery phone on both checkout paths', () => {
+  const orders = readFileSync(new URL('../src/app/api/orders/route.ts', import.meta.url), 'utf8')
+  const checkout = readFileSync(new URL('../src/components/views/checkout-view.tsx', import.meta.url), 'utf8')
+  const partView = readFileSync(new URL('../src/components/views/part-view.tsx', import.meta.url), 'utf8')
+
+  assert.match(orders, /normalizeEgyptianMobile\(session\.phone\)/)
+  assert.match(checkout, /hasDeliveryPhone/)
+  assert.match(partView, /hasDeliveryPhone/)
+})
