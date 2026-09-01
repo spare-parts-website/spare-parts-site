@@ -423,7 +423,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
               <div>
                 <p className="font-bold">{fitmentStatus === 'fits' ? (part.universal ? 'قطعة عامة ومتوافقة' : 'متوافقة مع سيارتك') : fitmentStatus === 'does-not-fit' ? 'لا تطابق سيارتك المحفوظة' : 'التوافق غير مؤكد'}</p>
                 <p className="mt-1 text-sm text-muted-foreground">{fitmentStatus === 'fits' ? (fitmentCarLabel ? `تمت المطابقة مع ${fitmentCarLabel}` : 'هذه القطعة مصنفة كقطعة عامة.') : fitmentStatus === 'does-not-fit' ? `بيانات الإعلان لا تطابق ${fitmentCarLabel || 'السيارة المحددة'}.` : fitmentCarLabel ? `راجع بيانات التوافق أو اسأل البائع قبل الطلب لـ ${fitmentCarLabel}.` : 'أضف سيارة أساسية لعرض نتيجة توافق دقيقة، أو اسأل البائع قبل الطلب.'}</p>
-                {!fitmentCarLabel && !part.universal && <Button type="button" variant="link" className="mt-1 h-auto p-0" onClick={() => setView({ name: 'cars' })}>إضافة سيارتي</Button>}
+                {!fitmentCarLabel && !part.universal && <p className="mt-1 text-sm text-muted-foreground">راجع بيانات التوافق أو اسأل البائع قبل الطلب.</p>}
               </div>
             </div>
           </div>

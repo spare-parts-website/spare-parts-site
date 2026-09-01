@@ -151,7 +151,7 @@ export function AIAssistant({
     if (action.type === 'draft') {
       window.sessionStorage.setItem('ghyar-ai-draft-v1', JSON.stringify({ ...action, createdAt: Date.now() })); window.dispatchEvent(new CustomEvent('ghyar-ai-draft', { detail: action }))
       if (action.target === 'search' && typeof action.fields?.query === 'string') { setOpen(false); router.push(`/parts?search=${encodeURIComponent(action.fields.query)}`); return }
-      const paths: Record<string, string> = { search: '/parts', car: '/account/cars', message: '/account/messages', listing: '/seller/parts', coupon: '/seller/coupons', moderation_note: '/admin/reports' }
+      const paths: Record<string, string> = { search: '/parts', message: '/account/messages', listing: '/seller/parts', coupon: '/seller/coupons', moderation_note: '/admin/reports' }
       if (action.target && paths[action.target]) { setOpen(false); router.push(paths[action.target]) }
     }
   }

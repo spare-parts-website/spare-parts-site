@@ -17,7 +17,6 @@ import { ShopDashboardView } from '@/components/views/shop-dashboard-view'
 import { StoreView } from '@/components/views/store-view'
 import { StoresView } from '@/components/views/stores-view'
 import { WishlistView } from '@/components/views/wishlist-view'
-import { MyCarsView } from '@/components/views/my-cars-view'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import type { View } from '@/lib/store'
@@ -102,7 +101,6 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
       minPrice: first(query.minPrice),
       maxPrice: first(query.maxPrice),
       carModel: first(query.carModel),
-      carId: first(query.carId),
       sort: first(query.sort) || 'newest',
       page: Number.isFinite(requestedPage) ? requestedPage : 1,
     }
@@ -147,9 +145,6 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
   } else if (section === 'account' && id === 'profile' && !childId) {
     view = { name: 'profile' }
     content = <ProfileView />
-  } else if (section === 'account' && id === 'cars' && !childId) {
-    view = { name: 'cars' }
-    content = <MyCarsView />
   } else if (section === 'account' && id === 'orders' && !childId) {
     view = { name: 'orders' }
     content = <OrdersView />

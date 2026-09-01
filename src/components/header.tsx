@@ -25,7 +25,6 @@ import {
   ShoppingCart,
   MessageSquare,
   Heart,
-  Car,
   UserPlus,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
@@ -259,12 +258,6 @@ export function Header({ user }: { user: AuthUser | null }) {
                   <UserIcon className="size-4 ml-2" />
                   ملفي الشخصي
                 </DropdownMenuItem>
-                {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
-                  <DropdownMenuItem onClick={() => setView({ name: 'cars' })}>
-                    <Car className="size-4 ml-2" />
-                    سياراتي
-                  </DropdownMenuItem>
-                )}
                 {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
                   <DropdownMenuItem onClick={() => setView({ name: 'orders' })}>
                     <ShoppingBag className="size-4 ml-2" />
