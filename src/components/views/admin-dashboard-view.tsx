@@ -42,6 +42,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { AdminEditDialog, type AdminEditTarget } from '@/components/admin-edit-dialog'
+import { AdminCreatePartDialog } from '@/components/admin-create-part-dialog'
+import { SupportView } from '@/components/views/support-view'
 import { UserAvatar } from '@/components/user-avatar'
 
 const ROLE_LABELS: Record<string, string> = {
@@ -50,10 +52,10 @@ const ROLE_LABELS: Record<string, string> = {
   SHOP_OWNER: 'صاحب محل',
 }
 
-export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' }) {
+export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' | 'support' }) {
   const { user } = useAppStore()
   const { toast } = useToast()
-  const [tab, setTab] = useState<'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports'>(initialTab || 'users')
+  const [tab, setTab] = useState<'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' | 'support'>(initialTab || 'users')
   const [users, setUsers] = useState<any[]>([])
   const [parts, setParts] = useState<any[]>([])
   const [stores, setStores] = useState<any[]>([])
@@ -303,7 +305,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
       </div>
 
       <Tabs value={tab} onValueChange={(v) => { setTab(v as typeof tab); window.history.pushState({}, '', `/admin/${v}`) }}>
-        <TabsList className="grid w-full max-w-4xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
+        <TabsList className="grid w-full max-w-5xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-7">
           <TabsTrigger value="users" className="gap-1 text-[11px] sm:text-sm">
             <Users className="size-4" />
             <span>المستخدمون</span>
@@ -327,6 +329,10 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           <TabsTrigger value="reports" className="gap-1 text-[11px] sm:text-sm">
             <Flag className="size-4" />
             <span>البلاغات</span>
+          </TabsTrigger>
+          <TabsTrigger value="support" className="gap-1 text-[11px] sm:text-sm">
+            <Mail className="size-4" />
+            <span>الدعم</span>
           </TabsTrigger>
         </TabsList>
 
@@ -517,7 +523,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
 
         {/* Parts */}
         <TabsContent value="parts" className="space-y-4">
-          <h2 className="text-lg font-semibold">قطع الغيار ({parts.length})</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">قطع الغيار ({parts.length})</h2><AdminCreatePartDialog stores={stores} onSaved={loadAll} /></div>
           {loading ? (
             <Skeleton className="h-64 rounded-xl" />
           ) : (
@@ -755,6 +761,9 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
               </Card>
             </div>
           )}
+        </TabsContent>
+        <TabsContent value="support" className="mt-5">
+          <SupportView embedded />
         </TabsContent>
       </Tabs>
       <AdminEditDialog target={editTarget} onClose={() => setEditTarget(null)} onSaved={loadAll} />

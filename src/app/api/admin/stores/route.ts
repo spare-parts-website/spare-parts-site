@@ -54,6 +54,7 @@ export async function DELETE(req: NextRequest) {
       store.image,
       ...store.parts.flatMap((part) => [part.image, ...part.images.map((image) => image.url)]),
     ])
+    await audit({ actorId: session.id, action: 'ADMIN_STORE_DELETED', targetType: 'store', targetId: id, metadata: { sellerId: store.ownerId } })
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
@@ -105,7 +106,7 @@ export async function PUT(req: NextRequest) {
       },
     })
     if (image !== current.image) await deleteUploadedFiles([current.image])
-    await audit({ actorId: session.id, action: 'ADMIN_STORE_UPDATED', targetType: 'store', targetId: id, metadata: { verificationChanged } })
+    await audit({ actorId: session.id, action: 'ADMIN_STORE_UPDATED', targetType: 'store', targetId: id, metadata: { sellerId: current.ownerId, verificationChanged } })
     return NextResponse.json({ store })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })

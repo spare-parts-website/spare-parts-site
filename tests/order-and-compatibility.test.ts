@@ -114,6 +114,7 @@ test('normalizes Arabic search and expands bounded automotive synonyms', () => {
   assert.ok(variants.includes('bmw engine'))
   assert.ok(variants.length <= 8)
   assert.ok(buildMarketplaceSearchQueries('bww').includes('bmw'), 'BMW typo should expand to the canonical brand')
+  assert.ok(buildMarketplaceSearchQueries('بي إم').includes('bmw'), 'short Arabic BMW spelling should expand to the canonical brand')
   assert.ok(buildMarketplaceSearchQueries('mersedes').includes('mercedes'), 'common Mercedes typo should expand to the canonical brand')
   assert.ok(buildMarketplaceSearchQueries('mercedez engine').includes('mercedes engine'), 'multi-word typos should preserve the remaining terms')
   assert.equal(buildMarketplaceSearchQueries('x').length, 0)

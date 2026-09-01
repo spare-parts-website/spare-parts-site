@@ -2,8 +2,9 @@ import 'server-only'
 
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
+import { detectMarketplaceBrandHint, findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
 import { BLOCKED_STORE_NAMES, isBlockedStoreName } from '@/lib/store-moderation'
+import { isDevelopmentReviewAuthor } from '@/lib/review-moderation'
 
 type PublicViewer = { id: string; role: string } | null
 
@@ -90,6 +91,7 @@ export async function getPublicPartsList(query: PublicPartsQuery): Promise<Publi
   const storeId = clean(query.storeId, 100)
   const carModel = clean(query.carModel, 160)
   const sort = clean(query.sort, 30) || 'newest'
+  const brandHint = search ? detectMarketplaceBrandHint(search) : null
   const minPrice = query.minPrice ? Number(query.minPrice) : null
   const maxPrice = query.maxPrice ? Number(query.maxPrice) : null
   const fuzzyPartIds = search ? await findTypoTolerantPartIds(search) : []
@@ -137,6 +139,18 @@ export async function getPublicPartsList(query: PublicPartsQuery): Promise<Publi
       ],
     })
   }
+  if (brandHint) {
+    and.push({
+      OR: [
+        { brand: { contains: brandHint, mode: 'insensitive' } },
+        { name: { contains: brandHint, mode: 'insensitive' } },
+        { description: { contains: brandHint, mode: 'insensitive' } },
+        { searchAliases: { contains: brandHint, mode: 'insensitive' } },
+        { carModels: { contains: brandHint, mode: 'insensitive' } },
+        { compatibilities: { some: { make: { contains: brandHint, mode: 'insensitive' } } } },
+      ],
+    })
+  }
   if (and.length) where.AND = and
 
   const orderBy: Prisma.PartOrderByWithRelationInput = sort === 'price-asc'
@@ -156,13 +170,21 @@ export async function getPublicPartsList(query: PublicPartsQuery): Promise<Publi
   } satisfies Prisma.PartSelect
 
   const facetBase: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
-  const [records, total, categories, brands, conditions] = await Promise.all([
-    db.part.findMany({ where, select: publicPartSelect, orderBy, skip: (page - 1) * pageSize, take: pageSize }),
+  const rankSearchResults = Boolean(search && fuzzyPartIds.length && page <= 20)
+  const [rawRecords, total, categories, brands, conditions] = await Promise.all([
+    db.part.findMany({ where, select: publicPartSelect, orderBy, skip: rankSearchResults ? 0 : (page - 1) * pageSize, take: rankSearchResults ? 500 : pageSize }),
     db.part.count({ where }),
     db.part.findMany({ where: { ...facetBase, category: { not: null } }, distinct: ['category'], select: { category: true }, take: 100 }),
     db.part.findMany({ where: { ...facetBase, brand: { not: null } }, distinct: ['brand'], select: { brand: true }, take: 100 }),
     db.part.findMany({ where: { ...facetBase, condition: { not: null } }, distinct: ['condition'], select: { condition: true }, orderBy: { condition: 'asc' }, take: 100 }),
   ])
+  const rankById = new Map(fuzzyPartIds.map((id, index) => [id, index]))
+  const records = rankSearchResults
+    ? rawRecords
+      .slice()
+      .sort((left, right) => (rankById.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (rankById.get(right.id) ?? Number.MAX_SAFE_INTEGER))
+      .slice((page - 1) * pageSize, page * pageSize)
+    : rawRecords
 
   return {
     parts: records.filter((part) => !isBlockedStoreName(part.store.name)),
@@ -202,13 +224,20 @@ export async function getPublicStoresList(searchValue = '', pageValue = 1): Prom
   ])
   const stores = records.filter((store) => !isBlockedStoreName(store.name))
   const ids = stores.map((store) => store.id)
-  const [reviewGroups, decidedGroups] = ids.length
+  const [reviewRows, decidedGroups] = ids.length
     ? await Promise.all([
-        db.storeReview.groupBy({ by: ['storeId'], where: { storeId: { in: ids }, blocked: false }, _avg: { rating: true }, _count: { _all: true } }),
+        db.storeReview.findMany({ where: { storeId: { in: ids }, blocked: false }, select: { storeId: true, rating: true, user: { select: { name: true } } } }),
         db.order.groupBy({ by: ['storeId'], where: { storeId: { in: ids }, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } }, _count: { _all: true } }),
       ])
     : [[], []]
-  const reviewByStore = new Map(reviewGroups.map((review) => [review.storeId, review]))
+  const reviewByStore = new Map<string, { total: number; count: number }>()
+  for (const review of reviewRows) {
+    if (isDevelopmentReviewAuthor(review.user.name)) continue
+    const current = reviewByStore.get(review.storeId) || { total: 0, count: 0 }
+    current.total += review.rating
+    current.count += 1
+    reviewByStore.set(review.storeId, current)
+  }
   const decidedByStore = new Map(decidedGroups.map((item) => [item.storeId, item._count._all]))
 
   return {
@@ -224,8 +253,8 @@ export async function getPublicStoresList(searchValue = '', pageValue = 1): Prom
         image: store.image,
         verified: store.verified,
         _count: { parts: store._count.parts },
-        avgRating: review?._avg.rating || 0,
-        reviewCount: review?._count._all || 0,
+        avgRating: review?.count ? review.total / review.count : 0,
+        reviewCount: review?.count || 0,
         completedOrderCount: store._count.orders,
         completionRate: decided ? Math.round(store._count.orders / decided * 100) : null,
       }
@@ -339,8 +368,9 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
       })
     : []
   const qualifyingReviewKeys = new Set(qualifyingOrders.map((order) => `${order.buyerId}:${order.id}`))
-  const { blocked: _blocked, store, reviews, ...part } = record
+  const { blocked: _blocked, store, reviews: storedReviews, ...part } = record
   void _blocked
+  const reviews = storedReviews.filter((review) => !isDevelopmentReviewAuthor(review.user.name))
 
   return {
     part: {
@@ -389,24 +419,26 @@ export async function getPublicStore(storeId: string, viewer: PublicViewer): Pro
 
   if (!record || isBlockedStoreName(record.name)) return { store: null, canReview: false }
 
-  const [partCount, reviewAggregate, completedOrderCount, decidedOrderCount, canReview] = await Promise.all([
+  const [partCount, reviewRows, completedOrderCount, decidedOrderCount, canReview] = await Promise.all([
     db.part.count({ where: { storeId, blocked: false } }),
-    db.storeReview.aggregate({ where: { storeId, blocked: false }, _avg: { rating: true }, _count: { _all: true } }),
+    db.storeReview.findMany({ where: { storeId, blocked: false }, select: { rating: true, user: { select: { name: true } } } }),
     db.order.count({ where: { storeId, status: 'DELIVERED' } }),
     db.order.count({ where: { storeId, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } } }),
     viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role)
       ? db.order.findFirst({ where: { buyerId: viewer.id, storeId, status: { in: ['DELIVERED', 'RETURNED'] } }, select: { id: true } }).then(Boolean)
       : false,
   ])
+  const publicReviews = reviewRows.filter((review) => !isDevelopmentReviewAuthor(review.user.name))
+  const reviewTotal = publicReviews.reduce((sum, review) => sum + review.rating, 0)
 
   return {
     store: {
       ...record,
       createdAt: record.createdAt.toISOString(),
-      reviews: record.reviews.map((review) => ({ ...review, createdAt: review.createdAt.toISOString() })),
+      reviews: record.reviews.filter((review) => !isDevelopmentReviewAuthor(review.user.name)).map((review) => ({ ...review, createdAt: review.createdAt.toISOString() })),
       partCount,
-      avgRating: reviewAggregate._avg.rating || 0,
-      reviewCount: reviewAggregate._count._all,
+      avgRating: publicReviews.length ? reviewTotal / publicReviews.length : 0,
+      reviewCount: publicReviews.length,
       completedOrderCount,
       completionRate: decidedOrderCount ? Math.round(completedOrderCount / decidedOrderCount * 100) : null,
     },

@@ -34,9 +34,10 @@ export type View =
   | { name: 'orders' }
   | { name: 'profile' }
   | { name: 'inbox' }
+  | { name: 'support' }
   | { name: 'legal'; page: 'privacy' | 'terms' | 'returns' | 'contact' }
   | { name: 'shop-dashboard'; tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }
-  | { name: 'admin-dashboard'; tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' }
+  | { name: 'admin-dashboard'; tab?: 'users' | 'parts' | 'orders' | 'reviews' | 'stores' | 'reports' | 'support' }
   | { name: 'cart' }
   | { name: 'checkout' }
   | { name: 'wishlist' }
@@ -69,6 +70,8 @@ export function viewToPath(view: View, searchQuery = ''): string {
       return '/account/profile'
     case 'inbox':
       return '/account/messages'
+    case 'support':
+      return '/support'
     case 'legal':
       return `/${view.page}`
     case 'shop-dashboard':

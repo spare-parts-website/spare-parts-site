@@ -26,8 +26,10 @@ import {
   MessageSquare,
   Heart,
   UserPlus,
+  LifeBuoy,
 } from 'lucide-react'
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import {
   Sheet,
   SheetContent,
@@ -46,6 +48,7 @@ const ROLE_LABELS: Record<string, string> = {
 }
 
 export function Header({ user }: { user: AuthUser | null }) {
+  const router = useRouter()
   const { view, setView, setUser, cart, setCartOpen } = useAppStore()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
@@ -53,6 +56,17 @@ export function Header({ user }: { user: AuthUser | null }) {
   useEffect(() => {
     setSearchOpen(false)
   }, [view.name])
+
+  // Warm the small, high-frequency route shells after the header mounts. The
+  // heavier seller/admin bundles are prefetched only for users who can open
+  // them, keeping buyer navigation fast without loading privileged code.
+  useEffect(() => {
+    const routes = ['/', '/parts', '/stores', '/support']
+    if (user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') routes.push('/account/orders', '/account/profile', '/account/wishlist')
+    if (user?.role === 'SHOP_OWNER') routes.push('/seller/parts', '/seller/orders', '/seller/store')
+    if (user?.role === 'ADMIN') routes.push('/admin/users', '/admin/parts', '/admin/support')
+    routes.forEach((path) => router.prefetch(path))
+  }, [router, user?.role])
 
   const navItems = (
     <>
@@ -67,6 +81,18 @@ export function Header({ user }: { user: AuthUser | null }) {
       >
         <Home className="size-4" />
         الرئيسية
+      </Button>
+      <Button
+        variant={view.name === 'support' ? 'default' : 'ghost'}
+        size="sm"
+        onClick={() => {
+          setView({ name: 'support' })
+          setMobileOpen(false)
+        }}
+        className="justify-start gap-2"
+      >
+        <LifeBuoy className="size-4" />
+        الدعم والمساعدة
       </Button>
       <Button
         variant={view.name === 'stores' ? 'default' : 'ghost'}
@@ -177,9 +203,9 @@ export function Header({ user }: { user: AuthUser | null }) {
           className="group flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-primary/5"
         >
           <img
-            src="/ghyar-market-icon.png"
+            src="/ghyar-market-logo.png"
             alt=""
-            className="h-10 w-10 object-contain drop-shadow-sm transition group-hover:scale-105 sm:h-11 sm:w-11"
+            className="h-10 w-16 object-contain drop-shadow-sm transition group-hover:scale-105 sm:h-11 sm:w-[4.5rem]"
           />
           <span className="hidden text-lg font-extrabold tracking-tight text-foreground sm:inline">
             غيار ماركت
@@ -267,6 +293,10 @@ export function Header({ user }: { user: AuthUser | null }) {
                 <DropdownMenuItem onClick={() => setView({ name: 'inbox' })}>
                   <MessageSquare className="size-4 ml-2" />
                   الرسائل
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setView({ name: 'support' })}>
+                  <LifeBuoy className="size-4 ml-2" />
+                  الدعم والمساعدة
                 </DropdownMenuItem>
                 {user.role === 'SHOP_OWNER' && (
                   <>

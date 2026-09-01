@@ -21,6 +21,14 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        source: '/parts/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, s-maxage=30, stale-while-revalidate=120' }],
+      },
+      {
+        source: '/stores/:path*',
+        headers: [{ key: 'Cache-Control', value: 'public, s-maxage=30, stale-while-revalidate=120' }],
+      },
+      {
         source: '/(.*)',
         headers: [
           {
@@ -51,8 +59,7 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: '/favicon.ico', destination: '/ghyar-market-logo.svg' },
-      { source: '/ghyar-market-logo.png', destination: '/ghyar-market-logo.svg' },
+      { source: '/favicon.ico', destination: '/ghyar-market-logo.png' },
       { source: '/ghyar-market-hero.png', destination: '/ghyar-market-hero.webp' },
       { source: '/profile-avatars/classic-car.png', destination: '/profile-avatars/classic-car.webp' },
       { source: '/profile-avatars/electric-car.png', destination: '/profile-avatars/electric-car.webp' },

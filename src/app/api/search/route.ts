@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
+import { detectMarketplaceBrandHint, findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
 import { BLOCKED_STORE_NAMES } from '@/lib/store-moderation'
 
 // GET /api/search?q=query - returns matching parts, stores, and car models
@@ -16,13 +16,25 @@ export async function GET(req: NextRequest) {
     findTypoTolerantPartIds(q, 30),
     findTypoTolerantStoreIds(q, 20),
   ])
+  const brandHint = detectMarketplaceBrandHint(q)
   const visibleStores = { NOT: BLOCKED_STORE_NAMES.map((name) => ({ name: { equals: name, mode: 'insensitive' as const } })) }
+  const brandPrecisionGuard = brandHint ? {
+    OR: [
+      { brand: { contains: brandHint, mode: 'insensitive' as const } },
+      { name: { contains: brandHint, mode: 'insensitive' as const } },
+      { description: { contains: brandHint, mode: 'insensitive' as const } },
+      { searchAliases: { contains: brandHint, mode: 'insensitive' as const } },
+      { carModels: { contains: brandHint, mode: 'insensitive' as const } },
+      { compatibilities: { some: { make: { contains: brandHint, mode: 'insensitive' as const } } } },
+    ],
+  } : undefined
 
   const [exactParts, stores, partsWithCars] = await Promise.all([
     db.part.findMany({
       where: {
         blocked: false,
         store: { is: visibleStores },
+        ...(brandPrecisionGuard ? { AND: [brandPrecisionGuard] } : {}),
         OR: [
           { name: { contains: q, mode: 'insensitive' } },
           { description: { contains: q, mode: 'insensitive' } },
@@ -56,6 +68,7 @@ export async function GET(req: NextRequest) {
       where: {
         blocked: false,
         store: { is: visibleStores },
+        ...(brandPrecisionGuard ? { AND: [brandPrecisionGuard] } : {}),
         OR: [
           { carModels: { contains: q, mode: 'insensitive' } },
           { compatibilities: { some: { OR: [{ make: { contains: q, mode: 'insensitive' } }, { model: { contains: q, mode: 'insensitive' } }] } } },
@@ -71,10 +84,14 @@ export async function GET(req: NextRequest) {
   if (parts.length < 8 && fuzzyPartIds.length) {
     const missingIds = fuzzyPartIds.filter((id) => !parts.some((part) => part.id === id)).slice(0, 8 - parts.length)
     if (missingIds.length) {
-      const matches = await db.part.findMany({ where: { id: { in: missingIds }, blocked: false, store: { is: visibleStores } }, select: { id: true, name: true, price: true, image: true, category: true, brand: true, store: { select: { id: true, name: true } } } })
+      const matches = await db.part.findMany({ where: { id: { in: missingIds }, blocked: false, store: { is: visibleStores }, ...(brandPrecisionGuard ? { AND: [brandPrecisionGuard] } : {}) }, select: { id: true, name: true, price: true, image: true, category: true, brand: true, store: { select: { id: true, name: true } } } })
       const byId = new Map(matches.map((part) => [part.id, part]))
       parts = [...parts, ...missingIds.map((id) => byId.get(id)).filter((part): part is NonNullable<typeof part> => Boolean(part))].slice(0, 8)
     }
+  }
+  if (fuzzyPartIds.length) {
+    const rank = new Map(fuzzyPartIds.map((id, index) => [id, index]))
+    parts = parts.slice().sort((left, right) => (rank.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (rank.get(right.id) ?? Number.MAX_SAFE_INTEGER))
   }
 
   // Get matching car models

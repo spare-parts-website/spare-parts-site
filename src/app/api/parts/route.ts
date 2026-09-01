@@ -29,9 +29,10 @@ export async function GET(req: NextRequest) {
     const sort = searchParams.get('sort') || 'newest'
 
     if (id) {
-      const result = await getPublicPart(id, await getSession())
+      const viewerRequested = searchParams.get('viewer') === '1'
+      const result = await getPublicPart(id, viewerRequested ? await getSession() : null)
       if (!result.part) return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
-      return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
+      return NextResponse.json(result, { headers: { 'Cache-Control': viewerRequested ? 'private, no-store, max-age=0' : 'public, s-maxage=30, stale-while-revalidate=120' } })
     }
 
     if (!mine) {
@@ -208,7 +209,7 @@ export async function PUT(req: NextRequest) {
     } else if (image !== undefined && image !== part.image) {
       await deleteUploadedFiles([part.image])
     }
-    if (isAdmin) await audit({ actorId: session.id, action: 'ADMIN_PART_UPDATED', targetType: 'part', targetId: id })
+    if (isAdmin) await audit({ actorId: session.id, action: 'ADMIN_PART_UPDATED', targetType: 'part', targetId: id, metadata: { storeId: part.storeId, sellerId: part.store.ownerId } })
 
     return NextResponse.json({ part: updated })
   } catch (e) {
@@ -244,6 +245,7 @@ export async function DELETE(req: NextRequest) {
     const media = await db.part.findUnique({ where: { id }, select: { image: true, images: { select: { url: true } } } })
     await db.$transaction((tx) => deletePartWithDependencies(tx, id))
     await deleteUploadedFiles([media?.image, ...(media?.images || []).map((image) => image.url)])
+    if (isAdmin) await audit({ actorId: session.id, action: 'ADMIN_PART_DELETED', targetType: 'part', targetId: id, metadata: { storeId: part.storeId, sellerId: part.store.ownerId } })
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {

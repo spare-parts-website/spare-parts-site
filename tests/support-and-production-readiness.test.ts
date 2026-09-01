@@ -1,0 +1,70 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+import test from 'node:test'
+
+const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
+
+test('support tickets enforce private ownership and failure-safe email delivery', () => {
+  const listRoute = read('src/app/api/support/tickets/route.ts')
+  const detailRoute = read('src/app/api/support/tickets/[id]/route.ts')
+  const email = read('src/lib/support-email.ts')
+  const migration = read('prisma/support-tickets.sql')
+  assert.match(listRoute, /userId: session\.id/)
+  assert.match(listRoute, /Promise\.allSettled\(admins\.map/)
+  assert.match(listRoute, /SUPPORT_EMAIL_FAILED/)
+  assert.match(listRoute, /filters\.status/)
+  assert.match(listRoute, /filters\.category/)
+  assert.match(detailRoute, /loadTicket\(id, session\.id, session\.role === 'ADMIN'\)/)
+  assert.match(detailRoute, /session\.role !== 'ADMIN'/)
+  assert.match(email, /SUPPORT_EMAIL/)
+  assert.match(email, /idempotencyKey: `support-ticket\//)
+  assert.match(migration, /enable row level security/i)
+})
+
+test('admin assist creates inside the seller store and audits the mutation', () => {
+  const route = read('src/app/api/admin/parts/route.ts')
+  const dialog = read('src/components/admin-create-part-dialog.tsx')
+  assert.match(route, /requireRole\('ADMIN'\)/)
+  assert.match(route, /store\.ownerId !== sellerId/)
+  assert.match(route, /storeId: store\.id/)
+  assert.match(route, /ADMIN_PART_CREATED/)
+  assert.match(route, /sellerId: target\.store\.ownerId/)
+  assert.match(dialog, /\/api\/admin\/parts/)
+})
+
+test('public marketplace details advertise shared caching while viewer overlays stay private', () => {
+  const page = read('src/app/[...route]/page.tsx')
+  const parts = read('src/app/api/parts/route.ts')
+  const stores = read('src/app/api/stores/route.ts')
+  const breadcrumbs = read('src/components/breadcrumbs.tsx')
+  assert.match(page, /export const revalidate = 30/)
+  assert.match(page, /getPublicPart\(id, null\)/)
+  assert.match(page, /getPublicStore\(id, null\)/)
+  assert.match(page, /unstable_noStore\(\)/)
+  assert.match(parts, /viewerRequested \? 'private, no-store, max-age=0' : 'public, s-maxage=30/)
+  assert.match(stores, /viewerRequested \? 'private, no-store, max-age=0' : 'public, s-maxage=30/)
+  assert.match(breadcrumbs, /BreadcrumbList/)
+})
+
+test('support inbox exposes admin filters and route loading feedback', () => {
+  const view = read('src/components/views/support-view.tsx')
+  const loading = read('src/app/loading.tsx')
+  assert.match(view, /كل الحالات/)
+  assert.match(view, /كل التصنيفات/)
+  assert.match(view, /ابحث برقم التذكرة/)
+  assert.match(view, /WAITING_FOR_SUPPORT/)
+  assert.match(loading, /جاري تحميل الصفحة/)
+})
+
+test('latest approved logo is wired to favicon, app chrome, and service worker', () => {
+  const layout = read('src/app/layout.tsx')
+  const header = read('src/components/header.tsx')
+  const auth = read('src/components/views/auth-view.tsx')
+  const config = read('next.config.ts')
+  const worker = read('public/sw.js')
+  assert.match(layout, /icon: "\/ghyar-market-logo\.png"/)
+  assert.match(header, /src="\/ghyar-market-logo\.png"/)
+  assert.match(auth, /src="\/ghyar-market-logo\.png"/)
+  assert.match(config, /destination: '\/ghyar-market-logo\.png'/)
+  assert.match(worker, /\/ghyar-market-logo\.png/)
+})

@@ -1,5 +1,5 @@
-const CACHE = 'ghyar-market-static-v2'
-const STATIC_ASSETS = ['/ghyar-market-logo.svg', '/ghyar-market-icon.png']
+const CACHE = 'ghyar-market-static-v3'
+const STATIC_ASSETS = ['/ghyar-market-logo.png', '/ghyar-market-icon.png']
 self.addEventListener('install', (event) => event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(STATIC_ASSETS)).then(() => self.skipWaiting())))
 self.addEventListener('activate', (event) => event.waitUntil(caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE).map((key) => caches.delete(key)))).then(() => self.clients.claim())))
 self.addEventListener('fetch', (event) => {

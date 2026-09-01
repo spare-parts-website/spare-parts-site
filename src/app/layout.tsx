@@ -24,7 +24,7 @@ export const metadata: Metadata = {
   description: "ابحث وقارن واطلب قطع غيار السيارات من متاجر متخصصة في مصر، مع تقييمات حقيقية وعلامة واضحة للمتاجر الموثقة والدفع عند الاستلام.",
   keywords: ["غيار ماركت", "قطع غيار", "سيارات", "متاجر", "ميكانيكا"],
   icons: {
-    icon: "/ghyar-market-logo.svg",
+    icon: "/ghyar-market-logo.png",
     apple: "/ghyar-market-icon.png",
   },
   openGraph: {
