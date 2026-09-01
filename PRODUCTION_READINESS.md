@@ -31,7 +31,7 @@ P0/P1 implementation checkpoint complete locally; final commit, CI, preview, pro
 
 ## Commit
 
-`4dbdc84` — Harden marketplace production readiness (on `codex/preserve-mobile-navigation`; not pushed yet). Do not commit `.codebase-memory/` or secrets.
+Implementation commit: `013d1a3` — Harden marketplace production readiness (on `codex/preserve-mobile-navigation`; not pushed yet). Do not commit `.codebase-memory/` or secrets.
 
 ## Remaining tasks
 
