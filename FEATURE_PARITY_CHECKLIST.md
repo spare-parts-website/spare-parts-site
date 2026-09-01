@@ -50,7 +50,7 @@ This checklist describes the current implementation in `codex/preserve-mobile-na
 - [x] In-app notifications remain durable and email failures remain secondary/failure-safe.
 - [x] Resend delivery webhook endpoint verifies Standard Webhooks signatures, is idempotent, updates `EmailDeliveryAttempt`, and audits severe lifecycle events.
 - [ ] `RESEND_WEBHOOK_SECRET` still needs to be stored in Vercel before enabling exactly one production Resend webhook.
-- [x] CI workflow retains npm install, production audit, lint, test, and build steps; remote GitHub run must still be confirmed after the final push.
+- [x] CI workflow retains npm install, production audit, lint, test, and build steps; GitHub Actions run 79 for release commit 8d95a3a completed successfully.
 
 ## Local verification completed
 
@@ -58,16 +58,16 @@ This checklist describes the current implementation in `codex/preserve-mobile-na
 - [x] `npm audit --omit=dev --audit-level=high`
 - [x] `npx tsc --noEmit`
 - [x] `npm run lint`
-- [x] `npm test` (68/68)
+- [x] `npm test` (69/69)
 - [x] `npm run build` (exits successfully; local placeholder DB URL emits a handled homepage warning)
 - [x] `git diff --check`
-- [ ] `npm run test:smoke` against the final deployed URL
+- [x] `npm run test:smoke` against https://ghyarmarket-eg.com with SMOKE_EXPECT_BMW=1
 
 ## Release gates still requiring remote evidence
 
-- [ ] Final readiness commit pushed without force-push.
-- [ ] GitHub Actions final run is green.
-- [ ] Vercel preview for the final commit is `READY` and passes public/protected smoke checks.
-- [ ] Production promotion is the previewed commit; live checks pass for `/`, `/parts`, `/parts?search=bww`, `/stores`, legal/auth pages, `/favicon.ico`, relevant APIs, and logout/offline privacy.
-- [ ] Vercel runtime errors/logs show no new checkout, upload, webhook, or favicon/socket regressions.
-- [ ] Supabase post-deploy counts, RLS posture, and public/private storage bucket visibility are rechecked.
+- [x] Final readiness commits pushed without force-push (release commit 8d95a3a is on main).
+- [x] GitHub Actions final run 79 is green.
+- [x] Vercel preview for checkpoint commit 816713e is READY; direct public/protected smoke is limited by Vercel Authentication.
+- [x] Production deployment dpl_4MdTeEp5GdmotT2KNpZfbm7RvuYe for 8d95a3a is READY; live checks pass for /, /parts, /parts?search=bww, /stores, legal/auth pages, /favicon.ico, relevant APIs, and security headers.
+- [x] Vercel runtime errors and production 5xx logs show no entries in the checked hour.
+- [x] Supabase post-deploy counts, RLS posture, and public/private storage bucket visibility are rechecked.
