@@ -77,7 +77,7 @@ export function Header() {
       <Button asChild variant={pathname === '/' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
         <Link href="/" onClick={() => setMobileOpen(false)}><Home className="size-4" />الرئيسية</Link>
       </Button>
-      <Button asChild variant={pathname === '/support' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
+      <Button asChild variant={pathname === '/support' ? 'default' : 'ghost'} size="sm" className="max-xl:order-last justify-start gap-2">
         <Link href="/support" onClick={() => setMobileOpen(false)}><LifeBuoy className="size-4" />الدعم والمساعدة</Link>
       </Button>
       <Button asChild variant={pathname.startsWith('/stores') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
