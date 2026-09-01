@@ -59,6 +59,8 @@ test('public marketplace details advertise shared caching while viewer overlays 
 
 test('support inbox exposes admin filters and route loading feedback', () => {
   const view = read('src/components/views/support-view.tsx')
+  const input = read('src/components/ui/input.tsx')
+  const textarea = read('src/components/ui/textarea.tsx')
   const loading = read('src/app/loading.tsx')
   assert.match(view, /كل الحالات/)
   assert.match(view, /كل التصنيفات/)
@@ -67,6 +69,9 @@ test('support inbox exposes admin filters and route loading feedback', () => {
   assert.match(view, /SUPPORT_REFRESH_INTERVAL/)
   assert.match(view, /window\.setInterval\(refresh, SUPPORT_REFRESH_INTERVAL\)/)
   assert.match(view, /visibilitychange/)
+  assert.doesNotMatch(view, /LifeBuoy/)
+  assert.match(input, /dir="auto"/)
+  assert.match(textarea, /dir="auto"/)
   assert.match(loading, /جاري تحميل الصفحة/)
 })
 

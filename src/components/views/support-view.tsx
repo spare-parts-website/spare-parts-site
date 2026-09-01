@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { LifeBuoy, MessageSquare, Search, Send, ShieldCheck } from 'lucide-react'
+import { MessageSquare, Search, Send, ShieldCheck } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -158,11 +158,11 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
     } finally { setSaving(false) }
   }
 
-  if (!user) return <div className="content-container py-16"><Card><CardContent className="py-12 text-center"><LifeBuoy className="mx-auto size-12 text-primary" /><h1 className="mt-4 text-2xl font-bold">الدعم والمساعدة</h1><p className="mt-2 text-muted-foreground">سجّل الدخول لإنشاء تذكرة ومتابعة الردود.</p></CardContent></Card></div>
+  if (!user) return <div className="content-container py-16"><Card><CardContent className="py-12 text-center"><h1 className="text-2xl font-bold">الدعم والمساعدة</h1><p className="mt-2 text-muted-foreground">سجّل الدخول لإنشاء تذكرة ومتابعة الردود.</p></CardContent></Card></div>
 
   return (
     <div className={`content-container space-y-6 py-10 ${embedded ? 'pt-2' : ''}`}>
-      {!embedded && <div className="page-heading mb-0"><div className="flex items-start gap-3"><div><p className="page-kicker">خدمة العملاء</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الدعم والمساعدة</h1><p className="mt-1 text-muted-foreground">تواصل مع فريق غيار ماركت وتابع طلبك من مكان واحد.</p></div><span className="mt-1 grid size-12 shrink-0 place-items-center rounded-2xl bg-primary/10 text-primary ring-1 ring-primary/20"><LifeBuoy className="size-7" aria-hidden="true" /></span></div></div>}
+      {!embedded && <div className="page-heading mb-0"><div><p className="page-kicker">خدمة العملاء</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الدعم والمساعدة</h1><p className="mt-1 text-muted-foreground">تواصل مع فريق غيار ماركت وتابع طلبك من مكان واحد.</p></div></div>}
       {user.role === 'ADMIN' && <Card className="market-card"><CardContent className="flex flex-col gap-3 p-4 sm:flex-row sm:flex-wrap sm:items-center"><div className="relative min-w-0 flex-1 sm:min-w-56"><Search className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input value={searchInput} onChange={(event) => setSearchInput(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') setTicketSearch(searchInput.trim()) }} className="pr-9" placeholder="ابحث برقم التذكرة أو العنوان أو المستخدم" /></div><select aria-label="تصفية حسب الحالة" className="h-9 rounded-md border bg-background px-2 text-sm" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="">كل الحالات</option>{Object.entries(STATUS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select aria-label="تصفية حسب التصنيف" className="h-9 rounded-md border bg-background px-2 text-sm" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}><option value="">كل التصنيفات</option>{Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><Button type="button" variant="outline" onClick={() => setTicketSearch(searchInput.trim())}>بحث</Button><Button type="button" variant="ghost" onClick={() => { setSearchInput(''); setTicketSearch(''); setStatusFilter(''); setCategoryFilter('') }}>مسح</Button></CardContent></Card>}
       <div className="grid gap-5 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.5fr)]">
         <Card className="market-card">
