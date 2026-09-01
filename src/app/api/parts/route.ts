@@ -1,13 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { getSession, requireRole } from '@/lib/auth'
-import { isBlockedStoreName } from '@/lib/store-moderation'
 import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
 import { audit } from '@/lib/audit'
-import { getPublicPart } from '@/lib/public-marketplace'
+import { getPublicPart, getPublicPartsList } from '@/lib/public-marketplace'
 
 const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
 
@@ -18,136 +17,58 @@ function validGallery(value: unknown) {
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url)
-  const search = searchParams.get('search') || ''
-  const category = searchParams.get('category') || ''
-  const brand = searchParams.get('brand') || ''
-  const condition = searchParams.get('condition') || ''
-  const storeId = searchParams.get('storeId') || ''
-  const id = searchParams.get('id')
-  const minPrice = searchParams.get('minPrice')
-  const maxPrice = searchParams.get('maxPrice')
-  const carModel = searchParams.get('carModel') || ''
-  const carId = searchParams.get('carId') || ''
-  const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
-  const page = Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10000) : 1
-  const mine = searchParams.get('scope') === 'mine'
-  const pageSize = mine ? 100 : 24
-  const sort = searchParams.get('sort') || 'newest'
+    const search = searchParams.get('search') || ''
+    const category = searchParams.get('category') || ''
+    const brand = searchParams.get('brand') || ''
+    const condition = searchParams.get('condition') || ''
+    const id = searchParams.get('id')
+    const requestedPage = Number.parseInt(searchParams.get('page') || '1', 10)
+    const page = Number.isFinite(requestedPage) && requestedPage > 0 ? Math.min(requestedPage, 10_000) : 1
+    const mine = searchParams.get('scope') === 'mine'
+    const sort = searchParams.get('sort') || 'newest'
 
-  if (id) {
-    const result = await getPublicPart(id, await getSession())
-    if (!result.part) {
-      return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
+    if (id) {
+      const result = await getPublicPart(id, await getSession())
+      if (!result.part) return NextResponse.json({ error: 'قطعة الغيار غير موجودة' }, { status: 404 })
+      return NextResponse.json(result, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
     }
-    return NextResponse.json(
-      result,
-      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
-    )
-  }
 
-  const where: any = mine ? {} : { blocked: false }
-  let selectedCar: { brand: string; model: string; year: number | null; engine: string | null } | null = null
-  if (carId && !mine) {
-    const session = await getSession()
-    if (session) selectedCar = await db.userCar.findFirst({ where: { id: carId, userId: session.id }, select: { brand: true, model: true, year: true, engine: true } })
-    if (selectedCar) where.compatibilities = { some: { make: { contains: selectedCar.brand }, model: { contains: selectedCar.model }, AND: selectedCar.year ? [{ OR: [{ yearFrom: null }, { yearFrom: { lte: selectedCar.year } }] }, { OR: [{ yearTo: null }, { yearTo: { gte: selectedCar.year } }] }] : undefined } }
-  }
-  if (mine) {
+    if (!mine) {
+      const carId = searchParams.get('carId') || ''
+      const result = await getPublicPartsList({
+        search,
+        category,
+        brand,
+        condition,
+        storeId: searchParams.get('storeId') || '',
+        minPrice: searchParams.get('minPrice'),
+        maxPrice: searchParams.get('maxPrice'),
+        carModel: searchParams.get('carModel') || '',
+        carId,
+        sort,
+        page,
+      }, carId ? await getSession() : null)
+      return NextResponse.json(result, {
+        headers: { 'Cache-Control': carId ? 'no-store, max-age=0' : 'public, s-maxage=30, stale-while-revalidate=120' },
+      })
+    }
+
     const session = await getSession()
     if (!session || session.role !== 'SHOP_OWNER') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     const store = await db.store.findUnique({ where: { ownerId: session.id }, select: { id: true } })
+    const pageSize = 100
     if (!store) return NextResponse.json({ parts: [], pagination: { page: 1, pageSize, total: 0, totalPages: 1 }, categories: [], brands: [], conditions: [] })
-    where.storeId = store.id
-  }
-  if (search) {
-    where.OR = [
-      { name: { contains: search } },
-      { description: { contains: search } },
-      { brand: { contains: search } },
-      { condition: { contains: search } },
-      { partNumber: { contains: search } },
-      { oemNumber: { contains: search } },
-      { searchAliases: { contains: search } },
-    ]
-  }
-  if (category) where.category = category
-  if (brand) where.brand = brand
-  if (condition) where.condition = condition
-  if (storeId) where.storeId = storeId
-  if (minPrice) where.price = { ...where.price, gte: parseFloat(minPrice) }
-  if (maxPrice) where.price = { ...where.price, lte: parseFloat(maxPrice) }
-  if (carModel) {
-    where.AND = [
-      ...(where.AND || []),
-      { OR: [
-        { carModels: { contains: carModel } },
-        { compatibilities: { some: { OR: [{ make: { contains: carModel } }, { model: { contains: carModel } }] } } },
-      ] },
-    ]
-  }
-
-  const orderBy = sort === 'price-asc'
-    ? { price: 'asc' as const }
-    : sort === 'price-desc'
-      ? { price: 'desc' as const }
-      : sort === 'name'
-        ? { name: 'asc' as const }
-        : { createdAt: 'desc' as const }
-
-  const [parts, total, categories, brands, conditions] = await Promise.all([
-    db.part.findMany({
-      where,
-      select: {
-        id: true, name: true, description: true, price: true, stock: true,
-        category: true, brand: true, condition: true, image: true, carModels: true, partNumber: true, oemNumber: true,
-        createdAt: true, blocked: true,
-        images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] },
-        compatibilities: { select: { id: true, make: true, model: true, yearFrom: true, yearTo: true } },
-        store: {
-          select: {
-            id: true,
-            name: true,
-            image: true,
-            owner: { select: { name: true, avatar: true } },
-          },
-        },
-      },
-      orderBy,
-      skip: (page - 1) * pageSize,
-      take: pageSize,
-    }),
-    db.part.count({ where }),
-    db.part.findMany({
-      where: { blocked: false, category: { not: null } },
-      distinct: ['category'],
-      select: { category: true },
-    }),
-    db.part.findMany({
-      where: { blocked: false, brand: { not: null } },
-      distinct: ['brand'],
-      select: { brand: true },
-    }),
-    db.part.findMany({
-      where: { blocked: false, condition: { not: null } },
-      distinct: ['condition'],
-      select: { condition: true },
-      orderBy: { condition: 'asc' },
-    }),
-  ])
-
-  const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name))
-
-    return NextResponse.json(
-      {
-        parts: visibleParts.map((part) => ({ ...part, compatibleWithSelectedCar: Boolean(selectedCar) })),
-        selectedCar,
-        pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
-        categories: categories.map((c) => c.category).filter(Boolean),
-        brands: brands.map((b) => b.brand).filter(Boolean),
-        conditions: conditions.map((item) => item.condition).filter(Boolean),
-      },
-      { headers: { 'Cache-Control': mine ? 'no-store, max-age=0' : 'public, s-maxage=30, stale-while-revalidate=120' } }
-    )
+    const where: Record<string, unknown> = { storeId: store.id }
+    if (search) where.OR = [{ name: { contains: search } }, { description: { contains: search } }, { brand: { contains: search } }, { condition: { contains: search } }, { partNumber: { contains: search } }, { oemNumber: { contains: search } }, { searchAliases: { contains: search } }]
+    if (category) where.category = category
+    if (brand) where.brand = brand
+    if (condition) where.condition = condition
+    const orderBy = sort === 'price-asc' ? { price: 'asc' as const } : sort === 'price-desc' ? { price: 'desc' as const } : sort === 'name' ? { name: 'asc' as const } : { createdAt: 'desc' as const }
+    const [parts, total] = await Promise.all([
+      db.part.findMany({ where, include: { images: { orderBy: [{ position: 'asc' }, { createdAt: 'asc' }] }, compatibilities: true, store: { select: { id: true, name: true, image: true } } }, orderBy, skip: (page - 1) * pageSize, take: pageSize }),
+      db.part.count({ where }),
+    ])
+    return NextResponse.json({ parts, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) }, categories: [], brands: [], conditions: [] }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'تعذر تحميل قطع الغيار' }, { status: 500 })

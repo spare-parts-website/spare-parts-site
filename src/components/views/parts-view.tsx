@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
@@ -18,55 +18,43 @@ import {
 } from '@/components/ui/select'
 import { Package, Search, Store as StoreIcon, Filter, X, ChevronLeft, ChevronRight, RefreshCw, Car, BadgeCheck } from 'lucide-react'
 import { formatPrice } from '@/components/common'
-import { UserAvatar } from '@/components/user-avatar'
+import type { PublicPartListItem, PublicPartsList, PublicPartsQuery } from '@/lib/public-marketplace'
 
-interface Part {
-  id: string
-  name: string
-  description?: string | null
-  price: number
-  stock: number
-  category?: string | null
-  brand?: string | null
-  condition?: string | null
-  image?: string | null
-  carModels?: string | null
-  partNumber?: string | null
-  oemNumber?: string | null
-  compatibleWithSelectedCar?: boolean
-  store: { id: string; name: string; image?: string | null; owner: { name: string; avatar?: string | null } }
-}
+type Part = PublicPartListItem
 
-export function PartsView() {
+export function PartsView({ initialData = null, initialQuery = {} }: { initialData?: PublicPartsList | null; initialQuery?: PublicPartsQuery }) {
   const router = useRouter()
   const { setView, searchQuery } = useAppStore()
   const routeParams = useSearchParams()
-  const [parts, setParts] = useState<Part[]>([])
-  const [categories, setCategories] = useState<string[]>([])
-  const [brands, setBrands] = useState<string[]>([])
-  const [loading, setLoading] = useState(true)
+  const [parts, setParts] = useState<Part[]>(initialData?.parts || [])
+  const [categories, setCategories] = useState<string[]>(initialData?.categories || [])
+  const [brands, setBrands] = useState<string[]>(initialData?.brands || [])
+  const [loading, setLoading] = useState(!initialData)
   const [failed, setFailed] = useState(false)
   const [retryKey, setRetryKey] = useState(0)
-  const [search, setSearch] = useState(routeParams.get('search') || searchQuery)
-  const [category, setCategory] = useState(routeParams.get('category') || '')
-  const [brand, setBrand] = useState(routeParams.get('brand') || '')
-  const [condition, setCondition] = useState(routeParams.get('condition') || '')
-  const [conditions, setConditions] = useState<string[]>([])
-  const [sort, setSort] = useState(routeParams.get('sort') || 'newest')
-  const [page, setPage] = useState(Math.max(1, Number(routeParams.get('page')) || 1))
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const carId = routeParams.get('carId') || ''
-  const [selectedCar, setSelectedCar] = useState<{ brand: string; model: string; year?: number | null } | null>(null)
+  const initialSearch = routeParams.get('search') || initialQuery.search || searchQuery
+  const [search, setSearch] = useState(initialSearch)
+  const [appliedSearch, setAppliedSearch] = useState(initialSearch)
+  const [category, setCategory] = useState(routeParams.get('category') || initialQuery.category || '')
+  const [brand, setBrand] = useState(routeParams.get('brand') || initialQuery.brand || '')
+  const [condition, setCondition] = useState(routeParams.get('condition') || initialQuery.condition || '')
+  const [conditions, setConditions] = useState<string[]>(initialData?.conditions || [])
+  const [sort, setSort] = useState(routeParams.get('sort') || initialQuery.sort || 'newest')
+  const [page, setPage] = useState(Math.max(1, Number(routeParams.get('page')) || initialQuery.page || 1))
+  const [totalPages, setTotalPages] = useState(initialData?.pagination.totalPages || 1)
+  const [total, setTotal] = useState(initialData?.pagination.total || 0)
+  const carId = routeParams.get('carId') || initialQuery.carId || ''
+  const [selectedCar, setSelectedCar] = useState<PublicPartsList['selectedCar']>(initialData?.selectedCar || null)
 
   useEffect(() => {
     setSearch(searchQuery)
+    setAppliedSearch(searchQuery)
     setPage(1)
   }, [searchQuery])
 
   const buildUrl = useMemo(() => {
     const params = new URLSearchParams()
-    if (search) params.set('search', search)
+    if (appliedSearch) params.set('search', appliedSearch)
     if (category) params.set('category', category)
     if (brand) params.set('brand', brand)
     if (condition) params.set('condition', condition)
@@ -74,9 +62,14 @@ export function PartsView() {
     params.set('sort', sort)
     params.set('page', String(page))
     return params.toString()
-  }, [search, category, brand, condition, sort, page, carId])
+  }, [appliedSearch, category, brand, condition, sort, page, carId])
+  const lastLoadedUrl = useRef(initialData ? buildUrl : '')
+  const lastRetryKey = useRef(0)
 
   useEffect(() => {
+    if (lastLoadedUrl.current === buildUrl && lastRetryKey.current === retryKey) return
+    lastLoadedUrl.current = buildUrl
+    lastRetryKey.current = retryKey
     setLoading(true)
     setFailed(false)
     window.history.replaceState(window.history.state, '', `/parts?${buildUrl}`)
@@ -85,7 +78,7 @@ export function PartsView() {
         if (!r.ok) throw new Error('parts-api-failed')
         return r.json()
       })
-      .then((data) => {
+      .then((data: PublicPartsList) => {
         setParts(data.parts || [])
         setCategories(data.categories || [])
         setBrands(data.brands || [])
@@ -98,7 +91,7 @@ export function PartsView() {
       .finally(() => setLoading(false))
   }, [buildUrl, retryKey])
 
-  const hasFilters = category || brand || condition || search || carId
+  const hasFilters = category || brand || condition || appliedSearch || carId
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -118,6 +111,8 @@ export function PartsView() {
         <form
           onSubmit={(e) => {
             e.preventDefault()
+            setAppliedSearch(search)
+            setPage(1)
             useAppStore.setState({ searchQuery: search })
           }}
           className="relative w-full max-w-2xl"
@@ -192,6 +187,7 @@ export function PartsView() {
               size="sm"
               onClick={() => {
                 setSearch('')
+                setAppliedSearch('')
                 setCategory('')
                 setBrand('')
                 setCondition('')
@@ -228,6 +224,7 @@ export function PartsView() {
                 className="mt-3"
                 onClick={() => {
                   setSearch('')
+                  setAppliedSearch('')
                   setCategory('')
                   setBrand('')
                 }}
@@ -256,7 +253,7 @@ export function PartsView() {
             >
               <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative block h-28 w-full overflow-hidden bg-primary/10 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: part.store.id }) }}>
                 {part.store.image ? (
-                  <Image src={part.store.image} alt={part.store.name} fill sizes="(max-width: 640px) 100vw, 420px" quality={100} className="object-cover transition duration-300 hover:scale-105" />
+                  <Image src={part.store.image} alt={part.store.name} fill sizes="(max-width: 640px) 100vw, 420px" className="object-cover transition duration-300 hover:scale-105" />
                 ) : (
                   <StoreIcon className="absolute inset-0 m-auto size-10 text-primary/40" />
                 )}
@@ -290,7 +287,6 @@ export function PartsView() {
                 )}
               </div>
               <CardContent className="p-4 space-y-2 flex-1 flex flex-col">
-                <div className="flex items-center gap-2 rounded-xl bg-muted/40 p-2 text-xs"><UserAvatar name={part.store.owner.name} src={part.store.owner.avatar} className="size-8 text-[10px]" /><span className="min-w-0"><span className="block truncate font-bold">{part.store.name}</span><span className="block truncate text-muted-foreground">{part.store.owner.name}</span></span></div>
                 <div className="space-y-2">
                 <h3 className="font-semibold line-clamp-2 text-sm leading-relaxed min-h-10">
                   {part.name}

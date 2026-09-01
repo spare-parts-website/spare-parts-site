@@ -1,9 +1,243 @@
 import 'server-only'
 
+import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { isBlockedStoreName } from '@/lib/store-moderation'
+import { BLOCKED_STORE_NAMES, isBlockedStoreName } from '@/lib/store-moderation'
 
 type PublicViewer = { id: string; role: string } | null
+
+export type PublicPartListItem = {
+  id: string
+  name: string
+  description: string | null
+  price: number
+  stock: number
+  category: string | null
+  brand: string | null
+  condition: string | null
+  image: string | null
+  carModels: string | null
+  partNumber: string | null
+  oemNumber: string | null
+  images: Array<{ id: string; url: string; position: number }>
+  compatibilities: Array<{ id: string; make: string; model: string; yearFrom: number | null; yearTo: number | null }>
+  compatibleWithSelectedCar: boolean
+  store: { id: string; name: string; image: string | null }
+}
+
+export type PublicPartsList = {
+  parts: PublicPartListItem[]
+  selectedCar: { brand: string; model: string; year: number | null; engine: string | null } | null
+  pagination: { page: number; pageSize: number; total: number; totalPages: number }
+  categories: string[]
+  brands: string[]
+  conditions: string[]
+}
+
+export type PublicPartsQuery = {
+  search?: string
+  category?: string
+  brand?: string
+  condition?: string
+  storeId?: string
+  minPrice?: string | null
+  maxPrice?: string | null
+  carModel?: string
+  carId?: string
+  sort?: string
+  page?: number
+}
+
+export type PublicStoreListItem = {
+  id: string
+  name: string
+  description: string | null
+  address: string | null
+  phone: string | null
+  image: string | null
+  verified: boolean
+  _count: { parts: number }
+  avgRating: number
+  reviewCount: number
+  completedOrderCount: number
+  completionRate: number | null
+}
+
+export type PublicStoresList = {
+  stores: PublicStoreListItem[]
+  pagination: { page: number; pageSize: number; total: number; totalPages: number }
+}
+
+const visibleStoreWhere: Prisma.StoreWhereInput = {
+  NOT: BLOCKED_STORE_NAMES.map((name) => ({ name: { equals: name, mode: 'insensitive' as const } })),
+}
+
+function clean(value: string | undefined, max = 160) {
+  return (value || '').trim().slice(0, max)
+}
+
+function publicPage(value: number | undefined) {
+  return Number.isInteger(value) && Number(value) > 0 ? Math.min(Number(value), 10_000) : 1
+}
+
+export async function getPublicPartsList(query: PublicPartsQuery, viewer: PublicViewer): Promise<PublicPartsList> {
+  const page = publicPage(query.page)
+  const pageSize = 24
+  const search = clean(query.search)
+  const category = clean(query.category, 120)
+  const brand = clean(query.brand, 120)
+  const condition = clean(query.condition, 120)
+  const storeId = clean(query.storeId, 100)
+  const carModel = clean(query.carModel, 160)
+  const carId = clean(query.carId, 100)
+  const sort = clean(query.sort, 30) || 'newest'
+  const minPrice = query.minPrice ? Number(query.minPrice) : null
+  const maxPrice = query.maxPrice ? Number(query.maxPrice) : null
+  const where: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
+  const and: Prisma.PartWhereInput[] = []
+  let selectedCar: PublicPartsList['selectedCar'] = null
+
+  if (carId && viewer) {
+    selectedCar = await db.userCar.findFirst({
+      where: { id: carId, userId: viewer.id },
+      select: { brand: true, model: true, year: true, engine: true },
+    })
+    if (selectedCar) {
+      and.push({
+        compatibilities: {
+          some: {
+            make: { contains: selectedCar.brand, mode: 'insensitive' },
+            model: { contains: selectedCar.model, mode: 'insensitive' },
+            AND: selectedCar.year
+              ? [
+                  { OR: [{ yearFrom: null }, { yearFrom: { lte: selectedCar.year } }] },
+                  { OR: [{ yearTo: null }, { yearTo: { gte: selectedCar.year } }] },
+                ]
+              : undefined,
+          },
+        },
+      })
+    }
+  }
+  if (search) {
+    where.OR = [
+      { name: { contains: search, mode: 'insensitive' } },
+      { description: { contains: search, mode: 'insensitive' } },
+      { brand: { contains: search, mode: 'insensitive' } },
+      { condition: { contains: search, mode: 'insensitive' } },
+      { partNumber: { contains: search, mode: 'insensitive' } },
+      { oemNumber: { contains: search, mode: 'insensitive' } },
+      { searchAliases: { contains: search, mode: 'insensitive' } },
+    ]
+  }
+  if (category) where.category = category
+  if (brand) where.brand = brand
+  if (condition) where.condition = condition
+  if (storeId) where.storeId = storeId
+  const price: Prisma.FloatFilter = {}
+  if (Number.isFinite(minPrice)) price.gte = Number(minPrice)
+  if (Number.isFinite(maxPrice)) price.lte = Number(maxPrice)
+  if (price.gte !== undefined || price.lte !== undefined) where.price = price
+  if (carModel) {
+    and.push({
+      OR: [
+        { carModels: { contains: carModel, mode: 'insensitive' } },
+        { compatibilities: { some: { OR: [{ make: { contains: carModel, mode: 'insensitive' } }, { model: { contains: carModel, mode: 'insensitive' } }] } } },
+      ],
+    })
+  }
+  if (and.length) where.AND = and
+
+  const orderBy: Prisma.PartOrderByWithRelationInput = sort === 'price-asc'
+    ? { price: 'asc' }
+    : sort === 'price-desc'
+      ? { price: 'desc' }
+      : sort === 'name'
+        ? { name: 'asc' }
+        : { createdAt: 'desc' }
+
+  const publicPartSelect = {
+    id: true, name: true, description: true, price: true, stock: true,
+    category: true, brand: true, condition: true, image: true, carModels: true, partNumber: true, oemNumber: true,
+    images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }] },
+    compatibilities: { select: { id: true, make: true, model: true, yearFrom: true, yearTo: true } },
+    store: { select: { id: true, name: true, image: true } },
+  } satisfies Prisma.PartSelect
+
+  const facetBase: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
+  const [records, total, categories, brands, conditions] = await Promise.all([
+    db.part.findMany({ where, select: publicPartSelect, orderBy, skip: (page - 1) * pageSize, take: pageSize }),
+    db.part.count({ where }),
+    db.part.findMany({ where: { ...facetBase, category: { not: null } }, distinct: ['category'], select: { category: true }, take: 100 }),
+    db.part.findMany({ where: { ...facetBase, brand: { not: null } }, distinct: ['brand'], select: { brand: true }, take: 100 }),
+    db.part.findMany({ where: { ...facetBase, condition: { not: null } }, distinct: ['condition'], select: { condition: true }, orderBy: { condition: 'asc' }, take: 100 }),
+  ])
+
+  return {
+    parts: records.filter((part) => !isBlockedStoreName(part.store.name)).map((part) => ({ ...part, compatibleWithSelectedCar: Boolean(selectedCar) })),
+    selectedCar,
+    pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+    categories: categories.map((item) => item.category).filter((item): item is string => Boolean(item)),
+    brands: brands.map((item) => item.brand).filter((item): item is string => Boolean(item)),
+    conditions: conditions.map((item) => item.condition).filter((item): item is string => Boolean(item)),
+  }
+}
+
+export async function getPublicStoresList(searchValue = '', pageValue = 1): Promise<PublicStoresList> {
+  const search = clean(searchValue)
+  const page = publicPage(pageValue)
+  const pageSize = 18
+  const where: Prisma.StoreWhereInput = {
+    ...visibleStoreWhere,
+    ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }] } : {}),
+  }
+
+  const [records, total] = await Promise.all([
+    db.store.findMany({
+      where,
+      select: {
+        id: true, name: true, description: true, address: true, phone: true, image: true, verified: true,
+        _count: { select: { parts: { where: { blocked: false } }, orders: { where: { status: 'DELIVERED' } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+    }),
+    db.store.count({ where }),
+  ])
+  const stores = records.filter((store) => !isBlockedStoreName(store.name))
+  const ids = stores.map((store) => store.id)
+  const [reviewGroups, decidedGroups] = ids.length
+    ? await Promise.all([
+        db.storeReview.groupBy({ by: ['storeId'], where: { storeId: { in: ids }, blocked: false }, _avg: { rating: true }, _count: { _all: true } }),
+        db.order.groupBy({ by: ['storeId'], where: { storeId: { in: ids }, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } }, _count: { _all: true } }),
+      ])
+    : [[], []]
+  const reviewByStore = new Map(reviewGroups.map((review) => [review.storeId, review]))
+  const decidedByStore = new Map(decidedGroups.map((item) => [item.storeId, item._count._all]))
+
+  return {
+    stores: stores.map((store) => {
+      const review = reviewByStore.get(store.id)
+      const decided = decidedByStore.get(store.id) || 0
+      return {
+        id: store.id,
+        name: store.name,
+        description: store.description,
+        address: store.address,
+        phone: store.phone,
+        image: store.image,
+        verified: store.verified,
+        _count: { parts: store._count.parts },
+        avgRating: review?._avg.rating || 0,
+        reviewCount: review?._count._all || 0,
+        completedOrderCount: store._count.orders,
+        completionRate: decided ? Math.round(store._count.orders / decided * 100) : null,
+      }
+    }),
+    pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
+  }
+}
 
 export type PublicPart = {
   id: string

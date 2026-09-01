@@ -8,61 +8,62 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Skeleton } from '@/components/ui/skeleton'
-import { Store as StoreIcon, Package, Search, MapPin, Phone, ShieldCheck, RefreshCw } from 'lucide-react'
+import { Store as StoreIcon, Package, Search, MapPin, Phone, ShieldCheck, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Stars } from '@/components/common'
 import { FavoriteStoreButton } from '@/components/favorite-store-button'
-import { UserAvatar } from '@/components/user-avatar'
+import type { PublicStoreListItem, PublicStoresList } from '@/lib/public-marketplace'
 
-interface Store {
-  id: string
-  name: string
-  description?: string | null
-  address?: string | null
-  phone?: string | null
-  _count: { parts: number }
-  avgRating: number
-  reviewCount: number
-  verified: boolean
-  verificationStatus?: string
-  completionRate?: number
-  completedOrderCount: number
-  image?: string | null
-  owner: { name: string; avatar?: string | null }
-}
+type Store = PublicStoreListItem
 
-export function StoresView() {
+export function StoresView({ initialData = null, initialSearch = '', initialPage = 1 }: { initialData?: PublicStoresList | null; initialSearch?: string; initialPage?: number }) {
   const { setView } = useAppStore()
-  const [stores, setStores] = useState<Store[]>([])
-  const [loading, setLoading] = useState(true)
+  const [stores, setStores] = useState<Store[]>(initialData?.stores || [])
+  const [loading, setLoading] = useState(!initialData)
   const [failed, setFailed] = useState(false)
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(initialSearch)
+  const [page, setPage] = useState(initialData?.pagination.page || initialPage)
+  const [totalPages, setTotalPages] = useState(initialData?.pagination.totalPages || 1)
+  const [total, setTotal] = useState(initialData?.pagination.total || 0)
 
-  const load = (q: string) => {
+  const load = (q: string, requestedPage = 1) => {
     setLoading(true)
     setFailed(false)
-    window.history.replaceState(window.history.state, '', q ? `/stores?search=${encodeURIComponent(q)}` : '/stores')
-    fetch(`/api/stores?search=${encodeURIComponent(q)}`)
+    const params = new URLSearchParams()
+    if (q) params.set('search', q)
+    params.set('page', String(requestedPage))
+    window.history.replaceState(window.history.state, '', `/stores?${params.toString()}`)
+    fetch(`/api/stores?${params.toString()}`)
       .then((r) => {
         if (!r.ok) throw new Error('stores-api-failed')
         return r.json()
       })
-      .then((data) => setStores(data.stores || []))
+      .then((data: PublicStoresList) => {
+        setStores(data.stores || [])
+        setPage(data.pagination?.page || requestedPage)
+        setTotalPages(data.pagination?.totalPages || 1)
+        setTotal(data.pagination?.total || 0)
+      })
       .catch(() => setFailed(true))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
+    if (initialData) return
     let cancelled = false
-    const initialSearch = new URLSearchParams(window.location.search).get('search') || ''
-    setSearch(initialSearch)
-    fetch(`/api/stores?search=${encodeURIComponent(initialSearch)}`)
+    const params = new URLSearchParams()
+    if (initialSearch) params.set('search', initialSearch)
+    params.set('page', String(initialPage))
+    fetch(`/api/stores?${params.toString()}`)
       .then((r) => {
         if (!r.ok) throw new Error('stores-api-failed')
         return r.json()
       })
-      .then((data) => {
+      .then((data: PublicStoresList) => {
         if (!cancelled) {
           setStores(data.stores || [])
+          setPage(data.pagination?.page || initialPage)
+          setTotalPages(data.pagination?.totalPages || 1)
+          setTotal(data.pagination?.total || 0)
           setLoading(false)
         }
       })
@@ -75,7 +76,7 @@ export function StoresView() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [initialData, initialPage, initialSearch])
 
   return (
     <div className="content-container space-y-7 py-10">
@@ -84,7 +85,7 @@ export function StoresView() {
           <p className="page-kicker">البائعون</p>
           <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">المتاجر</h1>
         <p className="text-muted-foreground mt-1">
-          تصفح جميع المتاجر المعتمدة على المنصة
+          {loading ? 'جاري التحميل...' : `${total} متجر لقطع الغيار على المنصة`}
         </p>
         </div>
       </div>
@@ -92,7 +93,7 @@ export function StoresView() {
       <form
         onSubmit={(e) => {
           e.preventDefault()
-          load(search)
+          load(search, 1)
         }}
         className="surface-panel relative max-w-2xl p-2"
       >
@@ -112,7 +113,7 @@ export function StoresView() {
           ))}
         </div>
       ) : failed ? (
-        <Card className="border-destructive/20"><CardContent className="py-16 text-center"><RefreshCw className="mx-auto size-10 text-destructive" /><h2 className="mt-4 text-lg font-black">تعذر تحميل المتاجر</h2><p className="mt-2 text-sm text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p><Button variant="outline" className="mt-5" onClick={() => load(search)}><RefreshCw className="ml-2 size-4" />إعادة المحاولة</Button></CardContent></Card>
+        <Card className="border-destructive/20"><CardContent className="py-16 text-center"><RefreshCw className="mx-auto size-10 text-destructive" /><h2 className="mt-4 text-lg font-black">تعذر تحميل المتاجر</h2><p className="mt-2 text-sm text-muted-foreground">تحقق من اتصالك ثم حاول مرة أخرى.</p><Button variant="outline" className="mt-5" onClick={() => load(search, page)}><RefreshCw className="ml-2 size-4" />إعادة المحاولة</Button></CardContent></Card>
       ) : stores.length === 0 ? (
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
@@ -140,13 +141,12 @@ export function StoresView() {
               <CardHeader className="pb-3">
                 <div className="flex items-start gap-3">
                   <div className="relative size-24 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                    {store.image ? <Image src={store.image} alt={store.name} fill sizes="160px" quality={100} className="object-cover" /> : <StoreIcon className="size-7" />}
-                    <UserAvatar name={store.owner.name} src={store.owner.avatar} className="absolute -bottom-1 -left-1 size-8 border-2 border-card text-[10px]" />
+                    {store.image ? <Image src={store.image} alt={store.name} fill sizes="160px" className="object-cover" /> : <StoreIcon className="size-7" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
-                      {(store.verified || store.verificationStatus === 'APPROVED') && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر معتمد" />}
+                      {store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر معتمد" />}
                       <div className="mr-auto" onClick={(event) => event.stopPropagation()}>
                         <FavoriteStoreButton storeId={store.id} />
                       </div>
@@ -185,13 +185,25 @@ export function StoresView() {
                   {store._count.parts} قطعة غيار
                 </Badge>
                 <p className="text-xs text-muted-foreground">{store.completedOrderCount} طلباً مكتملًا</p>
-                <Badge variant="outline" className="text-[10px]">نسبة الإكمال {store.completionRate ?? 100}%</Badge>
+                {store.completionRate !== null && <Badge variant="outline" className="text-[10px]">نسبة الإكمال {store.completionRate}%</Badge>}
                 <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); setView({ name: 'store', storeId: store.id }) }}>
                   زيارة المتجر
                 </Button>
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+
+      {!loading && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 pt-2">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => load(search, Math.max(1, page - 1))}>
+            <ChevronRight className="size-4 ml-1" /> السابق
+          </Button>
+          <span className="text-sm text-muted-foreground">صفحة {page} من {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => load(search, Math.min(totalPages, page + 1))}>
+            التالي <ChevronLeft className="size-4 mr-1" />
+          </Button>
         </div>
       )}
     </div>

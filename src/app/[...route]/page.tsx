@@ -21,7 +21,7 @@ import { MyCarsView } from '@/components/views/my-cars-view'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import type { View } from '@/lib/store'
-import { getPublicPart, getPublicStore } from '@/lib/public-marketplace'
+import { getPublicPart, getPublicPartsList, getPublicStore, getPublicStoresList, type PublicPartsQuery } from '@/lib/public-marketplace'
 
 type RoutePageProps = {
   params: Promise<{ route: string[] }>
@@ -92,7 +92,22 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
 
   if (section === 'parts' && !id) {
     view = { name: 'parts' }
-    content = <PartsView />
+    const requestedPage = Number.parseInt(first(query.page) || '1', 10)
+    const initialQuery: PublicPartsQuery = {
+      search,
+      category: first(query.category),
+      brand: first(query.brand),
+      condition: first(query.condition),
+      storeId: first(query.storeId),
+      minPrice: first(query.minPrice),
+      maxPrice: first(query.maxPrice),
+      carModel: first(query.carModel),
+      carId: first(query.carId),
+      sort: first(query.sort) || 'newest',
+      page: Number.isFinite(requestedPage) ? requestedPage : 1,
+    }
+    const initialData = await getPublicPartsList(initialQuery, user)
+    content = <PartsView initialData={initialData} initialQuery={initialQuery} />
   } else if (section === 'parts' && id && !childId) {
     view = { name: 'part', partId: id }
     const { part, canReview } = await getPublicPart(id, user)
@@ -101,7 +116,10 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     if (part) structuredData = { '@context': 'https://schema.org', '@type': 'Product', name: part.name, description: part.description || undefined, image: part.image ? [part.image] : undefined, brand: part.brand ? { '@type': 'Brand', name: part.brand } : undefined, itemCondition: part.condition === 'جديد' ? 'https://schema.org/NewCondition' : 'https://schema.org/UsedCondition', offers: { '@type': 'Offer', priceCurrency: 'EGP', price: part.price, availability: part.stock > 0 ? 'https://schema.org/InStock' : 'https://schema.org/OutOfStock', seller: { '@type': 'Organization', name: part.store.name } } }
   } else if (section === 'stores' && !id) {
     view = { name: 'stores' }
-    content = <StoresView />
+    const requestedPage = Number.parseInt(first(query.page) || '1', 10)
+    const initialPage = Number.isFinite(requestedPage) ? requestedPage : 1
+    const initialData = await getPublicStoresList(search, initialPage)
+    content = <StoresView initialData={initialData} initialSearch={search} initialPage={initialPage} />
   } else if (section === 'stores' && id && !childId) {
     view = { name: 'store', storeId: id }
     const { store, canReview } = await getPublicStore(id, user)
