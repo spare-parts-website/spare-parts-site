@@ -46,7 +46,6 @@ import { AdminEditDialog, type AdminEditTarget } from '@/components/admin-edit-d
 import { AdminCreatePartDialog } from '@/components/admin-create-part-dialog'
 import { SupportView } from '@/components/views/support-view'
 import { UserAvatar } from '@/components/user-avatar'
-import { AdminEmailDeliverability } from '@/components/admin-email-deliverability'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -308,8 +307,6 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
           </Card>
         ))}
       </div>
-
-      <AdminEmailDeliverability />
 
       <Tabs value={tab} onValueChange={(v) => router.push(`/admin/${v}`)}>
         <TabsList className="grid w-full max-w-5xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-7">
