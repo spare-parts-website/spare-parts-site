@@ -372,6 +372,10 @@ test('fails closed on phantom controls and unsupported marketplace claims', () =
   assert.equal(missing.rejected, true)
   assert.ok(missing.reasons.includes('missing_evidence'))
 
+  const noMatch = guardAIResponse({ role: 'GUEST', intent: 'marketplace_search', answer: 'لم نجد نتائج مطابقة حالياً. جرّب اسم القطعة أو الماركة.' })
+  assert.equal(noMatch.rejected, false)
+  assert.match(noMatch.answer, /لم نجد نتائج/)
+
   const proposal = guardAIResponse({ role: 'BUYER', intent: 'protected_action', answer: 'اضغط على زر تطبيق الآن.', cards: [{ type: 'proposal', title: 'مراجعة', proposal: { id: 'p1', action: 'cart_add', summary: 'إضافة القطعة', expiresAt: new Date(Date.now() + 60_000).toISOString() } }] })
   assert.equal(proposal.rejected, true)
   assert.equal(proposal.answer.includes('تطبيق'), false)

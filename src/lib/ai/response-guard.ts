@@ -89,7 +89,7 @@ export function guardAIResponse(input: GuardInput): AIResponseGuardResult {
 
   const strictEvidenceIntent = /(?:marketplace|compatibility|checkout|selection|search)/i.test(input.intent)
   const hasUsefulEvidence = cards.some((card) => Boolean(card.items?.length || card.proposal || card.clientAction || card.description))
-  const asksForClarificationOrNoMatch = /(?:لم\s*(?:أجد|اجد)|لا\s*(?:توجد?|يوجد|يوجد?\s+نتائج)|غير\s+متوفر|اذكر|اكتب|حدد|اختر|provide|clarif|no\s+results?|couldn['’]?t\s+find|not\s+enough\s+data|unable\s+to\s+verify)/i.test(modelAnswer)
+  const asksForClarificationOrNoMatch = /(?:لم\s*(?:أجد|اجد|نجد|نلاقي|نعثر)|لا\s*(?:توجد?|يوجد|يوجد?\s+نتائج)|(?:مفيش|مفيش)\s*(?:نتائج|قطع|عروض)|غير\s+متوفر|اذكر|اكتب|حدد|اختر|provide|clarif|no\s+results?|couldn['’]?t\s+find|not\s+enough\s+data|unable\s+to\s+verify)/i.test(modelAnswer)
   if (strictEvidenceIntent && !hasUsefulEvidence && (hasUnsupportedFactLanguage(modelAnswer) || !asksForClarificationOrNoMatch)) {
     reasons.push(hasUnsupportedFactLanguage(modelAnswer) ? 'unsupported_marketplace_claim' : 'missing_evidence')
     safeAnswer = ''
