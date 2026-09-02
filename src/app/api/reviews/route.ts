@@ -73,7 +73,7 @@ export async function POST(req: NextRequest) {
           data: { userId: session.id, partId: targetId, rating: Number(rating), sellerRating: dimensions[0], packagingRating: dimensions[1], deliveryRating: dimensions[2], orderId: verifiedOrderId, comment: typeof comment === 'string' ? comment.trim() || null : null },
         })
         const part = await db.part.findUnique({ where: { id: targetId }, select: { name: true, store: { select: { ownerId: true } } } })
-        if (part) await createNotification({ userId: part.store.ownerId, title: 'تقييم جديد', message: `أضاف عميل تقييماً موثقاً لقطعة "${part.name}".`, type: 'REVIEW', link: 'shop-dashboard' })
+        if (part) await createNotification({ userId: part.store.ownerId, title: 'تقييم جديد', message: `أضاف عميل تقييماً موثقاً لقطعة "${part.name}".`, type: 'REVIEW', link: 'shop-dashboard', dedupeKey: `review/${review.id}/${part.store.ownerId}` })
       }
       return NextResponse.json({ review })
     } else {

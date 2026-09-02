@@ -11,6 +11,9 @@ export interface SessionUser {
   phone?: string | null
   avatar?: string | null
   emailNotifications?: boolean
+  emailDeliveryStatus?: string
+  emailDeliveryReason?: string | null
+  emailDeliveryAt?: Date | null
   sessionVersion?: number
 }
 
@@ -84,6 +87,9 @@ export async function getSession(): Promise<SessionUser | null> {
       phone: user.phone,
       avatar: user.avatar,
       emailNotifications: user.emailNotifications,
+      emailDeliveryStatus: user.emailDeliveryStatus,
+      emailDeliveryReason: user.emailDeliveryReason,
+      emailDeliveryAt: user.emailDeliveryAt,
       sessionVersion: user.sessionVersion,
     }
   } catch {

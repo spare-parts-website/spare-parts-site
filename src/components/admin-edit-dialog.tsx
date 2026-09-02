@@ -26,7 +26,7 @@ export function AdminEditDialog({ target, onClose, onSaved }: { target: AdminEdi
     if (!target) return
     const item = target.item
     if (target.kind === 'user') {
-      setForm({ name: item.name || '', phone: item.phone || '', avatar: item.avatar || '', emailNotifications: item.emailNotifications !== false })
+      setForm({ name: item.name || '', email: item.email || '', phone: item.phone || '', avatar: item.avatar || '', emailNotifications: item.emailNotifications !== false, emailDeliveryStatus: item.emailDeliveryStatus || 'ACTIVE' })
     } else if (target.kind === 'store') {
       setForm({ name: item.name || '', description: item.description || '', address: item.address || '', phone: item.phone || '', image: item.image || '', verified: !!item.verified })
     } else {
@@ -77,6 +77,7 @@ export function AdminEditDialog({ target, onClose, onSaved }: { target: AdminEdi
 
         {target?.kind === 'user' && (
           <div className="space-y-4">
+            <div className="space-y-2"><Label htmlFor="admin-user-email">البريد الإلكتروني</Label><Input id="admin-user-email" type="email" value={form.email || ''} maxLength={254} dir="ltr" onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /><p className="text-xs text-muted-foreground">تغيير البريد يعيد حالة التسليم إلى نشطة حتى يمكن للحساب استلام رسائل التحقق.</p></div>
             <div className="space-y-2"><Label htmlFor="admin-user-name">الاسم</Label><Input id="admin-user-name" value={form.name || ''} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="admin-user-phone">رقم الهاتف</Label><Input id="admin-user-phone" value={form.phone || ''} maxLength={40} dir="ltr" onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></div>
             <div className="space-y-2"><Label>صورة الحساب</Label><ImageUpload purpose="avatar" cropPreview value={form.avatar || ''} onChange={(avatar) => setForm((current) => ({ ...current, avatar }))} onUploadingChange={setUploading} /></div>
@@ -84,6 +85,7 @@ export function AdminEditDialog({ target, onClose, onSaved }: { target: AdminEdi
               <input type="checkbox" checked={form.emailNotifications !== false} onChange={(event) => setForm((current) => ({ ...current, emailNotifications: event.target.checked }))} />
               إرسال إشعارات الحساب إلى البريد الإلكتروني
             </label>
+            <div className="space-y-2"><Label htmlFor="admin-user-delivery-status">حالة تسليم البريد</Label><select id="admin-user-delivery-status" value={form.emailDeliveryStatus || 'ACTIVE'} onChange={(event) => setForm((current) => ({ ...current, emailDeliveryStatus: event.target.value }))} className="h-10 w-full rounded-md border bg-background px-3 text-sm"><option value="ACTIVE">نشط</option><option value="BOUNCED">ارتداد دائم</option><option value="COMPLAINED">شكوى</option><option value="SUPPRESSED">محظور من المزوّد</option></select><p className="text-xs text-muted-foreground">لا تُعد التفعيل إلا بعد تصحيح البريد أو التأكد من موافقة المستخدم.</p></div>
           </div>
         )}
 

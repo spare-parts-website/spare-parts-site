@@ -62,6 +62,7 @@ export async function POST(req: NextRequest) {
       role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
       phone: user.phone,
       avatar: user.avatar,
+      emailDeliveryStatus: user.emailDeliveryStatus,
       sessionVersion: user.sessionVersion,
     })
 
@@ -74,6 +75,7 @@ export async function POST(req: NextRequest) {
       role: user.role,
       phone: user.phone,
       avatar: user.avatar,
+      emailDeliveryStatus: user.emailDeliveryStatus,
     })
   } catch (error) {
     console.error(error)

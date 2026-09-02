@@ -238,6 +238,7 @@ export async function POST(req: NextRequest) {
           message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
           type: 'CHAT',
           link: 'inbox',
+          dedupeKey: `chat-part/${msg.id}/${target.otherUserId}`,
         })
       } catch (e) {
         console.error('Notify error:', e)
@@ -266,6 +267,7 @@ export async function POST(req: NextRequest) {
         message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
         type: 'CHAT',
         link: 'inbox',
+        dedupeKey: `chat-order/${msg.id}/${receiverId}`,
       })
     } catch (e) {
       console.error('Notify error:', e)

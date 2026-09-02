@@ -3,6 +3,9 @@ import { Resend } from 'resend'
 import { db } from '@/lib/db'
 import { passwordResetEmailHtml } from '@/lib/email-templates'
 import { applicationOrigin } from '@/lib/application-url'
+import { getTransactionalSender } from '@/lib/email-sender'
+import { normalizeRecipientEmail } from '@/lib/email-deliverability'
+import { recordEmailDeliveryAttempt } from '@/lib/email-delivery'
 
 export const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000
 export const PASSWORD_RESET_MAX_ATTEMPTS = 5
@@ -31,19 +34,25 @@ export function parsePasswordResetToken(value: unknown) {
   return { id, token }
 }
 
-async function sendPasswordResetEmail(input: { email: string; name: string; resetUrl: string; resetId: string }) {
+async function sendPasswordResetEmail(input: { userId: string; email: string; name: string; resetUrl: string; resetId: string }) {
   const apiKey = process.env.RESEND_API_KEY
-  const from = process.env.AUTH_FROM_EMAIL || process.env.NOTIFICATION_FROM_EMAIL
+  const from = getTransactionalSender(process.env.AUTH_FROM_EMAIL, process.env.NOTIFICATION_FROM_EMAIL)
   if (!apiKey || !from) throw new Error('Password reset email is not configured')
   const resend = new Resend(apiKey)
-  const { error } = await resend.emails.send({
+  const result = await resend.emails.send({
     from: `غيار ماركت <${from}>`,
     to: input.email,
     subject: 'استعادة كلمة مرور غيار ماركت',
     text: `مرحباً ${input.name}\n\nاستخدم الرابط التالي لتعيين كلمة مرور جديدة:\n${input.resetUrl}\n\nينتهي الرابط خلال 30 دقيقة ويعمل مرة واحدة فقط.`,
     html: passwordResetEmailHtml({ name: input.name, resetUrl: input.resetUrl }),
   }, { idempotencyKey: `password-reset/${input.resetId}` })
-  if (error) throw new Error(`Resend error: ${error.message}`)
+  if (result.error) throw new Error(`Resend error: ${result.error.message}`)
+  try {
+    await recordEmailDeliveryAttempt({ deliveryKey: `password-reset/${input.resetId}`, category: 'AUTHENTICATION', recipientUserId: input.userId, recipientEmail: normalizeRecipientEmail(input.email), providerId: result.data?.id || null, status: 'SENT' })
+  } catch (error) {
+    // The reset flow remains successful even if its audit write is unavailable.
+    console.error('Password reset delivery audit failed', error instanceof Error ? error.message.slice(0, 300) : 'unknown error')
+  }
 }
 
 export async function issuePasswordReset(user: { id: string; email: string; name: string }) {
@@ -59,8 +68,13 @@ export async function issuePasswordReset(user: { id: string; email: string; name
 
   const resetUrl = `${applicationOrigin()}/reset-password?token=${encodeURIComponent(`${id}.${token}`)}`
   try {
-    await sendPasswordResetEmail({ email: user.email, name: user.name, resetUrl, resetId: id })
+    await sendPasswordResetEmail({ userId: user.id, email: user.email, name: user.name, resetUrl, resetId: id })
   } catch (error) {
+    try {
+      await recordEmailDeliveryAttempt({ deliveryKey: `password-reset/${id}`, category: 'AUTHENTICATION', recipientUserId: user.id, recipientEmail: normalizeRecipientEmail(user.email), status: 'FAILED', error: error instanceof Error ? error.message.slice(0, 300) : 'provider error' })
+    } catch (auditError) {
+      console.error('Password reset failure audit failed', auditError instanceof Error ? auditError.message.slice(0, 300) : 'unknown error')
+    }
     await db.passwordReset.deleteMany({ where: { id } })
     throw error
   }

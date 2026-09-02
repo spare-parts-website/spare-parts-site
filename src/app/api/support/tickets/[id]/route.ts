@@ -65,7 +65,7 @@ export async function POST(req: NextRequest, { params }: Params) {
     })
     if (session.role === 'ADMIN') {
       await Promise.allSettled([
-        createNotification({ userId: ticket.userId, title: 'رد جديد من الدعم', message: `تمت إضافة رد على تذكرتك: ${ticket.subject}`, type: 'SUPPORT', link: `/support?ticket=${encodeURIComponent(ticket.id)}` }),
+        createNotification({ userId: ticket.userId, title: 'رد جديد من الدعم', message: `تمت إضافة رد على تذكرتك: ${ticket.subject}`, type: 'SUPPORT', link: `/support?ticket=${encodeURIComponent(ticket.id)}`, dedupeKey: `support-reply/${ticket.id}/${updated.messages[updated.messages.length - 1]?.id || updated.updatedAt.toISOString()}/${ticket.userId}` }),
         audit({ actorId: session.id, action: 'SUPPORT_TICKET_REPLIED', targetType: 'support_ticket', targetId: ticket.id }),
       ])
     }

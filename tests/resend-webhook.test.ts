@@ -28,6 +28,7 @@ test('Resend webhook verifies Standard Webhooks signatures before database acces
   assert.match(route, /resend\.webhooks\.verify/)
   assert.match(route, /svix-signature/)
   assert.match(route, /emailDeliveryAttempt\.findFirst/)
+  assert.match(route, /recipientUserId/)
   assert.match(route, /lastEventId/)
   assert.doesNotMatch(route, /console\.log\(payload/)
 })

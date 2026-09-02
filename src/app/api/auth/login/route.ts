@@ -44,6 +44,7 @@ export async function POST(req: NextRequest) {
         phone: user.phone,
         avatar: user.avatar,
         emailNotifications: user.emailNotifications,
+        emailDeliveryStatus: user.emailDeliveryStatus,
         sessionVersion: user.sessionVersion,
       })
       return NextResponse.json({
@@ -54,6 +55,7 @@ export async function POST(req: NextRequest) {
         phone: user.phone,
         avatar: user.avatar,
         emailNotifications: user.emailNotifications,
+        emailDeliveryStatus: user.emailDeliveryStatus,
       })
     }
 

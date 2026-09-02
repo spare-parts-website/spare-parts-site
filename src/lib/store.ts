@@ -11,6 +11,9 @@ export interface AuthUser {
   phone?: string | null
   avatar?: string | null
   emailNotifications?: boolean
+  emailDeliveryStatus?: string
+  emailDeliveryReason?: string | null
+  emailDeliveryAt?: string | null
 }
 
 export type View =

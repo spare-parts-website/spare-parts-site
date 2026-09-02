@@ -1,6 +1,19 @@
 -- Backward-compatible foundation for the Ghyar Market remake.
 -- Apply only after taking a production backup and before deploying code that uses these tables.
 
+alter table if exists public."User"
+  add column if not exists "emailDeliveryStatus" text not null default 'ACTIVE';
+alter table if exists public."User"
+  add column if not exists "emailDeliveryReason" text;
+alter table if exists public."User"
+  add column if not exists "emailDeliveryAt" timestamp(3);
+create index if not exists "User_emailDeliveryStatus_idx"
+  on public."User" ("emailDeliveryStatus");
+alter table if exists public."Notification"
+  add column if not exists "dedupeKey" text;
+create unique index if not exists "Notification_dedupeKey_key"
+  on public."Notification" ("dedupeKey");
+
 create table if not exists public."VehicleCompatibility" (
   "id" text primary key,
   "partId" text not null references public."Part"("id") on delete cascade,
@@ -28,16 +41,26 @@ create index if not exists "RateLimitBucket_resetAt_idx"
 
 create table if not exists public."EmailDeliveryAttempt" (
   "id" text primary key,
-  "notificationId" text not null unique references public."Notification"("id") on delete cascade,
+  "notificationId" text unique references public."Notification"("id") on delete cascade,
+  "recipientUserId" text references public."User"("id") on delete set null,
   "providerId" text,
+  "recipientEmail" text,
+  "deliveryKey" text not null unique,
+  "category" text not null default 'NOTIFICATION',
   "status" text not null,
   "error" text,
+  "lastEventId" text,
+  "lastEventAt" timestamp(3),
   "createdAt" timestamp(3) not null default CURRENT_TIMESTAMP,
   "updatedAt" timestamp(3) not null default CURRENT_TIMESTAMP
 );
 
 create index if not exists "EmailDeliveryAttempt_status_createdAt_idx"
   on public."EmailDeliveryAttempt" ("status", "createdAt");
+create index if not exists "EmailDeliveryAttempt_recipientUserId_idx"
+  on public."EmailDeliveryAttempt" ("recipientUserId");
+create index if not exists "EmailDeliveryAttempt_category_createdAt_idx"
+  on public."EmailDeliveryAttempt" ("category", "createdAt");
 
 -- Relationship and dashboard indexes used by the current query paths.
 create index if not exists "Part_storeId_createdAt_idx" on public."Part" ("storeId", "createdAt");

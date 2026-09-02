@@ -20,6 +20,9 @@ model User {
   phone              String?
   avatar             String?
   emailNotifications Boolean  @default(true)
+  emailDeliveryStatus String  @default("ACTIVE")
+  emailDeliveryReason String?
+  emailDeliveryAt     DateTime?
   sessionVersion     Int      @default(0)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -47,6 +50,9 @@ model User {
   aiActionProposals       AIActionProposal[]
   supportTickets          SupportTicket[]    @relation("SupportTicketRequester")
   supportMessages         SupportMessage[]   @relation("SupportMessageAuthor")
+  emailDeliveryAttempts   EmailDeliveryAttempt[] @relation("EmailDeliveryRecipient")
+
+  @@index([emailDeliveryStatus])
 }
 
 model PasswordReset {
@@ -348,6 +354,7 @@ model Notification {
   type          String // ORDER_STATUS, NEW_ORDER, PAYMENT, REVIEW, SYSTEM, CHAT
   read          Boolean               @default(false)
   link          String?
+  dedupeKey     String?               @unique
   createdAt     DateTime              @default(now())
   emailDelivery EmailDeliveryAttempt?
 
@@ -356,9 +363,14 @@ model Notification {
 
 model EmailDeliveryAttempt {
   id             String       @id @default(cuid())
-  notificationId String       @unique
-  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notificationId String?      @unique
+  notification   Notification? @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  recipientUserId String?
+  recipientUser   User?        @relation("EmailDeliveryRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
   providerId     String?
+  recipientEmail String?
+  deliveryKey    String       @unique
+  category       String       @default("NOTIFICATION")
   status         String
   error          String?
   lastEventId    String?
@@ -368,6 +380,8 @@ model EmailDeliveryAttempt {
 
   @@index([status, createdAt])
   @@index([providerId])
+  @@index([recipientUserId])
+  @@index([category, createdAt])
 }
 
 // Wishlist - users save favorite parts

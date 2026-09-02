@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
       ? evidenceUrls.filter((url) => typeof url === 'string' && EVIDENCE_URL.test(url) && isPrivateImageOwnedBy(url, 'evidence', session.id)).slice(0, 3)
       : []
     const dispute = await db.dispute.create({ data: { orderId, buyerId: session.id, storeId: order.storeId, type, reason: reason.trim(), evidenceUrls: urls.length ? JSON.stringify(urls) : null } })
-    await Promise.allSettled([createNotification({ userId: order.store.ownerId, title: 'نزاع جديد على طلب', message: 'فتح العميل طلب حماية جديد. راجع تفاصيل الطلب.', type: 'DISPUTE', link: 'shop-dashboard' }), audit({ actorId: session.id, action: 'DISPUTE_OPENED', targetType: 'order', targetId: orderId })])
+    await Promise.allSettled([createNotification({ userId: order.store.ownerId, title: 'نزاع جديد على طلب', message: 'فتح العميل طلب حماية جديد. راجع تفاصيل الطلب.', type: 'DISPUTE', link: 'shop-dashboard', dedupeKey: `dispute-opened/${dispute.id}/${order.store.ownerId}` }), audit({ actorId: session.id, action: 'DISPUTE_OPENED', targetType: 'order', targetId: orderId })])
     return NextResponse.json({ dispute }, { status: 201 })
   } catch (e: any) {
     if (e.code === 'P2002') return NextResponse.json({ error: 'يوجد نزاع مفتوح لهذا الطلب بالفعل' }, { status: 409 })
@@ -59,7 +59,7 @@ export async function PUT(req: NextRequest) {
       }
       return tx.dispute.findUniqueOrThrow({ where: { id } })
     })
-    await Promise.allSettled([createNotification({ userId: dispute.buyerId, title: 'صدر قرار في النزاع', message: resolution.trim(), type: 'DISPUTE', link: 'orders' }), audit({ actorId: admin.id, action: 'DISPUTE_RESOLVED', targetType: 'dispute', targetId: id, metadata: { status } })])
+    await Promise.allSettled([createNotification({ userId: dispute.buyerId, title: 'صدر قرار في النزاع', message: resolution.trim(), type: 'DISPUTE', link: 'orders', dedupeKey: `dispute-resolved/${dispute.id}/${dispute.buyerId}` }), audit({ actorId: admin.id, action: 'DISPUTE_RESOLVED', targetType: 'dispute', targetId: id, metadata: { status } })])
     return NextResponse.json({ dispute })
   } catch (e: any) {
     if (e.message === 'DISPUTE_CHANGED') return NextResponse.json({ error: 'تم حسم النزاع من جلسة أخرى. أعد تحميل الصفحة.' }, { status: 409 })

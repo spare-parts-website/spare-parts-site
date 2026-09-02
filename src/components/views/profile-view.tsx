@@ -27,13 +27,13 @@ export function ProfileView() {
   const user = useAppStore((state) => state.user)
   const setUser = useAppStore((state) => state.setUser)
   const { toast } = useToast()
-  const [form, setForm] = useState({ name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '', currentPassword: '', newPassword: '', emailNotifications: user?.emailNotifications ?? true })
+  const [form, setForm] = useState({ email: user?.email || '', name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '', currentPassword: '', newPassword: '', emailNotifications: user?.emailNotifications ?? true })
   const [saving, setSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
 
   useEffect(() => {
     if (user) {
-      setForm((current) => ({ ...current, name: user.name, phone: user.phone || '', avatar: user.avatar || '', emailNotifications: user.emailNotifications ?? true }))
+      setForm((current) => ({ ...current, email: user.email, name: user.name, phone: user.phone || '', avatar: user.avatar || '', emailNotifications: user.emailNotifications ?? true }))
     }
   }, [user])
 
@@ -104,6 +104,11 @@ export function ProfileView() {
       <Card className="market-card">
         <CardHeader><CardTitle>تعديل الحساب</CardTitle></CardHeader>
         <CardContent className="space-y-4">
+          {user.emailDeliveryStatus && user.emailDeliveryStatus !== 'ACTIVE' && (
+            <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-6 text-amber-950 dark:text-amber-100">
+              تعذر تسليم بعض رسائل البريد إلى العنوان الحالي. صحح البريد أدناه مع إدخال كلمة المرور الحالية، أو تواصل مع الدعم. تظل إشعارات الموقع مفعلة.
+            </div>
+          )}
           <div className="space-y-2">
             <Label>رفع صورة شخصية</Label>
             <p className="text-xs text-muted-foreground">يمكنك رفع صورتك أو اختيار إحدى الصور الجاهزة أدناه. ستظهر الصورة في ملفك والتقييمات، ولصاحب المحل بجانب إعلانات المتجر.</p>
@@ -114,9 +119,10 @@ export function ProfileView() {
             <ProfileAvatarPicker value={form.avatar} onChange={(avatar) => setForm({ ...form, avatar })} />
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
+            <div className="space-y-2 sm:col-span-2"><Label>البريد الإلكتروني</Label><Input type="email" dir="ltr" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /><p className="text-xs text-muted-foreground">تغيير البريد يتطلب كلمة المرور الحالية وسيعيد حالة التسليم إلى نشطة.</p></div>
             <div className="space-y-2"><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
             <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
-            <div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير كلمة المرور" /></div>
+            <div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير البريد أو كلمة المرور" /></div>
             <div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div>
           </div>
           <div className="flex items-center justify-between gap-4 rounded-2xl border bg-muted/35 p-4">
@@ -124,7 +130,7 @@ export function ProfileView() {
             <Switch checked={form.emailNotifications} onCheckedChange={(checked) => setForm({ ...form, emailNotifications: checked })} aria-label="تفعيل إشعارات البريد الإلكتروني" />
           </div>
           <Button onClick={save} disabled={saving || avatarUploading}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button>
-          <p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> لا نطلب كلمة المرور الحالية إلا عند تغيير كلمة المرور.</p>
+          <p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> نطلب كلمة المرور الحالية عند تغيير البريد أو كلمة المرور لحماية الحساب.</p>
         </CardContent>
       </Card>
 

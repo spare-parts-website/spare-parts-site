@@ -46,6 +46,7 @@ import { AdminEditDialog, type AdminEditTarget } from '@/components/admin-edit-d
 import { AdminCreatePartDialog } from '@/components/admin-create-part-dialog'
 import { SupportView } from '@/components/views/support-view'
 import { UserAvatar } from '@/components/user-avatar'
+import { AdminEmailDeliverability } from '@/components/admin-email-deliverability'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -308,6 +309,8 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
         ))}
       </div>
 
+      <AdminEmailDeliverability />
+
       <Tabs value={tab} onValueChange={(v) => router.push(`/admin/${v}`)}>
         <TabsList className="grid w-full max-w-5xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-7">
           <TabsTrigger value="users" className="gap-1 text-[11px] sm:text-sm">
@@ -369,7 +372,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                               <span className="font-medium truncate" title={u.name}>{u.name}</span>
                             </div>
                           </td>
-                          <td className="p-3 text-right text-muted-foreground whitespace-nowrap" dir="ltr"><span className="block truncate" title={u.email}>{u.email}</span></td>
+                          <td className="p-3 text-right text-muted-foreground whitespace-nowrap" dir="ltr"><span className="block truncate" title={u.email}>{u.email}</span>{u.emailDeliveryStatus && u.emailDeliveryStatus !== 'ACTIVE' && <Badge variant="outline" className="mt-1 text-[10px] text-amber-600 border-amber-300" dir="rtl">{u.emailDeliveryStatus === 'BOUNCED' ? 'مرتد' : u.emailDeliveryStatus === 'COMPLAINED' ? 'شكوى' : 'محظور'}</Badge>}</td>
                           <td className="p-3 text-right text-muted-foreground whitespace-nowrap" dir="ltr">{u.phone || '—'}</td>
                           <td className="p-3 whitespace-nowrap">
                             <Select

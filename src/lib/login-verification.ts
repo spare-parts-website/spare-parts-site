@@ -2,6 +2,9 @@ import { createHmac, randomInt, randomUUID, timingSafeEqual } from 'crypto'
 import { Resend } from 'resend'
 import { db } from '@/lib/db'
 import { loginCodeEmailHtml } from '@/lib/email-templates'
+import { getTransactionalSender } from '@/lib/email-sender'
+import { normalizeRecipientEmail } from '@/lib/email-deliverability'
+import { recordEmailDeliveryAttempt } from '@/lib/email-delivery'
 
 export const LOGIN_CODE_TTL_MS = 10 * 60 * 1000
 export const LOGIN_CODE_MAX_ATTEMPTS = 5
@@ -28,13 +31,13 @@ export function maskEmail(email: string) {
   return `${visible}${'*'.repeat(Math.max(3, local.length - visible.length))}@${domain}`
 }
 
-async function sendCodeEmail(input: { email: string; name: string; code: string; challengeId: string }) {
+async function sendCodeEmail(input: { userId: string; email: string; name: string; code: string; challengeId: string }) {
   const apiKey = process.env.RESEND_API_KEY
-  const from = process.env.AUTH_FROM_EMAIL || process.env.NOTIFICATION_FROM_EMAIL
+  const from = getTransactionalSender(process.env.AUTH_FROM_EMAIL, process.env.NOTIFICATION_FROM_EMAIL)
   if (!apiKey || !from) throw new Error('Email verification is not configured')
 
   const resend = new Resend(apiKey)
-  const { error } = await resend.emails.send(
+  const result = await resend.emails.send(
     {
       from: `غيار ماركت <${from}>`,
       to: input.email,
@@ -45,7 +48,13 @@ async function sendCodeEmail(input: { email: string; name: string; code: string;
     { idempotencyKey: `login-code/${input.challengeId}` },
   )
 
-  if (error) throw new Error(`Resend error: ${error.message}`)
+  if (result.error) throw new Error(`Resend error: ${result.error.message}`)
+  try {
+    await recordEmailDeliveryAttempt({ deliveryKey: `login-code/${input.challengeId}`, category: 'AUTHENTICATION', recipientUserId: input.userId, recipientEmail: normalizeRecipientEmail(input.email), providerId: result.data?.id || null, status: 'SENT' })
+  } catch (error) {
+    // Delivery auditing must never invalidate a successfully issued login code.
+    console.error('Login email delivery audit failed', error instanceof Error ? error.message.slice(0, 300) : 'unknown error')
+  }
 }
 
 export async function issueLoginVerification(user: { id: string; email: string; name: string }) {
@@ -65,8 +74,13 @@ export async function issueLoginVerification(user: { id: string; email: string; 
   ])
 
   try {
-    await sendCodeEmail({ email: user.email, name: user.name, code, challengeId: id })
+    await sendCodeEmail({ userId: user.id, email: user.email, name: user.name, code, challengeId: id })
   } catch (error) {
+    try {
+      await recordEmailDeliveryAttempt({ deliveryKey: `login-code/${id}`, category: 'AUTHENTICATION', recipientUserId: user.id, recipientEmail: normalizeRecipientEmail(user.email), status: 'FAILED', error: error instanceof Error ? error.message.slice(0, 300) : 'provider error' })
+    } catch (auditError) {
+      console.error('Login email failure audit failed', auditError instanceof Error ? auditError.message.slice(0, 300) : 'unknown error')
+    }
     await db.loginVerification.deleteMany({ where: { id } })
     throw error
   }

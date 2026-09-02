@@ -43,8 +43,8 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
       return {
         orders: existingOrders,
         duplicate: true,
-        sellerSummaries: [] as Array<{ ownerId: string; storeName: string; itemCount: number; totalQuantity: number; totalPrice: number }>,
-        stockSummaries: [] as Array<{ ownerId: string; partName: string; remainingStock: number }>,
+        sellerSummaries: [] as Array<{ ownerId: string; storeName: string; itemCount: number; totalQuantity: number; totalPrice: number; orderId: string }>,
+        stockSummaries: [] as Array<{ ownerId: string; partId: string; partName: string; remainingStock: number }>,
       }
     }
 
@@ -85,8 +85,8 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
     }
 
     const orders: OrderWithItems[] = []
-    const sellerSummaries: Array<{ ownerId: string; storeName: string; itemCount: number; totalQuantity: number; totalPrice: number }> = []
-    const stockSummaries: Array<{ ownerId: string; partName: string; remainingStock: number }> = []
+    const sellerSummaries: Array<{ ownerId: string; storeName: string; itemCount: number; totalQuantity: number; totalPrice: number; orderId: string }> = []
+    const stockSummaries: Array<{ ownerId: string; partId: string; partName: string; remainingStock: number }> = []
     const drafts = buildGroupedOrderDrafts(items.map((item) => {
       const part = partById.get(item.partId)!
       return {
@@ -145,10 +145,12 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
         itemCount: draft.items.length,
         totalQuantity: draft.totalQuantity,
         totalPrice: draft.totalPrice,
+        orderId: order.id,
       })
       for (const line of draft.items) {
         stockSummaries.push({
           ownerId: line.ownerId,
+          partId: line.partId,
           partName: line.productName,
           remainingStock: reservedLines.get(line.partId)!.remainingStock,
         })
@@ -168,8 +170,8 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
         return {
           orders: existingOrders,
           duplicate: true,
-          sellerSummaries: [] as Array<{ ownerId: string; storeName: string; itemCount: number; totalQuantity: number; totalPrice: number }>,
-          stockSummaries: [] as Array<{ ownerId: string; partName: string; remainingStock: number }>,
+          sellerSummaries: [] as Array<{ ownerId: string; storeName: string; itemCount: number; totalQuantity: number; totalPrice: number; orderId: string }>,
+          stockSummaries: [] as Array<{ ownerId: string; partId: string; partName: string; remainingStock: number }>,
         }
       }
     }
@@ -251,8 +253,9 @@ export async function POST(req: NextRequest) {
           message: `طلب جديد من ${session.name} يضم ${summary.itemCount} منتج بإجمالي كمية ${summary.totalQuantity} وقيمة ${summary.totalPrice.toLocaleString('ar-EG')} ج.م.`,
           type: 'NEW_ORDER',
           link: 'shop-dashboard',
+          dedupeKey: `order-created/${summary.orderId}/${summary.ownerId}`,
         })))
-        await Promise.allSettled(result.stockSummaries.filter((summary) => summary.remainingStock <= 3).map((summary) => createNotification({ userId: summary.ownerId, title: 'تنبيه مخزون منخفض', message: `بقي ${summary.remainingStock} فقط من "${summary.partName}".`, type: 'LOW_STOCK', link: 'shop-dashboard' })))
+        await Promise.allSettled(result.stockSummaries.filter((summary) => summary.remainingStock <= 3).map((summary) => createNotification({ userId: summary.ownerId, title: 'تنبيه مخزون منخفض', message: `بقي ${summary.remainingStock} فقط من "${summary.partName}".`, type: 'LOW_STOCK', link: 'shop-dashboard', dedupeKey: `low-stock/${summary.partId}/${summary.remainingStock}` })))
       }
       return NextResponse.json({ orders: result.orders, duplicate: result.duplicate })
     }
@@ -367,8 +370,9 @@ export async function POST(req: NextRequest) {
         message: `طلب جديد من ${session.name} على "${part.name}" بكمية ${qty}.`,
         type: 'NEW_ORDER',
         link: 'shop-dashboard',
+        dedupeKey: `order-created/${order.id}/${part.store.ownerId}`,
       })
-      if (part.stock - qty <= 3) await createNotification({ userId: part.store.ownerId, title: 'تنبيه مخزون منخفض', message: `بقي ${part.stock - qty} فقط من "${part.name}".`, type: 'LOW_STOCK', link: 'shop-dashboard' })
+      if (part.stock - qty <= 3) await createNotification({ userId: part.store.ownerId, title: 'تنبيه مخزون منخفض', message: `بقي ${part.stock - qty} فقط من "${part.name}".`, type: 'LOW_STOCK', link: 'shop-dashboard', dedupeKey: `low-stock/${part.id}/${part.stock - qty}` })
 
     } catch (e) {
       console.error('Notify error:', e)
@@ -472,7 +476,7 @@ export async function PUT(req: NextRequest) {
     // Persist notifications directly so they work on serverless hosting.
     const notify = async (userId: string, title: string, message: string, type: string, link?: string) => {
       try {
-        await createNotification({ userId, title, message, type, link })
+        await createNotification({ userId, title, message, type, link, dedupeKey: `order-status/${order.id}/${newStatus}/${userId}` })
       } catch (e) {
         console.error('Notify error:', e)
       }

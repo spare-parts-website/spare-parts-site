@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
     await audit({ actorId: session.id, action: 'SUPPORT_TICKET_CREATED', targetType: 'support_ticket', targetId: ticket.id, metadata: { category } })
 
     const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
-    await Promise.allSettled(admins.map((admin) => createNotification({ userId: admin.id, title: 'تذكرة دعم جديدة', message: `${subject} — ${category}`, type: 'SUPPORT', link: `/admin/support?ticket=${encodeURIComponent(ticket.id)}` })))
+    await Promise.allSettled(admins.map((admin) => createNotification({ userId: admin.id, title: 'تذكرة دعم جديدة', message: `${subject} — ${category}`, type: 'SUPPORT', link: `/admin/support?ticket=${encodeURIComponent(ticket.id)}`, dedupeKey: `support-ticket/${ticket.id}/${admin.id}` })))
 
     try {
       const delivery = await sendSupportTicketEmail({ ticketId: ticket.id, category, subject, message, userName: session.name, userEmail: session.email })
