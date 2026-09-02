@@ -2,7 +2,7 @@
 
 ## Current phase
 
-The current hardening batch is committed on `codex/ai-9-plus-hardening` and will be promoted only after the checks below pass. It covers signed Resend lifecycle processing, recipient validation/suppression, AI provider health tracking, database integrity constraints, nonce-based CSP/CSRF checks, and a real Postgres checkout race suite in CI. The last production deployment (`dpl_AZZEqESM5k9wW55zwSno5a84sQvJ`) is READY for the previous docs-only commit; the new code is not claimed as live until its Vercel deployment is READY.
+The hardening batch is released from `codex/ai-9-plus-hardening` on `main`. Production deployment `dpl_GHnHAwAj8T2YQNURour7zHDS8B9e` is READY for commit `35c5874` and is aliased to `https://ghyarmarket-eg.com`. It covers signed Resend lifecycle processing, recipient validation/suppression, AI provider health tracking, database integrity constraints, nonce-based CSP/CSRF checks, and a real Postgres checkout race suite in CI.
 
 ## Completed
 
@@ -40,24 +40,24 @@ The current hardening batch is committed on `codex/ai-9-plus-hardening` and will
 - `npm audit --omit=dev --audit-level=high`
 - `npx tsc --noEmit`
 - `npm run lint`
-- `npm test` — 102 passing, 1 intentionally skipped isolated-DB checkout harness
-- `npm run build` — remote Vercel build completed cleanly; local build is expected to log a handled homepage warning because `.env.local` contains a non-Postgres placeholder URL
+- `npm test` — 110 passing, 1 intentionally skipped opt-in isolated-DB checkout harness
+- `npm run build` — local and remote Vercel builds completed cleanly; local build logs only the handled warning caused by the non-Postgres `.env.local` placeholder URL
 - Local `npm start` fallback plus `npm run test:smoke` — all public routes, API boundaries, nonce CSP, request ID, and CSP reporting headers passed against the generated build.
 - `git diff --check`
 - `npm run test:smoke` against https://ghyarmarket-eg.com with SMOKE_EXPECT_BMW=1 — all checks passed, including favicon, auth boundaries, APIs, security headers, and bww search
-- GitHub Actions CI run 101 for `0ebdd29` — success (install, audit, lint, test, build)
+- GitHub Actions CI run 105 for `35c5874` — success, including the isolated Postgres checkout race job
 - Vercel Preview deployment `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66` — READY
-- Vercel Production deployment `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` — READY and aliased to `ghyarmarket-eg.com`
+- Vercel Production deployment `dpl_GHnHAwAj8T2YQNURour7zHDS8B9e` — READY and aliased to `ghyarmarket-eg.com`
 
 ## Commit
 
-Release commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibility`) is on `main`. The working tree has only the untracked local `.codebase-memory/` directory. Never commit `.codebase-memory/`, `.env*`, webhook secrets, or provider keys.
+Release commits: `cd5547f` (`Harden integrity, CSP, and production verification`) and `35c5874` (`Ensure nonce-protected pages render dynamically`) are on `main`. The working tree has only the untracked local `.codebase-memory/` directory. Never commit `.codebase-memory/`, `.env*`, webhook secrets, or provider keys.
 
 ## Remaining tasks
 
 1. Configure an explicitly chosen paid AI provider/model and valid transactional/support recipient addresses; no secret or address is invented by this repository.
 2. Send one authorized disposable-recipient lifecycle test and confirm the matching delivery attempt is updated once; do not send tests to customers.
-3. Let GitHub Actions run the new isolated Postgres checkout race job, then retain its run URL as release evidence.
+3. Run an authorized disposable-recipient Resend lifecycle test and retain the signed callback evidence.
 4. Run authenticated mobile/offline browser QA and an axe scan, then record real Core Web Vitals/p75 data instead of inferring a performance score from static inspection.
 
 ## Blockers
@@ -65,10 +65,9 @@ Release commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibil
 - The current browser connector cannot authenticate to the protected Preview; its Vercel build is READY. CUA verified the public Production UI after deployment, while authenticated role flows remain unverified.
 - No paid AI provider credential is configured in Vercel, so the runtime still uses the existing Gemini/OpenRouter/Gateway fallback order and the assistant remains labelled beta.
 - `SUPPORT_EMAIL` is not configured and the local notification sender is invalid; support/admin outbound email is fail-closed until a verified address is provisioned.
-- Positive signed Resend lifecycle, Gmail/Outlook/Yahoo seed-inbox, DMARC/Postmaster, authenticated axe, and isolated checkout-race tests still require external accounts or test infrastructure.
+- Positive signed Resend lifecycle, Gmail/Outlook/Yahoo seed-inbox, DMARC/Postmaster, authenticated axe, and real throttled Core Web Vitals tests still require external accounts or test infrastructure; the isolated checkout-race test now passes in CI run 105.
 - Local build environment contains a non-Postgres placeholder `DATABASE_URL`; production/CI must provide the real server-only URL.
-- Full real-database checkout race testing is blocked until an isolated test database is provisioned; the guarded test refuses to use the application/production URL.
-- CSP still requires `unsafe-inline` for the current Next.js hydration/theme stack; removing it needs a nonce/hash migration and was intentionally not attempted in this focused release.
+- The guarded checkout harness refuses the application/production URL; CI provisions an isolated Postgres 17 service and now runs it successfully.
 - The new CSP removes `script-src unsafe-inline`; a small `style-src unsafe-inline` exception remains for existing dynamic chart/style attributes and needs a separate CSS-variable refactor before claiming a zero-inline CSP.
 
 ## Migrations applied
@@ -87,6 +86,6 @@ Read-only post-deploy checks (2026-09-02): 6 parts, 12 orders, 12 order items, 3
 
 ## Deployments
 
-- Preview: `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66`, READY, branch `codex/ai-9-plus-hardening`; remote Vercel build passed TypeScript and route generation.
-- Production: `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws`, READY, commit `0ebdd29`, aliased to `ghyarmarket-eg.com`.
+- Preview: `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66`, READY, branch `codex/ai-9-plus-hardening`; protected preview authentication remains unavailable to the current browser connector.
+- Production: `dpl_GHnHAwAj8T2YQNURour7zHDS8B9e`, READY, commit `35c5874`, aliased to `ghyarmarket-eg.com`.
 - Vercel runtime-error query for the checked window returned no errors; a narrow Preview runtime-log query returned no matching logs.

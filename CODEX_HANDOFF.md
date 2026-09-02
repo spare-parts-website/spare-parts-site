@@ -11,7 +11,7 @@ Use this checkout and read `PRODUCTION_READINESS.md` first:
 - Working branch: `codex/ai-9-plus-hardening`
 - Vercel project: `spare-parts-site` (linked through `.vercel/project.json`)
 - Production domain: `https://ghyarmarket-eg.com`
-- Current production commit: `140e637` (`docs: refresh Supabase delivery counts`). The next hardening commit is staged on `codex/ai-9-plus-hardening`; do not call it live until Vercel reports READY.
+- Current production commit: `35c5874` (`Ensure nonce-protected pages render dynamically`). Vercel deployment `dpl_GHnHAwAj8T2YQNURour7zHDS8B9e` is READY and aliased to `https://ghyarmarket-eg.com`; GitHub Actions run 105 is green.
 
 Do not use the old `C:\Users\HP\Documents\Codex\spare-parts-site-online` path or the old `codex/remake-preview` branch. Preserve unrelated work and `.codebase-memory/`; never commit secrets or that generated directory. The authorized release pattern is a normal push such as `git push origin HEAD:main`; never force-push.
 
@@ -83,7 +83,7 @@ The local build may log a handled homepage Prisma initialization warning when th
 
 1. Configure the chosen paid AI model and valid support/notification recipient addresses in Vercel.
 2. Send one authorized disposable-recipient Resend lifecycle test and verify the signed event updates one matching attempt; never send a mass test email.
-3. Let CI run the isolated Postgres checkout race suite, then perform authenticated mobile/offline browser QA, an axe scan, and real Core Web Vitals measurement.
-4. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after the next deployment.
+3. Perform authenticated mobile/offline browser QA, an axe scan, and real Core Web Vitals measurement.
+4. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after future releases.
 
 Do not mark a release gate complete without evidence. If a provider configuration cannot be completed securely, record it as `BLOCKED` in `PRODUCTION_READINESS.md` with the exact remaining action.

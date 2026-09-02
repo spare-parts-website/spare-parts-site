@@ -3,7 +3,7 @@
 Last audited: 2026-09-02
 Branch: `codex/ai-9-plus-hardening`
 Base commit: `273d17a9a081427a8b78cd02eb49c7c13c01f0ab` (`Harden transactional email deliverability`)
-Release commits: `6b1a423` (copilot remake), `c5ae283` (Arabic search filler normalization)
+Release commits: `6b1a423` (copilot remake), `c5ae283` (Arabic search filler normalization), `cd5547f` (integrity/CSP/operations hardening), `35c5874` (dynamic nonce-protected rendering)
 
 ## How to continue
 
@@ -40,7 +40,7 @@ Read this file and `AI_ROLE_CAPABILITY_MATRIX.md`, verify the current Git state,
 
 ## Verification at this checkpoint
 
-Release checks passed for this batch: `npm ci`, `npm audit --omit=dev --audit-level=high` (0 vulnerabilities), `npx tsc --noEmit`, `npm run lint`, `npm test` (102 passing, 1 opt-in skip), remote Vercel build, and `git diff --check`. The local build exits successfully but logs the expected handled warning because `.env.local` has a non-Postgres placeholder `DATABASE_URL`. The added AI tests cover provider circuit/backoff behavior in addition to server role capability authority, structured-plan validation, page/ordinal context, prompt-injection detection, typo-tolerant actions, support/cart flows, admin-on-behalf selection, guest compatibility, target-name preservation, and single-result cards.
+Release checks passed for this batch: `npm ci`, `npm audit --omit=dev --audit-level=high` (0 vulnerabilities), `npx tsc --noEmit`, `npm run lint`, `npm test` (110 passing, 1 opt-in skip), remote Vercel build, and `git diff --check`. The local build exits successfully but logs the expected handled warning because `.env.local` has a non-Postgres placeholder `DATABASE_URL`. GitHub Actions run 105 also passed the isolated Postgres checkout race job. The added AI tests cover provider circuit/backoff behavior in addition to server role capability authority, structured-plan validation, page/ordinal context, prompt-injection detection, typo-tolerant actions, support/cart flows, admin-on-behalf selection, guest compatibility, target-name preservation, and single-result cards.
 
 Production verification completed on 2026-09-02:
 
@@ -49,7 +49,7 @@ Production verification completed on 2026-09-02:
 - Error-level Vercel log scan for the deployment returned no logs.
 - Browser smoke test on `https://ghyarmarket-eg.com`: lazy assistant open, guest `دورلي على عداد BMW F30` returned a real listing card with `فتح` and `اختيار`, explicit `هل العداد ده يركب على BMW F30 2016؟` used the grounded compatibility result, and browser errors/console output were empty.
 - Hardening commit `0ebdd29` is on `main`; GitHub Actions run 101 is green and Vercel Production deployment `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` is READY. Public smoke covers the main/catalog/auth/legal routes, BMW typo search, API boundaries, and security headers. The CUA DOM check found six detail buttons and no nested detail links after the accessibility pass.
-- The follow-up hardening batch adds a validated Postgres integrity migration, a real Postgres checkout race job in GitHub Actions, Next.js 16 proxy nonce CSP/request IDs/same-origin mutation checks, an optional paid OpenRouter primary, and optional rate-limited operational alerts. These changes remain pending their next production deployment until Vercel reports READY.
+- The follow-up hardening batch adds a validated Postgres integrity migration, a real Postgres checkout race job in GitHub Actions, Next.js 16 proxy nonce CSP/request IDs/same-origin mutation checks, an optional paid OpenRouter primary, and optional rate-limited operational alerts. Commits `cd5547f` and `35c5874` are live in Vercel Production deployment `dpl_GHnHAwAj8T2YQNURour7zHDS8B9e` (READY); CI run 105 passed the isolated checkout race job.
 
 ## Files changed in this remake
 
