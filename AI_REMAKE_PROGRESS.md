@@ -3,6 +3,7 @@
 Last audited: 2026-09-02
 Branch: `codex/preserve-mobile-navigation`
 Base commit: `273d17a9a081427a8b78cd02eb49c7c13c01f0ab` (`Harden transactional email deliverability`)
+Release commits: `6b1a423` (copilot remake), `c5ae283` (Arabic search filler normalization)
 
 ## How to continue
 
@@ -18,7 +19,7 @@ Read this file and `AI_ROLE_CAPABILITY_MATRIX.md`, verify the current Git state,
 - [x] Phase 5 — seller mutation parity for the supported dashboard surface (fitment/images, coupon edits, capped bulk inventory, store settings, verification status read).
 - [x] Phase 6 — admin on-behalf parity for supported platform operations (seller listings/stores/accounts, review moderation, support replies/statuses).
 - [x] Phase 7 — confirmation previews, prompt-injection/privacy regression coverage, structured result cards, and deterministic fallback hardening.
-- [ ] Phase 8 — production browser verification, deployment, and final parity report.
+- [x] Phase 8 — production browser verification, deployment, and final parity report.
 
 ## Safety decisions
 
@@ -38,7 +39,14 @@ Read this file and `AI_ROLE_CAPABILITY_MATRIX.md`, verify the current Git state,
 
 ## Verification at this checkpoint
 
-Latest targeted checks pass: `npx tsc --noEmit`, `npm run lint`, `npm test` (91 passing, 1 opt-in skip), and `npm run build`. The added AI tests cover server role capability authority, structured-plan validation, page/ordinal context, prompt-injection detection, typo-tolerant actions, support/cart flows, admin-on-behalf selection, guest compatibility, target-name preservation, and single-result cards. Run the remaining release checks below before pushing the final commit: `npm ci`, `npm audit --omit=dev --audit-level=high`, and `git diff --check`.
+Release checks passed: `npm ci` (854 packages, 0 audit findings), `npm audit --omit=dev --audit-level=high` (0 vulnerabilities), `npx tsc --noEmit`, `npm run lint`, `npm test` (92 tests: 91 passing, 1 opt-in skip), `npm run build`, and `git diff --check`. The local build completed successfully; static generation logged only the expected local missing/invalid `DATABASE_URL` warning while falling back from unavailable local marketplace data. The added AI tests cover server role capability authority, structured-plan validation, page/ordinal context, prompt-injection detection, typo-tolerant actions, support/cart flows, admin-on-behalf selection, guest compatibility, target-name preservation, and single-result cards.
+
+Production verification completed on 2026-09-02:
+
+- GitHub `main` fast-forwarded to `c5ae283`.
+- Vercel deployment `dpl_HJsAP2Cp1DjaKsRmdgBsFgk77PaL` is `READY` at `https://spare-parts-site-1qjndmedl-project-bab7.vercel.app` with aliases `https://ghyarmarket-eg.com`, `https://spare-parts-site-project-bab7.vercel.app`, and `https://spare-parts-site-git-main-project-bab7.vercel.app`.
+- Error-level Vercel log scan for the deployment returned no logs.
+- Browser smoke test on `https://ghyarmarket-eg.com`: lazy assistant open, guest `دورلي على عداد BMW F30` returned a real listing card with `فتح` and `اختيار`, explicit `هل العداد ده يركب على BMW F30 2016؟` used the grounded compatibility result, and browser errors/console output were empty.
 
 ## Files changed in this remake
 
@@ -46,4 +54,4 @@ AI routes and orchestration: `src/app/api/ai/route.ts`, `src/app/api/ai/actions/
 
 Client UX and tests: `src/components/ai-assistant.tsx`, `src/components/ai-assistant-loader.tsx`, `src/components/app-shell.tsx`, and `tests/ai-assistant.test.ts`.
 
-Next exact task: run the full release quality gate, inspect the production diff, commit the coherent remake, push the branch, and verify the Vercel READY deployment plus the public AI route without exposing credentials. Do not commit `.codebase-memory/`.
+Next exact task: no required release work remains. Keep `.codebase-memory/` untracked and use the matrix/checkpoint for the next scoped improvement or manual authenticated role-parity pass.
