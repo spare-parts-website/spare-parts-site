@@ -11,7 +11,7 @@ Use this checkout and read `PRODUCTION_READINESS.md` first:
 - Working branch: `codex/ai-9-plus-hardening`
 - Vercel project: `spare-parts-site` (linked through `.vercel/project.json`)
 - Production domain: `https://ghyarmarket-eg.com`
-- Last committed production baseline: `6952917` (`Label AI assistant as beta`); the current hardening batch is still uncommitted in this checkout.
+- Current production commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibility`).
 
 Do not use the old `C:\Users\HP\Documents\Codex\spare-parts-site-online` path or the old `codex/remake-preview` branch. Preserve unrelated work and `.codebase-memory/`; never commit secrets or that generated directory. The authorized release pattern is a normal push such as `git push origin HEAD:main`; never force-push.
 
@@ -77,10 +77,9 @@ The local build may log a handled homepage Prisma initialization warning when th
 
 ## Remaining release work
 
-1. Commit the validated hardening batch and push it normally to GitHub.
-2. Confirm the GitHub Actions run is green (npm ci, audit, lint, tests, build).
-3. Promote the READY Vercel Preview to production and rerun public smoke checks, including `/parts?search=bww`, `/favicon.ico`, logout/offline behavior, and no `/socket.io` requests.
-4. Send one authorized disposable-recipient Resend lifecycle test and verify the signed event updates one matching attempt; never send a mass test email.
-5. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after deployment.
+1. Send one authorized disposable-recipient Resend lifecycle test and verify the signed event updates one matching attempt; never send a mass test email.
+2. Provision a disposable test database and run the opt-in checkout concurrency suite.
+3. Perform authenticated mobile/offline browser QA, an axe scan, and real Core Web Vitals measurement.
+4. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after any future deployment.
 
 Do not mark a release gate complete without evidence. If a provider configuration cannot be completed securely, record it as `BLOCKED` in `PRODUCTION_READINESS.md` with the exact remaining action.

@@ -57,7 +57,7 @@ This checklist describes the current implementation in `codex/ai-9-plus-hardenin
 - [x] Support ticket email notification is sent only after ticket persistence, uses `SUPPORT_EMAIL`, logs sent/skipped/failed delivery, and never rolls back the ticket on email failure.
 - [ ] A disposable positive signed lifecycle test still needs to be run against a seed recipient; no customer address should be used.
 - [ ] `SUPPORT_EMAIL` and the notification sender still need verified production values before support/admin outbound email is enabled.
-- [x] CI workflow retains npm install, production audit, lint, test, and build steps; GitHub Actions run 79 for release commit 8d95a3a completed successfully.
+- [x] CI workflow retains npm install, production audit, lint, test, and build steps; GitHub Actions run 101 for hardening commit `0ebdd29` completed successfully.
 
 ## Local verification completed
 
@@ -72,8 +72,8 @@ This checklist describes the current implementation in `codex/ai-9-plus-hardenin
 
 ## Release gates still requiring remote evidence
 
-- [ ] Hardening batch commit still needs a normal push and GitHub Actions result.
+- [x] Hardening commit `0ebdd29` was pushed normally to `main`; GitHub Actions run 101 is green.
 - [x] Vercel Preview `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66` is READY; direct protected smoke is limited by Vercel Authentication.
-- [ ] Production promotion of the hardening batch is still pending.
+- [x] Vercel Production `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` is READY and aliased to `ghyarmarket-eg.com`; public smoke and invalid-signature boundary checks pass.
 - [x] Vercel runtime errors and production 5xx logs show no entries in the checked hour.
 - [x] Supabase post-deploy counts, RLS posture, and public/private storage bucket visibility are rechecked.

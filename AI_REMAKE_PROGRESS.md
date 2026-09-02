@@ -48,6 +48,7 @@ Production verification completed on 2026-09-02:
 - Vercel deployment `dpl_HJsAP2Cp1DjaKsRmdgBsFgk77PaL` is `READY` at `https://spare-parts-site-1qjndmedl-project-bab7.vercel.app` with aliases `https://ghyarmarket-eg.com`, `https://spare-parts-site-project-bab7.vercel.app`, and `https://spare-parts-site-git-main-project-bab7.vercel.app`.
 - Error-level Vercel log scan for the deployment returned no logs.
 - Browser smoke test on `https://ghyarmarket-eg.com`: lazy assistant open, guest `دورلي على عداد BMW F30` returned a real listing card with `فتح` and `اختيار`, explicit `هل العداد ده يركب على BMW F30 2016؟` used the grounded compatibility result, and browser errors/console output were empty.
+- Hardening commit `0ebdd29` is on `main`; GitHub Actions run 101 is green and Vercel Production deployment `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` is READY. Public smoke covers the main/catalog/auth/legal routes, BMW typo search, API boundaries, and security headers. The CUA DOM check found six detail buttons and no nested detail links after the accessibility pass.
 
 ## Files changed in this remake
 
@@ -55,4 +56,4 @@ AI routes and orchestration: `src/app/api/ai/route.ts`, `src/app/api/ai/actions/
 
 Client UX and tests: `src/components/ai-assistant.tsx`, `src/components/ai-assistant-loader.tsx`, `src/components/app-shell.tsx`, and `tests/ai-assistant.test.ts`.
 
-Next exact task: commit/push this hardening batch, verify CI, and promote the READY Preview only after recording the remaining external email, authenticated browser, and isolated checkout-race evidence. Keep `.codebase-memory/` untracked.
+Next exact task: record the remaining external email lifecycle, authenticated browser/axe, Core Web Vitals, and isolated checkout-race evidence. Keep `.codebase-memory/` untracked.

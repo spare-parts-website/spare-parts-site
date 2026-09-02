@@ -2,7 +2,7 @@
 
 ## Current phase
 
-The current hardening batch is implemented on `codex/ai-9-plus-hardening` (based on `6952917`), with local quality gates green. It covers signed Resend lifecycle processing, recipient validation/suppression, AI provider health tracking, and an accessibility/mobile pass. A Vercel Preview deployment is READY; production promotion is kept separate until the release commit and final checks are recorded.
+The current hardening batch is committed as `0ebdd29` on `main` and deployed to `ghyarmarket-eg.com` as Vercel deployment `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` (READY). It covers signed Resend lifecycle processing, recipient validation/suppression, AI provider health tracking, and an accessibility/mobile pass. Public smoke, the invalid-signature boundary check, and GitHub Actions CI are green.
 
 ## Completed
 
@@ -40,23 +40,23 @@ The current hardening batch is implemented on `codex/ai-9-plus-hardening` (based
 - `npm run build` — remote Vercel build completed cleanly; local build is expected to log a handled homepage warning because `.env.local` contains a non-Postgres placeholder URL
 - `git diff --check`
 - `npm run test:smoke` against https://ghyarmarket-eg.com with SMOKE_EXPECT_BMW=1 — all checks passed, including favicon, auth boundaries, APIs, security headers, and bww search
-- GitHub Actions CI run 79 for 8d95a3a — success (install, audit, lint, test, build); this hardening commit still needs its post-push status check
-- Vercel Preview deployment `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66` — READY; production remains on the prior deployment until promotion
+- GitHub Actions CI run 101 for `0ebdd29` — success (install, audit, lint, test, build)
+- Vercel Preview deployment `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66` — READY
+- Vercel Production deployment `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` — READY and aliased to `ghyarmarket-eg.com`
 
 ## Commit
 
-The working tree contains the hardening batch and an untracked local `.codebase-memory/` directory. Commit only source/tests/docs after the final gates pass; never commit `.codebase-memory/`, `.env*`, webhook secrets, or provider keys.
+Release commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibility`) is on `main`. The working tree has only the untracked local `.codebase-memory/` directory. Never commit `.codebase-memory/`, `.env*`, webhook secrets, or provider keys.
 
 ## Remaining tasks
 
-1. Promote the READY Preview after committing/pushing the hardening batch, then verify the production domain and signed webhook boundary.
-2. Send one authorized disposable-recipient lifecycle test and confirm the matching delivery attempt is updated once; do not send tests to customers.
-3. Provision a disposable `TEST_DATABASE_URL` with `NODE_ENV=test` and run the opt-in checkout concurrency suite; production checkout already uses conditional stock decrements and unique grouped client IDs.
-4. Run authenticated mobile/offline browser QA and an axe scan, then record real Core Web Vitals/p75 data instead of inferring a performance score from static inspection.
+1. Send one authorized disposable-recipient lifecycle test and confirm the matching delivery attempt is updated once; do not send tests to customers.
+2. Provision a disposable `TEST_DATABASE_URL` with `NODE_ENV=test` and run the opt-in checkout concurrency suite; production checkout already uses conditional stock decrements and unique grouped client IDs.
+3. Run authenticated mobile/offline browser QA and an axe scan, then record real Core Web Vitals/p75 data instead of inferring a performance score from static inspection.
 
 ## Blockers
 
-- The current browser connector cannot authenticate to the protected Preview; its Vercel build is READY. Public production smoke can verify only unauthenticated paths.
+- The current browser connector cannot authenticate to the protected Preview; its Vercel build is READY. CUA verified the public Production UI after deployment, while authenticated role flows remain unverified.
 - No paid AI provider credential is configured in Vercel, so the runtime still uses the existing Gemini/OpenRouter/Gateway fallback order and the assistant remains labelled beta.
 - `SUPPORT_EMAIL` is not configured and the local notification sender is invalid; support/admin outbound email is fail-closed until a verified address is provisioned.
 - Positive signed Resend lifecycle, Gmail/Outlook/Yahoo seed-inbox, DMARC/Postmaster, authenticated axe, and isolated checkout-race tests still require external accounts or test infrastructure.
@@ -80,5 +80,5 @@ Read-only post-migration checks: 6 parts, 12 orders, 12 order items, 3 compatibi
 ## Deployments
 
 - Preview: `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66`, READY, branch `codex/ai-9-plus-hardening`; remote Vercel build passed TypeScript and route generation.
-- Production: prior deployment remains aliased to `ghyarmarket-eg.com` until the hardening commit is promoted.
+- Production: `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws`, READY, commit `0ebdd29`, aliased to `ghyarmarket-eg.com`.
 - Vercel runtime-error query for the checked window returned no errors; a narrow Preview runtime-log query returned no matching logs.
