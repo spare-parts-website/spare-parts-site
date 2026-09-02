@@ -75,7 +75,7 @@ Release commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibil
 - `email_deliverability_hardening_20260902` (recipient delivery status and suppression state)
 - `email_delivery_records_20260902` (delivery attempts, provider IDs, lifecycle timestamps, and idempotency fields)
 
-Read-only post-migration checks: 6 parts, 12 orders, 12 order items, 3 compatibility rows, 0 invalid prices, 0 negative stock, 8 email delivery attempts. `uploads` remains public and `protected-uploads` remains private; sensitive public tables have RLS enabled with zero browser policies.
+Read-only post-deploy checks (2026-09-02): 6 parts, 12 orders, 12 order items, 3 compatibility rows, 0 invalid prices, 0 negative stock, and 17 email delivery attempts (all currently `SENT` pending provider lifecycle callbacks). `uploads` remains public and `protected-uploads` remains private; sensitive public tables have RLS enabled with zero browser policies.
 
 ## Deployments
 
