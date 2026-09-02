@@ -49,6 +49,7 @@ Production verification completed on 2026-09-02:
 - Error-level Vercel log scan for the deployment returned no logs.
 - Browser smoke test on `https://ghyarmarket-eg.com`: lazy assistant open, guest `دورلي على عداد BMW F30` returned a real listing card with `فتح` and `اختيار`, explicit `هل العداد ده يركب على BMW F30 2016؟` used the grounded compatibility result, and browser errors/console output were empty.
 - Hardening commit `0ebdd29` is on `main`; GitHub Actions run 101 is green and Vercel Production deployment `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` is READY. Public smoke covers the main/catalog/auth/legal routes, BMW typo search, API boundaries, and security headers. The CUA DOM check found six detail buttons and no nested detail links after the accessibility pass.
+- The follow-up hardening batch adds a validated Postgres integrity migration, a real Postgres checkout race job in GitHub Actions, Next.js 16 proxy nonce CSP/request IDs/same-origin mutation checks, an optional paid OpenRouter primary, and optional rate-limited operational alerts. These changes remain pending their next production deployment until Vercel reports READY.
 
 ## Files changed in this remake
 
@@ -56,4 +57,4 @@ AI routes and orchestration: `src/app/api/ai/route.ts`, `src/app/api/ai/actions/
 
 Client UX and tests: `src/components/ai-assistant.tsx`, `src/components/ai-assistant-loader.tsx`, `src/components/app-shell.tsx`, and `tests/ai-assistant.test.ts`.
 
-Next exact task: record the remaining external email lifecycle, authenticated browser/axe, Core Web Vitals, and isolated checkout-race evidence. Keep `.codebase-memory/` untracked.
+Next exact task: configure the remaining external provider/recipient values, record the signed email lifecycle and authenticated browser/axe/Core Web Vitals evidence, and retain the isolated checkout-race CI run. Keep `.codebase-memory/` untracked.

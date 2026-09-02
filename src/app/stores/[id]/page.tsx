@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { StoreView } from '@/components/views/store-view'
 import { db } from '@/lib/db'
@@ -9,6 +10,7 @@ type Params = { params: Promise<{ id: string }> }
 
 export const revalidate = 30
 export const dynamicParams = true
+export const dynamic = 'force-dynamic'
 
 // Empty at build time keeps inventory out of the build artifact while allowing
 // each public detail URL to be rendered and revalidated on first request.
@@ -29,6 +31,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 export default async function StorePage({ params }: Params) {
+  const nonce = (await headers()).get('x-nonce') || undefined
   const { id } = await params
   const { store, canReview } = await getPublicStore(id, null)
   if (!store) notFound()
@@ -36,8 +39,8 @@ export default async function StorePage({ params }: Params) {
   const structuredData = { '@context': 'https://schema.org', '@type': 'AutoPartsStore', name: store.name, description: store.description || undefined, image: store.image || undefined, address: store.address || undefined, telephone: store.phone || undefined, url: `https://ghyarmarket-eg.com/stores/${id}` }
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
-      <Breadcrumbs items={breadcrumbItems} />
+      <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
+      <Breadcrumbs items={breadcrumbItems} nonce={nonce} />
       <StoreView storeId={id} initialStore={store} initialCanReview={canReview} />
     </>
   )

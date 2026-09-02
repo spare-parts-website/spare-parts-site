@@ -68,11 +68,13 @@ for (const check of checks) {
 try {
   const response = await fetch(`${baseUrl}/`)
   const csp = response.headers.get('content-security-policy') || ''
-  if (!csp.includes("default-src 'self'") || !csp.includes("frame-ancestors 'none'")) {
+  const requestId = response.headers.get('x-request-id') || ''
+  const reporting = response.headers.get('reporting-endpoints') || ''
+  if (!csp.includes("default-src 'self'") || !csp.includes("frame-ancestors 'none'") || !/script-src 'self' 'nonce-[^; ]+/.test(csp) || /script-src[^;]*unsafe-inline/.test(csp) || !requestId || !reporting.includes('csp-endpoint')) {
     failed = true
     console.error('FAIL security headers: Content-Security-Policy is missing or incomplete')
   } else {
-    console.log('PASS security headers: CSP present')
+    console.log(`PASS security headers: CSP nonce + request id (${requestId})`)
   }
 } catch (error) {
   failed = true

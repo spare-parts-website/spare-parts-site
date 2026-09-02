@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
 import { DEFAULT_AI_QUOTAS, maskEmail, maskPhone, roleCanPrepareAction } from '../src/lib/ai/policy.ts'
+import { aiPaidPrimaryModel } from '../src/lib/ai/config.ts'
 import { cleanWebSearchQuery, planAIRequest } from '../src/lib/ai/planner.ts'
 import { presentAIResponse } from '../src/lib/ai/presentation.ts'
 import { accountFocus, adminInsightFocus, deterministicToolInput, planDeterministicRequest, sellerCouponState, sellerInsightFocus, sellerListingState, sellerMessageState, sellerOrderStatus } from '../src/lib/ai/deterministic.ts'
@@ -135,11 +136,14 @@ test('cleans conversational filler from current web searches', () => {
 
 test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
   const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
+  const aiConfig = readFileSync(new URL('../src/lib/ai/config.ts', import.meta.url), 'utf8')
   const agent = readFileSync(new URL('../src/lib/ai/agent.ts', import.meta.url), 'utf8')
   const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
   const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
   const imagePolicy = readFileSync(new URL('../src/lib/image-policy.ts', import.meta.url), 'utf8')
   assert.match(runtime, /gemini-3\.5-flash-lite/)
+  assert.match(aiConfig, /OPENROUTER_PRIMARY_MODEL/)
+  assert.match(agent, /openrouter-primary/)
   assert.match(runtime, /'google'[\s\S]*'openrouter-text-pool-a'[\s\S]*'openrouter-text-pool-b'[\s\S]*'openrouter-vision-pool'[\s\S]*'openrouter'[\s\S]*'gateway'/)
   assert.match(agent, /openrouter\/free/)
   assert.match(agent, /inclusionai\/ling-3\.0-flash-fin:free/)
@@ -162,6 +166,23 @@ test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
   assert.match(assistant, /current\.filter\(\(item\) => item\.id !== message\.id\)/)
   for (const removed of ['stealth/ox-alpha', 'OPENROUTER_FAST_MODEL', 'OPENROUTER_DEEP_MODEL', 'AI_MODE_KEY']) {
     assert.equal(`${runtime}\n${assistant}\n${imagePolicy}`.includes(removed), false)
+  }
+})
+
+test('only accepts an explicitly configured paid AI primary', () => {
+  const previousKey = process.env.OPENROUTER_API_KEY
+  const previousModel = process.env.OPENROUTER_PRIMARY_MODEL
+  try {
+    process.env.OPENROUTER_API_KEY = 'test-only-key'
+    process.env.OPENROUTER_PRIMARY_MODEL = 'openai/gpt-5.4-mini'
+    assert.equal(aiPaidPrimaryModel(), 'openai/gpt-5.4-mini')
+    process.env.OPENROUTER_PRIMARY_MODEL = 'google/gemma-4-26b-a4b-it:free'
+    assert.equal(aiPaidPrimaryModel(), null)
+  } finally {
+    if (previousKey === undefined) delete process.env.OPENROUTER_API_KEY
+    else process.env.OPENROUTER_API_KEY = previousKey
+    if (previousModel === undefined) delete process.env.OPENROUTER_PRIMARY_MODEL
+    else process.env.OPENROUTER_PRIMARY_MODEL = previousModel
   }
 })
 

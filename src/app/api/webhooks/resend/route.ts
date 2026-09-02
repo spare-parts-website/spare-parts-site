@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { audit } from '@/lib/audit'
 import { parseResendDeliveryEvent, shouldApplyDeliveryStatus } from '@/lib/resend-webhook'
 import { isPermanentRecipientStatus, normalizeRecipientEmail, sanitizeDeliveryReason } from '@/lib/email-deliverability'
+import { notifyOperationalAlert } from '@/lib/operational-alerts'
 
 const MAX_BODY_BYTES = 256 * 1024
 
@@ -90,6 +91,7 @@ export async function POST(req: NextRequest) {
   if (outcome.kind === 'stale') return NextResponse.json({ ok: true, stale: true })
   if (['BOUNCED', 'FAILED', 'COMPLAINED', 'SUPPRESSED'].includes(event.status)) {
     await audit({ actorId: null, action: `EMAIL_${event.status}`, targetType: 'email_delivery', targetId: outcome.attemptId, metadata: { eventType: event.eventType } })
+    void notifyOperationalAlert('email.delivery.permanent_failure', { status: event.status, eventType: event.eventType })
   }
   return NextResponse.json({ ok: true, matched: true })
 }

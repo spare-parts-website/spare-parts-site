@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { unstable_noStore } from 'next/cache'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import { AdminDashboardView } from '@/components/views/admin-dashboard-view'
 import { AuthView } from '@/components/views/auth-view'
 import { CartView } from '@/components/views/cart-view'
@@ -30,6 +31,10 @@ type RoutePageProps = {
 }
 
 export const revalidate = 30
+// The per-request CSP nonce is read from the proxy for JSON-LD scripts. A
+// static HTML copy would otherwise contain a script without the matching
+// nonce, so this fallback route must render on demand.
+export const dynamic = 'force-dynamic'
 
 const sellerTabs = new Set(['parts', 'orders', 'store', 'analytics', 'coupons', 'messages'])
 const adminTabs = new Set(['users', 'parts', 'orders', 'reviews', 'stores', 'reports', 'support'])
@@ -92,6 +97,7 @@ export async function generateMetadata({ params }: RoutePageProps): Promise<Meta
 }
 
 export default async function RoutePage({ params, searchParams }: RoutePageProps) {
+  const nonce = (await headers()).get('x-nonce') || undefined
   const { route } = await params
   const query = await searchParams
   const [section, id, childId] = route
@@ -208,5 +214,5 @@ export default async function RoutePage({ params, searchParams }: RoutePageProps
     notFound()
   }
 
-  return <>{structuredData && <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />}{breadcrumbItems.length > 0 && <Breadcrumbs items={breadcrumbItems} />}{content}</>
+  return <>{structuredData && <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />}{breadcrumbItems.length > 0 && <Breadcrumbs items={breadcrumbItems} nonce={nonce} />}{content}</>
 }

@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 export type BreadcrumbItem = { label: string; href?: string }
 
-export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
+export function Breadcrumbs({ items, nonce }: { items: BreadcrumbItem[]; nonce?: string }) {
   if (items.length < 2) return null
   const jsonLd = {
     '@context': 'https://schema.org',
@@ -26,7 +26,7 @@ export function Breadcrumbs({ items }: { items: BreadcrumbItem[] }) {
           ))}
         </ol>
       </nav>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
+      <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, '\\u003c') }} />
     </>
   )
 }

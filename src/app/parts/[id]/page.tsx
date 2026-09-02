@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
+import { headers } from 'next/headers'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { PartView } from '@/components/views/part-view'
 import { db } from '@/lib/db'
@@ -10,6 +11,7 @@ type Params = { params: Promise<{ id: string }> }
 
 export const revalidate = 30
 export const dynamicParams = true
+export const dynamic = 'force-dynamic'
 
 // Empty at build time keeps inventory out of the build artifact while allowing
 // each public detail URL to be rendered and revalidated on first request.
@@ -30,6 +32,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 export default async function PartPage({ params }: Params) {
+  const nonce = (await headers()).get('x-nonce') || undefined
   const { id } = await params
   const { part, canReview } = await getPublicPart(id, null)
   if (!part) notFound()
@@ -46,8 +49,8 @@ export default async function PartPage({ params }: Params) {
   }
   return (
     <>
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
-      <Breadcrumbs items={breadcrumbItems} />
+      <script nonce={nonce} type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(structuredData).replace(/</g, '\\u003c') }} />
+      <Breadcrumbs items={breadcrumbItems} nonce={nonce} />
       <PartView partId={id} initialPart={part} initialCanReview={canReview} />
     </>
   )

@@ -11,7 +11,7 @@ Use this checkout and read `PRODUCTION_READINESS.md` first:
 - Working branch: `codex/ai-9-plus-hardening`
 - Vercel project: `spare-parts-site` (linked through `.vercel/project.json`)
 - Production domain: `https://ghyarmarket-eg.com`
-- Current production commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibility`).
+- Current production commit: `140e637` (`docs: refresh Supabase delivery counts`). The next hardening commit is staged on `codex/ai-9-plus-hardening`; do not call it live until Vercel reports READY.
 
 Do not use the old `C:\Users\HP\Documents\Codex\spare-parts-site-online` path or the old `codex/remake-preview` branch. Preserve unrelated work and `.codebase-memory/`; never commit secrets or that generated directory. The authorized release pattern is a normal push such as `git push origin HEAD:main`; never force-push.
 
@@ -46,6 +46,9 @@ Structured vehicle compatibility (`make`, `model`, years, engine, trim, notes, u
 - Recipient validation rejects malformed/known-typo addresses, and permanent provider failures suppress non-essential email plus login/password-reset sends until the address is corrected.
 - AI provider attempts have bounded backoff and a per-provider circuit breaker; the existing role policy, response guard, dedupe lease, timeout, and fallback behavior remain authoritative.
 - Marketplace cards and forms received an accessibility pass: interactive controls are no longer nested in link-like cards, controls have names, and heading/contrast issues found in the static review are corrected.
+- Postgres now has a rerunnable validated integrity migration (`prisma/data-integrity-constraints.sql`) covering finite money, positive quantities/prices, stock, ratings, coupons, and fitment year ranges.
+- Next.js 16 uses `src/proxy.ts` for request IDs, nonce-based script CSP, same-origin mutation checks, and bounded CSP violation reports. The standard `npm start` fallback now works when no standalone artifact exists.
+- AI supports an explicitly configured paid OpenRouter primary via `OPENROUTER_PRIMARY_MODEL`; it rejects free aliases and falls back to the existing bounded pools. Critical AI/email failures can notify an optional `OPERATIONAL_ALERT_WEBHOOK_URL` sink without blocking requests.
 
 ## Database changes applied safely
 
@@ -56,6 +59,7 @@ Additive/reversible SQL has been applied to Supabase project `sufrsfrrrzhhdluolx
 - `resend_webhook_delivery_tracking`
 - `email_deliverability_hardening_20260902`
 - `email_delivery_records_20260902`
+- `data_integrity_constraints_20260902`
 
 No reset, drop, truncate, mass delete, or order/order-item deletion was used. Keep future migrations additive and validate row counts before and after any backfill.
 
@@ -77,9 +81,9 @@ The local build may log a handled homepage Prisma initialization warning when th
 
 ## Remaining release work
 
-1. Send one authorized disposable-recipient Resend lifecycle test and verify the signed event updates one matching attempt; never send a mass test email.
-2. Provision a disposable test database and run the opt-in checkout concurrency suite.
-3. Perform authenticated mobile/offline browser QA, an axe scan, and real Core Web Vitals measurement.
-4. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after any future deployment.
+1. Configure the chosen paid AI model and valid support/notification recipient addresses in Vercel.
+2. Send one authorized disposable-recipient Resend lifecycle test and verify the signed event updates one matching attempt; never send a mass test email.
+3. Let CI run the isolated Postgres checkout race suite, then perform authenticated mobile/offline browser QA, an axe scan, and real Core Web Vitals measurement.
+4. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after the next deployment.
 
 Do not mark a release gate complete without evidence. If a provider configuration cannot be completed securely, record it as `BLOCKED` in `PRODUCTION_READINESS.md` with the exact remaining action.

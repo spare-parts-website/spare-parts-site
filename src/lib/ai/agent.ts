@@ -2,7 +2,7 @@ import { ToolLoopAgent, gateway, isStepCount, NoSuchToolError } from 'ai'
 import { createGoogle } from '@ai-sdk/google'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import type { ProviderOptions } from '@ai-sdk/provider-utils'
-import { aiModel, type AIProviderTarget } from '@/lib/ai/runtime'
+import { aiModel, aiPaidPrimaryModel, type AIProviderTarget } from '@/lib/ai/runtime'
 import { createAITools } from '@/lib/ai/tools'
 import { allowedToolNamesForRole } from '@/lib/ai/capabilities'
 import { formatAIConversationContext, type AIConversationContext } from '@/lib/ai/context'
@@ -89,6 +89,11 @@ function providerModel(provider: AIProviderTarget) {
   }
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
+  if (provider === 'openrouter-primary') {
+    const model = aiPaidPrimaryModel()
+    if (!model) throw new Error('AI_UNAVAILABLE')
+    return createOpenRouter({ apiKey })(model)
+  }
   const models: Partial<Record<AIProviderTarget, string>> = {
     'openrouter-text-pool-a': 'inclusionai/ling-3.0-flash-fin:free',
     'openrouter-text-pool-b': 'nvidia/nemotron-3.5-lightning:free',
@@ -103,6 +108,13 @@ function providerOptions(input: { provider: AIProviderTarget; user: SessionUser 
   // Let the current Gemini model choose a compatible thinking configuration.
   // The former explicit zero-budget payload was rejected by the direct API.
   if (input.provider === 'google') return undefined
+  if (input.provider === 'openrouter-primary') return {
+    openrouter: {
+      models: [aiPaidPrimaryModel() || 'openrouter/auto'],
+      user: input.user?.id || 'guest',
+      provider: { allow_fallbacks: false, require_parameters: true, sort: 'throughput' },
+    },
+  }
   if (input.provider === 'openrouter-text-pool-a') return {
     openrouter: {
       models: [

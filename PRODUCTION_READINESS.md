@@ -2,7 +2,7 @@
 
 ## Current phase
 
-The current hardening batch is committed as `0ebdd29` on `main` and deployed to `ghyarmarket-eg.com` as Vercel deployment `dpl_5iKK5Z9Yozx5Ua9iMiCe5Y18tmws` (READY). It covers signed Resend lifecycle processing, recipient validation/suppression, AI provider health tracking, and an accessibility/mobile pass. Public smoke, the invalid-signature boundary check, and GitHub Actions CI are green.
+The current hardening batch is committed on `codex/ai-9-plus-hardening` and will be promoted only after the checks below pass. It covers signed Resend lifecycle processing, recipient validation/suppression, AI provider health tracking, database integrity constraints, nonce-based CSP/CSRF checks, and a real Postgres checkout race suite in CI. The last production deployment (`dpl_AZZEqESM5k9wW55zwSno5a84sQvJ`) is READY for the previous docs-only commit; the new code is not claimed as live until its Vercel deployment is READY.
 
 ## Completed
 
@@ -24,6 +24,10 @@ The current hardening batch is committed as `0ebdd29` on `main` and deployed to 
 - Registration/profile/admin email inputs reject malformed addresses and provide safe typo corrections; login/password reset stop before send for permanently undeliverable users.
 - AI provider attempts now use bounded backoff and a per-provider circuit breaker with safe health telemetry while preserving the existing guard, dedupe lease, timeout, and fallback pipeline.
 - Parts/stores cards no longer nest interactive controls inside a link; form controls have accessible names, heading hierarchy is consistent, and light-theme primary text meets the intended contrast direction.
+- Added validated, additive Postgres checks for finite positive prices, non-negative stock/money, positive quantities, 1–5 ratings, coupon usage bounds, and vehicle year ranges (`data_integrity_constraints_20260902`).
+- Added Next.js 16 `proxy` request IDs, nonce-based `script-src`, same-origin mutation checks for browser API calls, and a bounded CSP report endpoint. JSON-LD scripts receive the per-request nonce.
+- Added an opt-in paid OpenRouter primary (`OPENROUTER_PRIMARY_MODEL`) that rejects `:free` aliases and keeps the existing bounded fallback pools when it is not configured. Operational alert delivery is optional, rate-limited, and secret-free.
+- Added a real isolated Postgres checkout-concurrency CI job covering conditional stock reservation and duplicate client-order convergence. `npm start` now supports both standard and standalone Next build artifacts.
 - Added additive SupportTicket/SupportMessage tables, RLS, customer/admin inbox UI with status/category/search filters, ownership checks, status/reply audits, and failure-safe support email delivery using `SUPPORT_EMAIL`.
 - Added secure admin-assisted listing creation that resolves a seller's store, preserves `storeId`, validates price/stock, and audits the mutation.
 - Added visible BreadcrumbList JSON-LD alongside existing Product/AutoPartsStore schema, public cache headers, route prefetch/loading feedback, and search-result prioritization for typo-ranked IDs.
@@ -38,6 +42,7 @@ The current hardening batch is committed as `0ebdd29` on `main` and deployed to 
 - `npm run lint`
 - `npm test` — 102 passing, 1 intentionally skipped isolated-DB checkout harness
 - `npm run build` — remote Vercel build completed cleanly; local build is expected to log a handled homepage warning because `.env.local` contains a non-Postgres placeholder URL
+- Local `npm start` fallback plus `npm run test:smoke` — all public routes, API boundaries, nonce CSP, request ID, and CSP reporting headers passed against the generated build.
 - `git diff --check`
 - `npm run test:smoke` against https://ghyarmarket-eg.com with SMOKE_EXPECT_BMW=1 — all checks passed, including favicon, auth boundaries, APIs, security headers, and bww search
 - GitHub Actions CI run 101 for `0ebdd29` — success (install, audit, lint, test, build)
@@ -50,9 +55,10 @@ Release commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibil
 
 ## Remaining tasks
 
-1. Send one authorized disposable-recipient lifecycle test and confirm the matching delivery attempt is updated once; do not send tests to customers.
-2. Provision a disposable `TEST_DATABASE_URL` with `NODE_ENV=test` and run the opt-in checkout concurrency suite; production checkout already uses conditional stock decrements and unique grouped client IDs.
-3. Run authenticated mobile/offline browser QA and an axe scan, then record real Core Web Vitals/p75 data instead of inferring a performance score from static inspection.
+1. Configure an explicitly chosen paid AI provider/model and valid transactional/support recipient addresses; no secret or address is invented by this repository.
+2. Send one authorized disposable-recipient lifecycle test and confirm the matching delivery attempt is updated once; do not send tests to customers.
+3. Let GitHub Actions run the new isolated Postgres checkout race job, then retain its run URL as release evidence.
+4. Run authenticated mobile/offline browser QA and an axe scan, then record real Core Web Vitals/p75 data instead of inferring a performance score from static inspection.
 
 ## Blockers
 
@@ -63,6 +69,7 @@ Release commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibil
 - Local build environment contains a non-Postgres placeholder `DATABASE_URL`; production/CI must provide the real server-only URL.
 - Full real-database checkout race testing is blocked until an isolated test database is provisioned; the guarded test refuses to use the application/production URL.
 - CSP still requires `unsafe-inline` for the current Next.js hydration/theme stack; removing it needs a nonce/hash migration and was intentionally not attempted in this focused release.
+- The new CSP removes `script-src unsafe-inline`; a small `style-src unsafe-inline` exception remains for existing dynamic chart/style attributes and needs a separate CSS-variable refactor before claiming a zero-inline CSP.
 
 ## Migrations applied
 
@@ -74,6 +81,7 @@ Release commit: `0ebdd29` (`Harden email delivery, AI resilience, and accessibil
 - `support_ticket_privileges` (revokes browser grants while preserving server-side RLS fail-closed access)
 - `email_deliverability_hardening_20260902` (recipient delivery status and suppression state)
 - `email_delivery_records_20260902` (delivery attempts, provider IDs, lifecycle timestamps, and idempotency fields)
+- `data_integrity_constraints_20260902` (validated additive checks for prices, stock, money, quantities, ratings, coupons, and fitment years)
 
 Read-only post-deploy checks (2026-09-02): 6 parts, 12 orders, 12 order items, 3 compatibility rows, 0 invalid prices, 0 negative stock, and 17 email delivery attempts (all currently `SENT` pending provider lifecycle callbacks). `uploads` remains public and `protected-uploads` remains private; sensitive public tables have RLS enabled with zero browser policies.
 

@@ -13,6 +13,7 @@ import { buildSellerMessagePlan, buildSellerPerformancePlan, executeDeterministi
 import { buildAIConversationContext, resolveContextSelection, safePageContext } from '@/lib/ai/context'
 import { guardAIResponse } from '@/lib/ai/response-guard'
 import { isProviderCircuitOpen, providerBackoffMs, providerHealthSnapshot, recordProviderFailure, recordProviderSuccess } from '@/lib/ai/provider-health'
+import { notifyOperationalAlert } from '@/lib/operational-alerts'
 
 export const maxDuration = 120
 
@@ -139,6 +140,7 @@ export async function POST(request: Request) {
     const fallback = terminalFallback(message, hasImage, requestId)
     if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: fallback, metadata: { parts: [{ type: 'text', text: fallback }] } })
     console.error(JSON.stringify({ event: 'ai.all_providers_failed', requestId, role, intent: plan.intent, complexity: plan.complexity, durationMs: Date.now() - startedAt, attempts, providerHealth: providerHealthSnapshot() }))
+    void notifyOperationalAlert('ai.all_providers_failed', { requestId, role, intent: plan.intent, attempts: attempts.length })
     return textUIResponse(fallback, { conversationId, expiresAt, requestId, provider: 'deterministic', fallbackCount: attempts.length })
   } catch (error) {
     const message = errorMessage(error); console.error(JSON.stringify({ event: 'ai.request.failed', requestId, durationMs: Date.now() - startedAt, error: message }))

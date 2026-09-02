@@ -2,6 +2,9 @@ import { createHash, randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { DEFAULT_AI_QUOTAS } from '@/lib/ai/policy'
 import type { AIRole } from '@/lib/ai/types'
+import { aiPaidPrimaryModel } from './config'
+
+export { aiPaidPrimaryModel } from './config'
 
 const CONCURRENCY: Record<AIRole, number> = {
   GUEST: 1,
@@ -11,7 +14,7 @@ const CONCURRENCY: Record<AIRole, number> = {
 }
 
 const AI_MODEL = 'gemini-3.5-flash-lite'
-export type AIProviderTarget = 'google' | 'openrouter-text-pool-a' | 'openrouter-text-pool-b' | 'openrouter-vision-pool' | 'openrouter' | 'gateway'
+export type AIProviderTarget = 'openrouter-primary' | 'google' | 'openrouter-text-pool-a' | 'openrouter-text-pool-b' | 'openrouter-vision-pool' | 'openrouter' | 'gateway'
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
@@ -23,6 +26,7 @@ export function aiModel() {
 
 export function aiProviderTargets(options?: { hasImage?: boolean }): AIProviderTarget[] {
   const targets: AIProviderTarget[] = []
+  if (process.env.OPENROUTER_API_KEY && aiPaidPrimaryModel()) targets.push('openrouter-primary')
   // The direct Google free quota is independent from OpenRouter and Gateway,
   // so prefer it before shared free routers.
   if (process.env.GEMINI_API_KEY) targets.push('google')
