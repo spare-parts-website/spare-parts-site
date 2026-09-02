@@ -65,6 +65,7 @@ export function deterministicToolInput(toolName: AIToolName, message: string, ro
     const query = cleanSubject(message, [
       /(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|find|search|show me|i need|looking for)/gi,
       /(?:^|\s)(?:على|عن|for)(?=\s|$)/gi,
+      /(?:^|\s)(?:لي|ليا|عندي|من فضلك|لو سمحت)(?=\s|$)/gi,
       /(?:^|\s)(?:هل|في|للبيع|مطلوب|سيارة|cars?)(?=\s|$)/gi,
       /(?:في|داخل)\s+(?:غيار ماركت|المتجر|الموقع)/gi,
       /(?:قطعة|قطع غيار|متجر|store|shop|part|parts)/gi,
