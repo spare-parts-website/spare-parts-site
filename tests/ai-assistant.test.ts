@@ -115,6 +115,9 @@ test('reuses real result context for browse and purchase follow-ups', () => {
   assert.deepEqual(deterministicToolInput('searchMarketplace', 'أريد شراء واحد', 'BUYER', clientContext), { query: 'BMW parts', limit: 8 })
   assert.deepEqual(deterministicToolInput('prepareAction', 'اشتري الأول', 'BUYER', clientContext), { action: 'cart_add', quantity: 1, targetId: 'part-1', entityName: 'BMW engine' })
   assert.deepEqual(deterministicToolInput('prepareAction', 'اشتري الثاني', 'BUYER', clientContext), { action: 'cart_add', quantity: 1, targetId: 'part-2', entityName: 'BMW wheel' })
+  const guestSelectionContext = { ...context, role: 'GUEST' as const, selectedEntity: context.previousEntities[0] }
+  assert.equal(planAIRequest('اخترت جنط. أكمل نفس الطلب السابق.', 'GUEST', guestSelectionContext).forcedTool, 'navigate')
+  assert.deepEqual(deterministicToolInput('navigate', 'اخترت جنط. أكمل نفس الطلب السابق.', 'GUEST', { cart: [], selection: context.previousEntities[0] }), { destination: 'login' })
 })
 
 test('automatically reserves more work only for complex requests', () => {

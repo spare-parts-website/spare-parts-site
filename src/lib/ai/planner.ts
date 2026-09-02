@@ -99,6 +99,13 @@ export function planAIRequest(message: string, role: AIRole, context?: AIConvers
     intent = explicitEntity ? 'protected_action' : 'marketplace_selection'
     tools.add(explicitEntity ? 'prepareAction' : 'searchMarketplace')
     forcedTool = explicitEntity ? 'prepareAction' : 'searchMarketplace'
+  } else if (selectedEntityFollowup && role === 'GUEST') {
+    // Guests can inspect public results but cannot prepare cart mutations. Keep
+    // a selected result out of a second, unrelated search and offer an explicit
+    // sign-in navigation card instead.
+    intent = 'navigation'
+    tools.add('navigate')
+    forcedTool = 'navigate'
   } else if (liveSearch) {
     intent = 'web_search'
     tools.add('searchInternet')

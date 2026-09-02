@@ -247,6 +247,7 @@ function adminLookupInputs(message: string) {
 }
 
 function navigationInput(message: string, role: AIRole) {
+  if (role === 'GUEST' && /(?:اخترت|اختيار|selected|choice)/i.test(message)) return { destination: 'login' }
   const destinations: Array<[RegExp, string]> = [
     [/(?:الرئيسية|home)/i, 'home'], [/(?:المتاجر|stores)/i, role === 'ADMIN' ? 'admin_stores' : 'stores'], [/(?:السلة|cart)/i, 'cart'],
     [/(?:المفضلة|wishlist)/i, 'wishlist'], [/(?:حسابي|الملف|profile)/i, 'profile'],

@@ -4,7 +4,7 @@ import { roleCanPrepareAction } from './policy.ts'
 import { AI_ACTIONS, AI_ENTITY_KINDS, type AIResponseGuardResult, type AIRole, type AIToolCard, type AISelectedEntity } from './types.ts'
 import { containsInteractiveInstruction, hasUnsupportedFactLanguage } from './normalization.ts'
 
-const SAFE_INTERNAL_HREF = /^\/(?:parts|stores|cart|checkout|account|seller|admin|support|messages)(?:[/?#]|$)/i
+const SAFE_INTERNAL_HREF = /^\/(?:parts|stores|cart|checkout|account|seller|admin|support|messages|login)(?:[/?#]|$)/i
 const SAFE_EXTERNAL_HREF = /^https?:\/\/[^\s]+$/i
 const TEXT_CONTROL_CHARS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g
 

@@ -15,7 +15,7 @@ import { AI_ACTIONS, type AIClientContext, type AIRole, type AIToolCard, type AI
 import type { SessionUser } from '@/lib/auth'
 
 const navigationDestinations = z.enum([
-  'home', 'parts', 'stores', 'cart', 'orders', 'wishlist', 'profile',
+  'home', 'parts', 'stores', 'cart', 'orders', 'wishlist', 'profile', 'login',
   'seller_parts', 'seller_orders', 'seller_analytics', 'seller_coupons', 'seller_messages',
   'admin_users', 'admin_parts', 'admin_orders', 'admin_stores', 'admin_reports',
 ])
@@ -616,7 +616,7 @@ export async function getSellerInsightsCard(user: SessionUser, focus: 'overview'
 }
 
 function navigationHref(destination: NavigationDestination, role: AIRole, query?: string) {
-  const publicPaths: Partial<Record<NavigationDestination, string>> = { home: '/', parts: query ? `/parts?search=${encodeURIComponent(query)}` : '/parts', stores: '/stores', cart: '/cart' }
+  const publicPaths: Partial<Record<NavigationDestination, string>> = { home: '/', parts: query ? `/parts?search=${encodeURIComponent(query)}` : '/parts', stores: '/stores', cart: '/cart', login: '/login' }
   if (destination in publicPaths) return publicPaths[destination]!
   const accountPaths: Partial<Record<NavigationDestination, string>> = { orders: '/account/orders', wishlist: '/account/wishlist', profile: '/account/profile' }
   if (destination in accountPaths && role !== 'GUEST' && role !== 'ADMIN') return accountPaths[destination]!
