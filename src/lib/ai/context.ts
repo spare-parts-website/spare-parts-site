@@ -1,5 +1,6 @@
 import type { AIRole, AIClientContext, AISelectedEntity } from '@/lib/ai/types'
 import type { GhyarAIMessage } from '@/lib/ai/messages'
+import { isMarketplaceAvailabilityRequest, isMarketplaceTerm, isPartsBrowseRequest } from './normalization.ts'
 
 export type AIPageContext = {
   pathname: string
@@ -71,7 +72,11 @@ export function buildAIConversationContext(input: {
   // Only a user's own search request can seed a follow-up query. Assistant
   // prose may mention the word "search" while summarising a result and must
   // never become an implicit database query.
-  const previousSearch = [...recentMessages].reverse().filter((message) => message.role === 'user').map((message) => message.text).find((text) => /(?:ابحث|دور|search|find|looking for)/i.test(text))
+  const previousSearch = [...recentMessages]
+    .reverse()
+    .filter((message) => message.role === 'user')
+    .map((message) => message.text)
+    .find((text) => text !== input.currentMessage && (/(?:ابحث|دور|فتش|search|find|looking for)/i.test(text) || isMarketplaceAvailabilityRequest(text) || isMarketplaceTerm(text)) && !isPartsBrowseRequest(text))
   const currentPage = input.clientContext.page
   return {
     role: input.role,

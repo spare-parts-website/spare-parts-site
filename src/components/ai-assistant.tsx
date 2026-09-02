@@ -42,7 +42,7 @@ export function AIAssistant({
   initialPrompt?: string
 }) {
   const router = useRouter(); const addToCart = useAppStore((state) => state.addToCart); const clearCart = useAppStore((state) => state.clearCart); const setFavoriteStores = useAppStore((state) => state.setFavoriteStores)
-  const role = user?.role || 'GUEST'; const conversationRef = useRef<string | undefined>(undefined); const selectionRef = useRef<AISelectedEntity | undefined>(undefined); const handledActions = useRef(new Set<string>()); const manualStopRef = useRef(false)
+  const role = user?.role || 'GUEST'; const conversationRef = useRef<string | undefined>(undefined); const selectionRef = useRef<AISelectedEntity | undefined>(undefined); const pendingRequestIdRef = useRef(''); const submitLockRef = useRef({ fingerprint: '', active: false, cooldownUntil: 0 }); const manualStopRef = useRef(false)
   const [open, setOpen] = useState(initiallyOpen); const [input, setInput] = useState(initialPrompt); const [conversationId, setConversationId] = useState<string>(); const [expiresAt, setExpiresAt] = useState<string>()
   const [conversations, setConversations] = useState<SavedConversation[]>([]); const [showHistory, setShowHistory] = useState(false); const [attachments, setAttachments] = useState<PromptAttachment[]>([]); const [uploading, setUploading] = useState(false)
   const [localError, setLocalError] = useState(''); const [pendingProposal, setPendingProposal] = useState<AIToolCard['proposal']>(); const [proposalBusy, setProposalBusy] = useState(false); const [requestAgeSeconds, setRequestAgeSeconds] = useState(0)
@@ -53,11 +53,11 @@ export function AIAssistant({
     prepareSendMessagesRequest: ({ messages }) => {
       const cart = useAppStore.getState().cart
       const page = typeof window === 'undefined' ? { pathname } : { pathname, title: document.title, query: window.location.search.slice(0, 160) }
-      return { body: { messages, conversationId: conversationRef.current, clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })), selection: selectionRef.current, page } } }
+      return { body: { messages, conversationId: conversationRef.current, clientRequestId: pendingRequestIdRef.current || undefined, clientContext: { cart: cart.slice(0, 20).map(({ partId, name, quantity, price }) => ({ partId, name, quantity, price })), selection: selectionRef.current, page } } }
     },
   }), [pathname])
 
-  const { messages, setMessages, sendMessage, regenerate, stop, status, error, clearError } = useChat<GhyarAIMessage>({
+  const { messages, setMessages, sendMessage, regenerate: regenerateChat, stop, status, error, clearError } = useChat<GhyarAIMessage>({
     transport,
     onFinish: ({ message, isAbort, isDisconnect, isError }) => {
       if (message.metadata?.conversationId) { setConversationId(message.metadata.conversationId); setExpiresAt(message.metadata.expiresAt) }
@@ -68,12 +68,16 @@ export function AIAssistant({
         manualStopRef.current = false
         return
       }
-      applyToolClientActions(message)
       if (user) void loadConversations()
     },
-    onError: (cause) => setLocalError(normalizeChatError(cause.message) || 'تعذر استلام رد Gemini. أعد المحاولة.'),
+    onError: (cause) => { if (isDuplicateChatError(cause.message)) { setLocalError(''); clearError(); return }; setLocalError(normalizeChatError(cause.message) || 'تعذر استلام رد Gemini. أعد المحاولة.') },
   })
   const busy = status === 'submitted' || status === 'streaming'
+  const regenerate = useCallback(() => {
+    submitLockRef.current = { fingerprint: '', active: false, cooldownUntil: 0 }
+    pendingRequestIdRef.current = crypto.randomUUID()
+    return Promise.resolve(regenerateChat()).finally(() => { pendingRequestIdRef.current = '' })
+  }, [regenerateChat])
 
   useEffect(() => {
     if (!busy) { setRequestAgeSeconds(0); return }
@@ -104,8 +108,17 @@ export function AIAssistant({
 
   useEffect(() => {
     if (user) return
-    const textOnly = messages.slice(-20).map((message) => ({ ...message, parts: message.parts.filter((part) => part.type === 'text') })).filter((message) => message.parts.length)
-    window.sessionStorage.setItem(GUEST_KEY, JSON.stringify({ updatedAt: Date.now(), messages: textOnly }))
+    const guestMessages = messages.slice(-20).map((message) => {
+      const parts: GhyarAIMessage['parts'] = []
+      for (const part of message.parts) {
+        if (part.type === 'text') { if (part.text.trim()) parts.push(part); continue }
+        if (message.role !== 'assistant' || !isToolUIPart(part) || part.state !== 'output-available') continue
+        const card = part.output as AIToolCard
+        if (card && (card.type === 'results' || card.type === 'insight') && !card.proposal && !card.clientAction) parts.push(part)
+      }
+      return { ...message, parts }
+    }).filter((message) => message.parts.length)
+    window.sessionStorage.setItem(GUEST_KEY, JSON.stringify({ updatedAt: Date.now(), messages: guestMessages }))
   }, [messages, user])
 
   useEffect(() => {
@@ -122,13 +135,18 @@ export function AIAssistant({
 
   async function submit(text = input, selection?: AISelectedEntity) {
     const prompt = text.trim(); if (busy || (!prompt && !attachments.length)) return
+    const fingerprint = `${conversationRef.current || 'new'}|${prompt.toLocaleLowerCase().normalize('NFKC')}|${selection ? `${selection.kind}:${selection.id}` : ''}|${attachments.map((attachment) => `${attachment.mediaType}:${attachment.filename}:${attachment.file?.size || 0}`).join(',')}`
+    const now = Date.now(); const lock = submitLockRef.current
+    if (lock.active || (lock.fingerprint === fingerprint && lock.cooldownUntil > now)) return
+    submitLockRef.current = { fingerprint, active: true, cooldownUntil: now + 2_500 }
+    pendingRequestIdRef.current = crypto.randomUUID()
     setLocalError(''); clearError(); selectionRef.current = selection; setUploading(Boolean(attachments.length))
     try {
       const files = await Promise.all(attachments.map((attachment) => prepareAttachment(attachment.file!, Boolean(user))))
       await sendMessage(prompt ? { text: prompt, files } : { files })
       setInput(''); clearAttachmentState()
-    } catch (cause) { setLocalError(cause instanceof Error ? cause.message : 'تعذر إرسال الطلب') }
-    finally { setUploading(false); selectionRef.current = undefined }
+    } catch (cause) { submitLockRef.current.cooldownUntil = 0; setLocalError(cause instanceof Error ? cause.message : 'تعذر إرسال الطلب') }
+    finally { submitLockRef.current.active = false; pendingRequestIdRef.current = ''; setUploading(false); selectionRef.current = undefined }
   }
 
   function addAttachments(files: File[]) {
@@ -140,14 +158,6 @@ export function AIAssistant({
   }
 
   function clearAttachmentState() { setAttachments((current) => { current.forEach((item) => item.url.startsWith('blob:') && URL.revokeObjectURL(item.url)); return [] }) }
-
-  function applyToolClientActions(message: GhyarAIMessage) {
-    for (const part of message.parts) if (isToolUIPart(part) && part.state === 'output-available') {
-      const card = part.output as AIToolCard
-      if (!card?.clientAction || handledActions.current.has(part.toolCallId)) continue
-      handledActions.current.add(part.toolCallId); applyAutomaticAction(card.clientAction)
-    }
-  }
 
   function applyAutomaticAction(action: AIClientAction) {
     if (action.type === 'navigate' && action.href?.startsWith('/')) { setOpen(false); router.push(action.href) }
@@ -185,7 +195,7 @@ export function AIAssistant({
     <SheetTrigger asChild><Button className="fixed bottom-24 left-4 z-40 h-12 rounded-2xl px-4 shadow-xl lg:bottom-6" aria-label="فتح مساعد غيار ماركت"><Sparkles className="ml-2 size-5" />اسأل غيار</Button></SheetTrigger>
     <SheetContent side="left" dir="rtl" showClose={false} className="flex h-[100dvh] !w-[100dvw] !max-w-[100dvw] min-w-0 flex-col gap-0 overflow-hidden p-0 sm:!max-w-none lg:!w-[min(560px,100vw)] lg:!max-w-[560px]">
       <SheetHeader className="shrink-0 border-b bg-primary/5 px-4 py-3"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><SheetTitle className="flex items-center gap-2 text-lg"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-primary text-primary-foreground"><Bot className="size-5" /></span><span className="truncate">مساعد غيار ماركت</span></SheetTitle><SheetDescription className="mt-1">{roleLabel(role)}</SheetDescription></div><div className="flex shrink-0 gap-1"><Button size="icon" variant="ghost" onClick={newChat} title="محادثة جديدة"><MessageCirclePlus className="size-4" /></Button>{user && <Button size="icon" variant="ghost" onClick={() => setShowHistory((value) => !value)} title="السجل"><History className="size-4" /></Button>}<SheetClose asChild><Button size="icon" variant="ghost" aria-label="إغلاق"><X className="size-4" /></Button></SheetClose></div></div><p className="flex items-center gap-1 text-[11px] text-muted-foreground"><Clock3 className="size-3" />{expiryLabel}</p></SheetHeader>
-      {showHistory && user ? <HistoryPanel conversations={conversations} onSelect={selectConversation} onDelete={deleteConversation} /> : <Conversation className="min-w-0"><ConversationContent className="min-w-0 max-w-full overflow-x-hidden"><Welcome visible={!messages.length} role={role} onPrompt={(prompt) => void submit(prompt)} />{messages.map((message) => <MessageView key={message.id} message={message} onProposal={setPendingProposal} onSelect={(selection) => void submit(`اخترت ${selection.label}. أكمل نفس الطلب السابق.`, selection)} />)}{busy && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />{uploading ? 'جاري تجهيز الصورة بأمان...' : requestAgeSeconds >= 10 ? 'الخدمة الأولى مشغولة؛ جاري تجربة خدمة مجانية أخرى...' : 'جاري تجهيز الرد...'}</div>}{shownError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><b>تعذر إكمال الطلب</b><p className="mt-1 break-words">{shownError}</p><Button type="button" size="sm" variant="outline" className="mt-3" disabled={busy} onClick={() => { setLocalError(''); clearError(); void regenerate() }}>إعادة المحاولة</Button></div>}</ConversationContent><ConversationScrollButton /></Conversation>}
+      {showHistory && user ? <HistoryPanel conversations={conversations} onSelect={selectConversation} onDelete={deleteConversation} /> : <Conversation className="min-w-0"><ConversationContent className="min-w-0 max-w-full overflow-x-hidden"><Welcome visible={!messages.length} role={role} onPrompt={(prompt) => void submit(prompt)} />{messages.map((message) => <MessageView key={message.id} message={message} onProposal={setPendingProposal} onClientAction={applyAutomaticAction} onSelect={(selection) => void submit(`اخترت ${selection.label}. أكمل نفس الطلب السابق.`, selection)} />)}{busy && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" />{uploading ? 'جاري تجهيز الصورة بأمان...' : requestAgeSeconds >= 10 ? 'الخدمة الأولى مشغولة؛ جاري تجربة خدمة مجانية أخرى...' : 'جاري تجهيز الرد...'}</div>}{shownError && <div role="alert" className="rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><b>تعذر إكمال الطلب</b><p className="mt-1 break-words">{shownError}</p><Button type="button" size="sm" variant="outline" className="mt-3" disabled={busy} onClick={() => { setLocalError(''); clearError(); void regenerate() }}>إعادة المحاولة</Button></div>}</ConversationContent><ConversationScrollButton /></Conversation>}
       <div className="shrink-0 border-t bg-background p-3"><p className="mb-2 text-[11px] text-muted-foreground">اقتراحات الذكاء الاصطناعي تحتاج مراجعتك. أي تغيير حقيقي يتطلب تأكيداً.</p>{attachments.length > 0 && <Attachments className="mb-2">{attachments.map((item) => <Attachment key={item.id} data={item as AttachmentData} onRemove={clearAttachmentState} />)}</Attachments>}<PromptInput onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); void submit() }}><PromptInputTextarea value={input} onChange={(event) => setInput(event.target.value)} maxLength={4000} placeholder="اكتب طلبك هنا..." onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); void submit() } }} /><PromptInputFooter><PromptInputAttachmentsButton accept={IMAGE_UPLOAD_ACCEPT} disabled={busy || attachments.length > 0} onFiles={addAttachments} /><PromptInputSubmit status={status} disabled={uploading || (!busy && !input.trim() && !attachments.length)} onStop={stopChat} /></PromptInputFooter></PromptInput></div>
     </SheetContent>
     <AlertDialog open={!!pendingProposal} onOpenChange={(value) => { if (!value && !proposalBusy) setPendingProposal(undefined) }}><AlertDialogContent dir="rtl"><AlertDialogHeader><AlertDialogTitle className="flex items-center gap-2 text-destructive"><AlertTriangle className="size-5" />تأكيد تغيير حقيقي</AlertDialogTitle><AlertDialogDescription className="leading-7"><b>الإجراء:</b> {pendingProposal?.summary}<br />{pendingProposal?.currentState && <><b>الحالة الحالية:</b> {pendingProposal.currentState}<br /></>}{pendingProposal?.proposedState && <><b>الحالة المقترحة:</b> {pendingProposal.proposedState}<br /></>}{pendingProposal?.consequences && <><b>النتيجة المتوقعة:</b> {pendingProposal.consequences}<br /></>}سيعيد الخادم فحص صلاحيتك وملكية البيانات وحالتها الحالية قبل التنفيذ.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={proposalBusy} onClick={() => void decideProposal(false)}>رفض</AlertDialogCancel><AlertDialogAction disabled={proposalBusy} onClick={(event) => { event.preventDefault(); void decideProposal(true) }}>{proposalBusy ? 'جاري التحقق...' : 'تأكيد التنفيذ'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
@@ -194,24 +204,24 @@ export function AIAssistant({
 
 function Welcome({ visible, role, onPrompt }: { visible: boolean; role: keyof typeof PROMPTS; onPrompt: (prompt: string) => void }) { if (!visible) return null; return <div className="py-8 text-center"><span className="mx-auto grid size-16 place-items-center rounded-3xl bg-primary/10 text-primary"><Sparkles className="size-8" /></span><h2 className="mt-4 text-xl font-black">إزاي أقدر أساعدك؟</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-muted-foreground">اسأل بطريقتك الطبيعية أو أرفق صورة للقطعة. لن أطلب منك أي ID تقني.</p><Suggestions className="mt-5">{PROMPTS[role].map((prompt) => <Suggestion key={prompt} suggestion={prompt} onClick={onPrompt} />)}</Suggestions></div> }
 
-function MessageView({ message, onProposal, onSelect }: { message: GhyarAIMessage; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
+function MessageView({ message, onProposal, onClientAction, onSelect }: { message: GhyarAIMessage; onProposal: (proposal: AIToolCard['proposal']) => void; onClientAction: (action: AIClientAction) => void; onSelect: (selection: AISelectedEntity) => void }) {
   const sources = message.parts.filter((part) => part.type === 'source-url')
   return <Message from={message.role} className={message.role === 'user' ? 'mr-auto max-w-[88%]' : undefined}><MessageContent dir="auto" className={cn("rounded-2xl px-4 py-3", message.role === 'user' ? 'bg-primary text-primary-foreground' : 'border bg-muted/35')}>{message.parts.map((part, index) => {
     if (part.type === 'text' && part.text) return <MessageResponse key={index}>{part.text}</MessageResponse>
     if (part.type === 'file') return <Attachments key={index}><Attachment data={{ ...part, id: `${message.id}-${index}` }} /></Attachments>
-    if (isToolUIPart(part)) return <ToolPart key={part.toolCallId} part={part} onProposal={onProposal} onSelect={onSelect} />
+    if (isToolUIPart(part)) return <ToolPart key={part.toolCallId} part={part} onProposal={onProposal} onClientAction={onClientAction} onSelect={onSelect} />
     return null
   })}{sources.length > 0 && <Sources><SourcesTrigger count={sources.length} /><SourcesContent>{sources.map((source) => source.type === 'source-url' ? <Source key={source.sourceId} href={source.url} title={source.title || source.url} /> : null)}</SourcesContent></Sources>}</MessageContent></Message>
 }
 
-function ToolPart({ part, onProposal, onSelect }: { part: GhyarAIMessage['parts'][number]; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) {
+function ToolPart({ part, onProposal, onClientAction, onSelect }: { part: GhyarAIMessage['parts'][number]; onProposal: (proposal: AIToolCard['proposal']) => void; onClientAction: (action: AIClientAction) => void; onSelect: (selection: AISelectedEntity) => void }) {
   if (!isToolUIPart(part)) return null
   if (part.state !== 'output-available') return <p className="text-xs text-muted-foreground">جاري استخدام البيانات المصرح بها...</p>
   const card = part.output as AIToolCard; if (!isImportantCard(card)) return null
-  return <ToolCard card={card} onProposal={onProposal} onSelect={onSelect} />
+  return <ToolCard card={card} onProposal={onProposal} onClientAction={onClientAction} onSelect={onSelect} />
 }
 
-function ToolCard({ card, onProposal, onSelect }: { card: AIToolCard; onProposal: (proposal: AIToolCard['proposal']) => void; onSelect: (selection: AISelectedEntity) => void }) { return <div className="mt-2 w-full min-w-0 overflow-hidden rounded-2xl border bg-card p-3 shadow-sm"><b className="block break-words text-sm">{card.title}</b>{card.description && <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{card.description}</p>}{card.items?.length ? <div className="mt-3 space-y-2">{card.items.slice(0, 6).map((item) => <div key={item.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-muted/50 p-2.5"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.title}</p>{item.subtitle && <p className="truncate text-xs text-muted-foreground">{item.subtitle}</p>}</div><div className="flex shrink-0 items-center gap-2">{item.value !== undefined && <span className="text-xs font-bold text-primary">{item.value}</span>}{item.href && <Button asChild size="sm" variant="link"><Link href={item.href}>فتح</Link></Button>}{item.select && <Button size="sm" variant="outline" onClick={() => onSelect(item.select!)}>اختيار</Button>}</div></div>)}</div> : null}{card.proposal && <><div className="mt-3 space-y-1 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5"><p><b>الحالة الحالية:</b> {card.proposal.currentState || 'سيعيد الخادم فحصها عند التأكيد.'}</p><p><b>الحالة المقترحة:</b> {card.proposal.proposedState || card.proposal.summary}</p>{card.proposal.consequences && <p><b>النتيجة المتوقعة:</b> {card.proposal.consequences}</p>}</div><Button variant="destructive" className="mt-3 w-full" onClick={() => onProposal(card.proposal)}>مراجعة وتنفيذ</Button></>}</div> }
+function ToolCard({ card, onProposal, onClientAction, onSelect }: { card: AIToolCard; onProposal: (proposal: AIToolCard['proposal']) => void; onClientAction: (action: AIClientAction) => void; onSelect: (selection: AISelectedEntity) => void }) { return <div className="mt-2 w-full min-w-0 overflow-hidden rounded-2xl border bg-card p-3 shadow-sm"><b className="block break-words text-sm">{card.title}</b>{card.description && <p className="mt-1 break-words text-xs leading-5 text-muted-foreground">{card.description}</p>}{card.items?.length ? <div className="mt-3 space-y-2">{card.items.slice(0, 6).map((item) => <div key={item.id} className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-muted/50 p-2.5"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{item.title}</p>{item.subtitle && <p className="truncate text-xs text-muted-foreground">{item.subtitle}</p>}</div><div className="flex shrink-0 items-center gap-2">{item.value !== undefined && <span className="text-xs font-bold text-primary">{item.value}</span>}{item.href && <Button asChild size="sm" variant="link"><Link href={item.href}>فتح</Link></Button>}{item.select && <Button type="button" size="sm" variant="outline" onClick={() => onSelect(item.select!)}>اختيار</Button>}</div></div>)}</div> : null}{card.clientAction && <Button type="button" className="mt-3 w-full" variant="outline" onClick={() => onClientAction(card.clientAction!)}>{clientActionLabel(card.clientAction)}</Button>}{card.proposal && <><div className="mt-3 space-y-1 rounded-xl border border-destructive/20 bg-destructive/5 p-3 text-xs leading-5"><p><b>الحالة الحالية:</b> {card.proposal.currentState || 'سيعيد الخادم فحصها عند التأكيد.'}</p><p><b>الحالة المقترحة:</b> {card.proposal.proposedState || card.proposal.summary}</p>{card.proposal.consequences && <p><b>النتيجة المتوقعة:</b> {card.proposal.consequences}</p>}</div><Button type="button" variant="destructive" className="mt-3 w-full" onClick={() => onProposal(card.proposal)}>مراجعة وتنفيذ</Button></>}</div> }
 
 function HistoryPanel({ conversations, onSelect, onDelete }: { conversations: SavedConversation[]; onSelect: (conversation: SavedConversation) => void; onDelete: (id: string) => void }) { return <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4"><h2 className="mb-3 font-bold">المحادثات خلال الساعة الأخيرة</h2><div className="space-y-2">{!conversations.length && <p className="py-10 text-center text-sm text-muted-foreground">لا توجد محادثات محفوظة</p>}{conversations.map((conversation) => <div key={conversation.id} className="grid grid-cols-[minmax(0,1fr)_auto] gap-2 rounded-xl border p-3"><button type="button" className="min-w-0 overflow-hidden text-right" onClick={() => onSelect(conversation)}><p className="truncate text-sm font-semibold">{conversation.title || conversation.preview || 'محادثة بصورة'}</p><p className="mt-1 truncate text-xs text-muted-foreground">{conversation.preview}</p><p className="mt-1 text-[11px] text-muted-foreground">{conversation.messages.length} رسائل • {new Date(conversation.updatedAt).toLocaleTimeString('ar-EG')}</p></button><Button type="button" size="icon" variant="ghost" onClick={() => void onDelete(conversation.id)} aria-label="حذف المحادثة"><Trash2 className="size-4 text-destructive" /></Button></div>)}</div></div> }
 
@@ -223,3 +233,5 @@ async function compressImageToDataUrl(file: File) { const bitmap = await createI
 function isImportantCard(card: unknown): card is AIToolCard { if (!card || typeof card !== 'object') return false; const value = card as AIToolCard; return Boolean(value.proposal || value.clientAction || value.items?.some((item) => item.select || item.href)) }
 function roleLabel(role: keyof typeof PROMPTS) { return role === 'GUEST' ? 'بحث ومساعدة عامة' : role === 'BUYER' ? 'مساعد المشتري' : role === 'SHOP_OWNER' ? 'مساعد المتجر' : 'مساعد الإدارة' }
 function normalizeChatError(value?: string) { if (!value) return ''; try { const parsed = JSON.parse(value) as { error?: string }; return parsed.error || value } catch { return value } }
+function isDuplicateChatError(value?: string) { if (!value) return false; if (value.includes('DUPLICATE_AI_REQUEST')) return true; try { const parsed = JSON.parse(value) as { error?: string }; return parsed.error === 'DUPLICATE_AI_REQUEST' } catch { return false } }
+function clientActionLabel(action: AIClientAction) { return action.type === 'navigate' ? 'فتح الصفحة' : action.type === 'draft' ? 'فتح المسودة' : 'مراجعة وتنفيذ' }

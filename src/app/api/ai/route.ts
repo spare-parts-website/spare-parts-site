@@ -1,29 +1,43 @@
 import { randomUUID } from 'crypto'
 import { NextResponse } from 'next/server'
-import { createAgentUIStream, createUIMessageStream, createUIMessageStreamResponse, readUIMessageStream, type UIMessageChunk } from 'ai'
+import { createAgentUIStream, createUIMessageStream, createUIMessageStreamResponse, readUIMessageStream } from 'ai'
 import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
-import { acquireAIConcurrency, aiModel, aiProviderTargets, aiQuota, releaseAIConcurrency, type AIProviderTarget } from '@/lib/ai/runtime'
+import { acquireAIDedupLease, acquireAIConcurrency, aiModel, aiProviderTargets, aiQuota, aiRequestFingerprint, releaseAIConcurrency, type AIProviderTarget } from '@/lib/ai/runtime'
 import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard, type AISelectedEntity } from '@/lib/ai/types'
 import { buildSellerMessagePlan, buildSellerPerformancePlan, executeDeterministicAIRequest } from '@/lib/ai/tools'
 import { buildAIConversationContext, resolveContextSelection, safePageContext } from '@/lib/ai/context'
+import { guardAIResponse } from '@/lib/ai/response-guard'
 
 export const maxDuration = 120
 
 export async function POST(request: Request) {
   const requestId = randomUUID(); const startedAt = Date.now(); let lease = ''; let streamOwnsLease = false
   try {
-    const body = await request.json() as { messages?: unknown; conversationId?: unknown; clientContext?: unknown }
+    const body = await request.json() as { messages?: unknown; conversationId?: unknown; clientContext?: unknown; clientRequestId?: unknown }
     if (!Array.isArray(body.messages) || !body.messages.length || body.messages.length > 32) return NextResponse.json({ error: 'بيانات المحادثة غير صحيحة', requestId }, { status: 400 })
     const user = await getSession(); const role: AIRole = user?.role || 'GUEST'
     const current = sanitizeIncomingUserMessage(body.messages.at(-1), user)
     const message: string = textFromMessage(current) || 'حلل الصورة المرفقة وساعدني بناءً على ما يظهر فيها.'
     const address = requestAddress(request)
     void purgeExpiredAIData().catch((error) => console.error(JSON.stringify({ event: 'ai.cleanup.failed', requestId, error: errorMessage(error) })))
+
+    const clientContext = safeClientContext(body.clientContext)
+    const clientRequestId = safeClientRequestId(body.clientRequestId)
+    const fingerprint = aiRequestFingerprint({
+      identity: user?.id || address,
+      clientRequestId,
+      conversationId: typeof body.conversationId === 'string' ? body.conversationId : undefined,
+      message,
+      parts: current.parts.map((part) => part.type === 'file' ? { type: 'file', mediaType: part.mediaType, filename: part.filename, urlLength: part.url.length, urlPrefix: part.url.slice(0, 48), urlSuffix: part.url.slice(-48) } : part),
+      selection: clientContext.selection,
+    })
+    const dedupe = await acquireAIDedupLease(`ai-dedupe:${user?.id || address}:${fingerprint}`)
+    if (dedupe.duplicate) return duplicateAIResponse(requestId)
 
     let conversationId: string | undefined; let expiresAt: string | undefined; let uiMessages: GhyarAIMessage[]
     if (user) {
@@ -34,7 +48,6 @@ export async function POST(request: Request) {
       await appendAIMessage({ conversationId, role: 'user', content: message, metadata: { parts: current.parts } })
     } else uiMessages = [...safeGuestHistory(body.messages.slice(0, -1)), current]
 
-    const clientContext = safeClientContext(body.clientContext)
     // Resolve bounded conversation/page/entity context before selecting the
     // intent. Follow-ups can therefore reuse a prior result safely.
     const conversationContext = buildAIConversationContext({ messages: uiMessages, currentMessage: message, role, clientContext })
@@ -48,21 +61,27 @@ export async function POST(request: Request) {
     const plan = planAIRequest(message, role, conversationContext)
     if (role === 'SHOP_OWNER' && plan.intent === 'seller_message_workflow' && user && conversationId) {
       const result = await buildSellerMessagePlan({ user, conversationId, selection: planningContext.selection })
-      await appendDirectResult({ result, conversationId, expiresAt, requestId, event: 'ai.seller_message_plan.completed', startedAt })
-      return directResultResponse(result, { conversationId, expiresAt, requestId, provider: 'deterministic' })
+      const guarded = guardAIResponse({ role, intent: plan.intent, answer: result.answer, cards: result.cards })
+      const safeResult = { answer: guarded.answer, cards: guarded.cards, sources: guarded.sources }
+      await appendDirectResult({ result: safeResult, conversationId, expiresAt, requestId, event: 'ai.seller_message_plan.completed', startedAt })
+      return directResultResponse(safeResult, { conversationId, expiresAt, requestId, provider: 'deterministic' })
     }
     const comprehensiveSellerRequest = role === 'SHOP_OWNER' && plan.intent === 'seller_insights' && /(?:اقترح|سعر|خصم|عرض|suggest|price|discount|offer)/i.test(message)
     if (comprehensiveSellerRequest && user && conversationId) {
       const result = await buildSellerPerformancePlan({ user, conversationId })
-      await appendDirectResult({ result, conversationId, expiresAt, requestId, event: 'ai.seller_plan.completed', startedAt })
-      return directResultResponse(result, { conversationId, expiresAt, requestId, provider: 'deterministic' })
+      const guarded = guardAIResponse({ role, intent: plan.intent, answer: result.answer, cards: result.cards })
+      const safeResult = { answer: guarded.answer, cards: guarded.cards, sources: guarded.sources }
+      await appendDirectResult({ result: safeResult, conversationId, expiresAt, requestId, event: 'ai.seller_plan.completed', startedAt })
+      return directResultResponse(safeResult, { conversationId, expiresAt, requestId, provider: 'deterministic' })
     }
     try {
       const directResult = await executeDeterministicAIRequest({ toolName: plan.forcedTool, role, user, conversationId, clientContext: planningContext, message })
       if (directResult) {
-        if (conversationId) await appendDirectResult({ result: directResult, conversationId, expiresAt, requestId, event: 'ai.deterministic.completed', startedAt })
-        else console.info(JSON.stringify({ event: 'ai.deterministic.completed', requestId, role, intent: plan.intent, tool: plan.forcedTool || 'static', cards: directResult.cards.length, durationMs: Date.now() - startedAt }))
-        return directResultResponse(directResult, { conversationId, expiresAt, requestId, provider: 'deterministic' })
+        const guarded = guardAIResponse({ role, intent: plan.intent, answer: directResult.answer, cards: directResult.cards })
+        const safeResult = { answer: guarded.answer, cards: guarded.cards, sources: guarded.sources }
+        if (conversationId) await appendDirectResult({ result: safeResult, conversationId, expiresAt, requestId, event: 'ai.deterministic.completed', startedAt })
+        else console.info(JSON.stringify({ event: 'ai.deterministic.completed', requestId, role, intent: plan.intent, tool: plan.forcedTool || 'static', cards: safeResult.cards.length, durationMs: Date.now() - startedAt }))
+        return directResultResponse(safeResult, { conversationId, expiresAt, requestId, provider: 'deterministic' })
       }
     } catch (error) {
       console.warn(JSON.stringify({ event: 'ai.deterministic.failed', requestId, role, intent: plan.intent, tool: plan.forcedTool, error: safeErrorCategory(error) }))
@@ -80,7 +99,7 @@ export async function POST(request: Request) {
     const hasImage = current.parts.some((part) => part.type === 'file')
     const attempts: AIProviderAttempt[] = []
     for (const [index, provider] of aiProviderTargets({ hasImage }).entries()) {
-      const attemptStarted = Date.now(); let stepCount = 0; let clientStream: ReadableStream<UIMessageChunk> | undefined
+      const attemptStarted = Date.now(); let stepCount = 0
       try {
         console.info(JSON.stringify({ event: 'ai.provider.started', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, images: hasImage ? 1 : 0 }))
         const agent = createGhyarAgent({ role, user, conversationId, clientContext: planningContext, conversationContext, plan, provider })
@@ -90,17 +109,17 @@ export async function POST(request: Request) {
           onStepEnd: () => { stepCount += 1 },
           onError: (error) => errorMessage(error),
         })
-        const branches = source.tee(); const probe = branches[0]; clientStream = branches[1]
         let responseMessage: GhyarAIMessage | undefined
-        for await (const snapshot of readUIMessageStream<GhyarAIMessage>({ stream: probe, terminateOnError: true })) responseMessage = snapshot
-        if (!responseMessage || !hasUsefulAIOutput(responseMessage)) throw new Error('EMPTY_AI_RESPONSE')
-        const answer = textFromMessage(responseMessage)
-        if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: answer, metadata: { parts: responseMessage.parts } })
+        for await (const snapshot of readUIMessageStream<GhyarAIMessage>({ stream: source, terminateOnError: true })) responseMessage = snapshot
+        if (!responseMessage) throw new Error('EMPTY_AI_RESPONSE')
+        const guarded = guardAIResponse({ role, intent: plan.intent, parts: responseMessage.parts })
+        if (!hasUsefulAIOutput(responseMessage) && !guarded.cards.length) throw new Error('EMPTY_AI_RESPONSE')
+        const safeResult = { answer: guarded.answer, cards: guarded.cards, sources: guarded.sources }
+        if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: safeResult.answer, metadata: { parts: responseParts(safeResult, requestId) } })
         attempts.push({ provider, model: providerModelName(provider), status: 'success', durationMs: Date.now() - attemptStarted, stepCount })
-        console.info(JSON.stringify({ event: 'ai.request.completed', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, fallbackCount: index, stepCount, durationMs: Date.now() - startedAt, answerChars: answer.length }))
-        return createUIMessageStreamResponse({ stream: clientStream })
+        console.info(JSON.stringify({ event: 'ai.request.completed', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, fallbackCount: index, stepCount, durationMs: Date.now() - startedAt, answerChars: safeResult.answer.length, cards: safeResult.cards.length, guard: guarded.rejected ? guarded.reasons : 'accepted' }))
+        return directResultResponse(safeResult, { conversationId, expiresAt, requestId, provider, fallbackCount: index })
       } catch (error) {
-        await clientStream?.cancel().catch(() => undefined)
         attempts.push({ provider, model: providerModelName(provider), status: 'failed', durationMs: Date.now() - attemptStarted, stepCount, error: safeErrorCategory(error) })
         console.warn(JSON.stringify({ event: 'ai.provider.failed', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, stepCount, durationMs: Date.now() - attemptStarted, error: safeErrorCategory(error) }))
       }
@@ -214,10 +233,13 @@ function textUIResponse(text: string, metadata: GhyarAIMessage['metadata']) {
   const stream = createUIMessageStream<GhyarAIMessage>({ execute: ({ writer }) => { writer.write({ type: 'start', messageMetadata: metadata }); writer.write({ type: 'text-start', id }); writer.write({ type: 'text-delta', id, delta: text }); writer.write({ type: 'text-end', id }) } })
   return createUIMessageStreamResponse({ stream })
 }
-type DirectResult = { answer: string; cards: AIToolCard[] }
+type DirectResult = {
+  answer: string
+  cards: AIToolCard[]
+  sources?: Array<{ type: 'source-url'; sourceId: string; url: string; title?: string }>
+}
 async function appendDirectResult(input: { result: DirectResult; conversationId: string; expiresAt?: string; requestId: string; event: string; startedAt: number }) {
-  const parts: GhyarAIMessage['parts'] = [{ type: 'text', text: input.result.answer }]
-  input.result.cards.forEach((card, index) => parts.push({ type: 'dynamic-tool', toolName: 'prepareAction', toolCallId: `${input.requestId}-${index}`, state: 'output-available', input: {}, output: card } as GhyarAIMessage['parts'][number]))
+  const parts = responseParts(input.result, input.requestId)
   await appendAIMessage({ conversationId: input.conversationId, role: 'assistant', content: input.result.answer, metadata: { parts } })
   console.info(JSON.stringify({ event: input.event, requestId: input.requestId, cards: input.result.cards.length, durationMs: Date.now() - input.startedAt }))
 }
@@ -226,9 +248,24 @@ function directResultResponse(result: DirectResult, metadata: GhyarAIMessage['me
   const stream = createUIMessageStream<GhyarAIMessage>({ execute: ({ writer }) => {
     writer.write({ type: 'start', messageMetadata: metadata })
     writer.write({ type: 'text-start', id: requestId }); writer.write({ type: 'text-delta', id: requestId, delta: result.answer }); writer.write({ type: 'text-end', id: requestId })
+    for (const source of result.sources || []) writer.write(source)
     result.cards.forEach((card, index) => { const toolCallId = `${requestId}-${index}`; writer.write({ type: 'tool-input-available', toolCallId, toolName: 'prepareAction', input: {}, dynamic: true }); writer.write({ type: 'tool-output-available', toolCallId, output: card, dynamic: true }) })
   } })
   return createUIMessageStreamResponse({ stream })
+}
+function responseParts(result: DirectResult, requestId: string): GhyarAIMessage['parts'] {
+  const parts: GhyarAIMessage['parts'] = [{ type: 'text', text: result.answer }]
+  for (const source of result.sources || []) parts.push(source)
+  result.cards.forEach((card, index) => parts.push({ type: 'dynamic-tool', toolName: 'prepareAction', toolCallId: `${requestId}-${index}`, state: 'output-available', input: {}, output: card, dynamic: true } as GhyarAIMessage['parts'][number]))
+  return parts
+}
+function duplicateAIResponse(requestId: string) {
+  return NextResponse.json({ error: 'DUPLICATE_AI_REQUEST', requestId, duplicate: true }, { status: 409, headers: { 'Cache-Control': 'no-store', 'X-AI-Duplicate': '1' } })
+}
+function safeClientRequestId(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  const candidate = value.replace(/[^A-Za-z0-9._:-]/g, '').slice(0, 160)
+  return candidate || undefined
 }
 function friendlyAIError(error: unknown, requestId: string) {
   const message = errorMessage(error)

@@ -1,4 +1,4 @@
-import { randomUUID } from 'crypto'
+import { createHash, randomUUID } from 'crypto'
 import { db } from '@/lib/db'
 import { DEFAULT_AI_QUOTAS } from '@/lib/ai/policy'
 import type { AIRole } from '@/lib/ai/types'
@@ -15,6 +15,7 @@ export type AIProviderTarget = 'google' | 'openrouter-text-pool-a' | 'openrouter
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
+export const AI_DEDUPE_TTL_MS = 5_000
 
 export function aiModel() {
   return AI_MODEL
@@ -57,4 +58,35 @@ export async function acquireAIConcurrency(key: string, role: AIRole) {
 
 export async function releaseAIConcurrency(token: string) {
   await db.aIRequestLease.deleteMany({ where: { token } })
+}
+
+export function aiRequestFingerprint(input: { identity: string; clientRequestId?: string; conversationId?: string; message: string; parts?: unknown; selection?: unknown }) {
+  const payload = JSON.stringify({
+    identity: input.identity.slice(0, 160),
+    clientRequestId: input.clientRequestId?.slice(0, 160) || undefined,
+    conversationId: input.conversationId?.slice(0, 120) || undefined,
+    message: input.message.trim().replace(/\s+/g, ' ').slice(0, 4000),
+    parts: input.parts,
+    selection: input.selection,
+  })
+  return createHash('sha256').update(payload).digest('hex')
+}
+
+/**
+ * Suppress rapid retries with the existing server-only lease table.  The key
+ * prefix intentionally differs from the concurrency key so the two leases
+ * never evict one another.  Rows are allowed to expire instead of being
+ * released immediately, which closes the post-completion duplicate window.
+ */
+export async function acquireAIDedupLease(key: string) {
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + AI_DEDUPE_TTL_MS)
+  return db.$transaction(async (tx) => {
+    await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${key}))`
+    await tx.aIRequestLease.deleteMany({ where: { expiresAt: { lte: now } } })
+    const existing = await tx.aIRequestLease.findFirst({ where: { key, role: 'DEDUPE', expiresAt: { gt: now } }, select: { id: true } })
+    if (existing) return { duplicate: true as const }
+    await tx.aIRequestLease.create({ data: { key, token: randomUUID(), role: 'DEDUPE', expiresAt } })
+    return { duplicate: false as const }
+  })
 }

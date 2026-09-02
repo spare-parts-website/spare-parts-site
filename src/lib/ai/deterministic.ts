@@ -1,5 +1,6 @@
 import { cleanWebSearchQuery } from './planner.ts'
 import type { AIClientContext, AIProposalInput, AIRole, AIToolName } from './types.ts'
+import { isPartsBrowseRequest, isPurchaseRequest } from './normalization.ts'
 
 export type DeterministicRequest =
   | { kind: 'answer'; answer: string }
@@ -63,21 +64,29 @@ export function deterministicToolInput(toolName: AIToolName, message: string, ro
   if (toolName === 'searchInternet') return { query: cleanWebSearchQuery(message) }
   if (toolName === 'searchMarketplace') {
     const query = cleanSubject(message, [
-      /(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|find|search|show me|i need|looking for)/gi,
+      /(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|اعرض|عرض|show\s+me|show|list|display|find|search|i need|i want|looking for)/gi,
       /(?:^|\s)(?:على|عن|for)(?=\s|$)/gi,
       /(?:^|\s)(?:لي|ليا|عندي|من فضلك|لو سمحت)(?=\s|$)/gi,
-      /(?:^|\s)(?:هل|في|للبيع|مطلوب|سيارة|cars?)(?=\s|$)/gi,
-      /(?:في|داخل)\s+(?:غيار ماركت|المتجر|الموقع)/gi,
-      /(?:قطعة|قطع غيار|متجر|store|shop|part|parts)/gi,
+      /(?:^|\s)(?:هل|في|يوجد|للبيع|بيع|موجود|متاح|available|for\s+sale|sale|offer|listing|buy|purchase|مطلوب|شراء|اشتري|واحد|one|الأول|الاول|first|الثاني|التاني|second|سيارة|cars?)(?=\s|[؟?.,،!؛:]|$)/gi,
+      /(?:في|داخل)?\s*غيار ماركت/gi,
+      /(?:غيار|ل{1,2}جنط)/gi,
+      /(?:^|\s)(?:لـ?|لدي|بما|فيها|طراز)(?=\s|$)/gi,
+      /(?:قطعة|قطع غيار|متجر|store|shop|part|parts|السلة|cart)/gi,
     ])
     const fallback = context.previousSearch
-      ? cleanSubject(context.previousSearch, [/(?:دور|ابحث|find|search|looking for)/gi])
-      : context.selection?.kind === 'part' ? context.selection.label : ''
+      ? cleanSubject(context.previousSearch, [/(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|اعرض|عرض|show\s+me|show|list|display|find|search|i need|i want|looking for|available|for\s+sale|sale|offer|listing|buy|purchase|للبيع|بيع|موجود|متاح|شراء|اشتري)/gi])
+      : context.selection?.kind === 'part' ? context.selection.label
+        : context.previousEntities?.filter((entity) => entity.kind === 'part').slice(0, 3).map((entity) => entity.label).join(' ') || ''
+    // “اعرض القطع” and “أريد شراء واحد” are follow-ups, not literal search
+    // terms. Reuse the last server-backed query/card labels instead.
+    if (isPartsBrowseRequest(message) || isPurchaseRequest(message)) {
+      return fallback ? { query: fallback.slice(0, 120), limit: requestedLimit(message, 8) } : undefined
+    }
     return (query || fallback) ? { query: (query || fallback).slice(0, 120), limit: requestedLimit(message, 8) } : undefined
   }
   if (toolName === 'compareMarketplace') {
     const query = cleanSubject(message, [/(?:قارن|مقارنة|مقارنه|compare|الموجود|المتاح|أحسن|أفضل|best|available)/gi, /(?:^|\s)(?:بين|من|في|على|عن|for|the)(?=\s|$)/gi])
-    const fallback = context.previousSearch ? cleanSubject(context.previousSearch, [/(?:دور|ابحث|find|search|looking for)/gi]) : ''
+    const fallback = context.previousSearch ? cleanSubject(context.previousSearch, [/(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|اعرض|عرض|show\s+me|show|list|display|find|search|i need|i want|looking for|available|for\s+sale|sale|offer|listing|buy|purchase|للبيع|بيع|موجود|متاح|شراء|اشتري)/gi]) : ''
     return { query: (query || fallback || message).slice(0, 120), limit: Math.min(8, requestedLimit(message, 3)) }
   }
   if (toolName === 'findCompatibleParts') {
@@ -245,7 +254,7 @@ function navigationInput(message: string, role: AIRole) {
     [/(?:كوبونات|coupons)/i, 'seller_coupons'], [/(?:تحليل|إحصائ|analytics)/i, 'seller_analytics'],
     [/(?:بلاغات|reports)/i, 'admin_reports'], [/(?:مستخدمين|users)/i, 'admin_users'],
     [/(?:طلبات|orders)/i, role === 'ADMIN' ? 'admin_orders' : role === 'SHOP_OWNER' ? 'seller_orders' : 'orders'],
-    [/(?:قطع|منتجات|parts|products)/i, role === 'ADMIN' ? 'admin_parts' : role === 'SHOP_OWNER' ? 'seller_parts' : 'parts'],
+    [/(?:قطع|منتجات|القطع|قطع الغيار|parts|products)/i, role === 'ADMIN' ? 'admin_parts' : role === 'SHOP_OWNER' ? 'seller_parts' : 'parts'],
     [/(?:متاجر الإدارة|admin stores)/i, 'admin_stores'],
   ]
   const destination = destinations.find(([pattern]) => pattern.test(message))?.[1]
@@ -255,6 +264,14 @@ function navigationInput(message: string, role: AIRole) {
 function actionInput(message: string, role: AIRole, context: AIClientContext): AIProposalInput | undefined {
   const quantity = integerAfter(message, /(?:كمية|عدد|quantity|qty)/i) || integerAfter(message, /(?:أضف|اضف|add)\s+/i) || 1
   const selectionName = context.selection?.label
+  const contextualPurchase = isPurchaseRequest(message) && !/(?:السلة|cart|اضف|أضف|ضيف|add)/i.test(message)
+  const ordinalSelection = context.previousEntities?.filter((entity) => entity.kind === 'part')[
+    /(?:الثاني|التاني|second|2nd)/i.test(message) ? 1 : /(?:الثالث|التالت|third|3rd)/i.test(message) ? 2 : 0
+  ]
+  const purchaseSelection = context.selection?.kind === 'part' ? context.selection : ordinalSelection
+  if ((contextualPurchase || /(?:اخترت|اختيار|selected|choice)/i.test(message)) && purchaseSelection) {
+    return { action: 'cart_add', quantity: 1, targetId: purchaseSelection.id, entityName: purchaseSelection.label }
+  }
   if (/(?:فض[ّي]|افرغ|أفرغ|فرغ|clear|empty).*(?:السلة|cart)|(?:السلة|cart).*(?:فاضية|فارغة|clear|empty)/i.test(message)) return { action: 'cart_clear' }
   if (/(?:أضف|اضف|ضيف|حط|add).*(?:السلة|cart)/i.test(message)) return { action: 'cart_add', quantity, ...entityReference(message, selectionName || context.previousSearch, /(?:أضف|اضف|ضيف|حط|add|إلى|الى|في|السلة|cart|quantity|qty|كمية|عدد|الأفضل|المتاح|المتوفرة?)/gi) }
   if (/(?:شيل|احذف|remove|delete).*(?:السلة|cart)/i.test(message)) return { action: 'cart_remove', ...entityReference(message, selectionName, /(?:شيل|احذف|remove|delete|من|السلة|cart)/gi) }

@@ -10,6 +10,8 @@ import { fuzzyPartScore, normalizePartSearch } from '../src/lib/ai/fuzzy-match.t
 import { allowedToolNamesForRole, roleCanUseCapability } from '../src/lib/ai/capabilities.ts'
 import { containsPromptInjection, formatAIConversationContext, resolveContextSelection, safePageContext } from '../src/lib/ai/context.ts'
 import { structuredAIPlanSchema, validateStructuredAIPlan } from '../src/lib/ai/structured-planner.ts'
+import { containsInteractiveInstruction, isExplicitFitmentRequest, isMarketplaceAvailabilityRequest, isPartsBrowseRequest, isPurchaseRequest } from '../src/lib/ai/normalization.ts'
+import { guardAIResponse } from '../src/lib/ai/response-guard.ts'
 
 const emptyContext = { cart: [] }
 
@@ -77,6 +79,42 @@ test('plans obvious requests with a narrow forced tool', () => {
   assert.equal(planAIRequest('دور على تيل فرامل تويوتا', 'GUEST').forcedTool, 'searchMarketplace')
   assert.equal(planAIRequest('اعرض إحصائيات المنصة', 'ADMIN').forcedTool, 'getAdminInsights')
   assert.equal(planAIRequest('كم سعر BMW 328i serpentine belt حالياً؟', 'GUEST').forcedTool, 'searchInternet')
+})
+
+test('keeps sale intent ahead of compatibility and tolerates marketplace typos', () => {
+  const availability = planAIRequest('هل في عداد سيارة bmw للبيع؟', 'BUYER')
+  const wheel = planAIRequest('هل يوجد جنط غيار ماركت لجنط F30 340i', 'BUYER')
+  const fitment = planAIRequest('ابحث عن تيل فرامل متوافق مع BMW 320i 2020', 'BUYER')
+  assert.equal(availability.forcedTool, 'searchMarketplace')
+  assert.equal(availability.intent, 'marketplace_search')
+  assert.equal(wheel.forcedTool, 'searchMarketplace')
+  assert.equal(fitment.forcedTool, 'findCompatibleParts')
+  assert.equal(isMarketplaceAvailabilityRequest('هل العداد متوافق مع BMW F30 للبيع؟'), true)
+  assert.equal(isExplicitFitmentRequest('هل العداد متوافق مع BMW F30 للبيع؟'), false)
+  assert.equal(isExplicitFitmentRequest('هل العداد يركب على BMW F30 2016؟'), true)
+  assert.equal(planAIRequest('bmw engin للبيع', 'GUEST').forcedTool, 'searchMarketplace')
+  assert.equal(planAIRequest('bmw moter', 'GUEST').forcedTool, 'searchMarketplace')
+})
+
+test('reuses real result context for browse and purchase follow-ups', () => {
+  const context = {
+    role: 'BUYER' as const, recentMessages: [], previousToolResults: [],
+    previousSearch: 'BMW parts',
+    previousEntities: [
+      { kind: 'part' as const, id: 'part-1', label: 'BMW engine' },
+      { kind: 'part' as const, id: 'part-2', label: 'BMW wheel' },
+    ],
+    cart: { itemCount: 0, total: 0, items: [] }, promptInjectionSuspected: false,
+  }
+  const clientContext = { cart: [], previousSearch: context.previousSearch, previousEntities: context.previousEntities }
+  assert.equal(isPartsBrowseRequest('اعرض القطع'), true)
+  assert.equal(isPurchaseRequest('أريد شراء واحد'), true)
+  assert.equal(planAIRequest('اعرض القطع', 'BUYER').forcedTool, 'navigate')
+  assert.equal(planAIRequest('اعرض القطع', 'BUYER', context).forcedTool, 'searchMarketplace')
+  assert.deepEqual(deterministicToolInput('searchMarketplace', 'اعرض القطع', 'BUYER', clientContext), { query: 'BMW parts', limit: 8 })
+  assert.deepEqual(deterministicToolInput('searchMarketplace', 'أريد شراء واحد', 'BUYER', clientContext), { query: 'BMW parts', limit: 8 })
+  assert.deepEqual(deterministicToolInput('prepareAction', 'اشتري الأول', 'BUYER', clientContext), { action: 'cart_add', quantity: 1, targetId: 'part-1', entityName: 'BMW engine' })
+  assert.deepEqual(deterministicToolInput('prepareAction', 'اشتري الثاني', 'BUYER', clientContext), { action: 'cart_add', quantity: 1, targetId: 'part-2', entityName: 'BMW wheel' })
 })
 
 test('automatically reserves more work only for complex requests', () => {
@@ -311,6 +349,71 @@ test('keeps a single selectable result as a structured card', () => {
   const result = presentAIResponse('', [single])
   assert.deepEqual(result.cards, [single])
   assert.equal(result.answer.includes('اختر أو راجع'), true)
+})
+
+test('keeps validated navigation links as visible cards', () => {
+  const linked = { type: 'results' as const, title: 'طلبات المتجر', items: [{ id: 'orders', title: 'عرض الطلبات', href: '/seller/orders' }] }
+  assert.deepEqual(presentAIResponse('', [linked]).cards, [linked])
+})
+
+test('fails closed on phantom controls and unsupported marketplace claims', () => {
+  assert.equal(containsInteractiveInstruction('اضغط على زر اختيار لإضافة القطعة'), true)
+  const phantom = guardAIResponse({ role: 'BUYER', intent: 'marketplace_search', answer: 'اضغط على زر اختيار لإضافة القطعة' })
+  assert.equal(phantom.rejected, true)
+  assert.ok(phantom.reasons.includes('phantom_control_instruction'))
+  assert.equal(phantom.answer.includes('اضغط'), false)
+
+  const unsupported = guardAIResponse({ role: 'BUYER', intent: 'marketplace_search', answer: 'السعر 5000 جنيه والقطعة متوفرة في المخزون.' })
+  assert.equal(unsupported.rejected, true)
+  assert.ok(unsupported.reasons.includes('unsupported_marketplace_claim'))
+  assert.equal(unsupported.answer.includes('5000'), false)
+
+  const missing = guardAIResponse({ role: 'BUYER', intent: 'compatibility', answer: 'سأبحث عن قطعة مناسبة الآن.' })
+  assert.equal(missing.rejected, true)
+  assert.ok(missing.reasons.includes('missing_evidence'))
+
+  const proposal = guardAIResponse({ role: 'BUYER', intent: 'protected_action', answer: 'اضغط على زر تطبيق الآن.', cards: [{ type: 'proposal', title: 'مراجعة', proposal: { id: 'p1', action: 'cart_add', summary: 'إضافة القطعة', expiresAt: new Date(Date.now() + 60_000).toISOString() } }] })
+  assert.equal(proposal.rejected, true)
+  assert.equal(proposal.answer.includes('تطبيق'), false)
+})
+
+test('keeps only validated interactive cards and visible actions', () => {
+  const future = new Date(Date.now() + 60_000).toISOString()
+  const valid = guardAIResponse({
+    role: 'BUYER', intent: 'marketplace_selection', answer: 'اضغط على زر اختيار للمتابعة.',
+    cards: [{ type: 'results', title: 'نتيجة حقيقية', items: [{ id: 'p1', title: 'قطعة BMW', href: '/parts/p1', select: { kind: 'part', id: 'p1', label: 'قطعة BMW' } }] }],
+  })
+  assert.equal(valid.rejected, false)
+  assert.equal(valid.cards[0]?.items?.[0]?.href, '/parts/p1')
+
+  const invalidHref = guardAIResponse({ role: 'BUYER', intent: 'marketplace_search', answer: '', cards: [{ type: 'results', title: 'غير آمن', items: [{ id: 'p1', title: 'قطعة', href: 'javascript:alert(1)' }] }] })
+  assert.equal(invalidHref.rejected, true)
+  assert.ok(invalidHref.reasons.includes('invalid_card'))
+  assert.equal(invalidHref.cards.length, 0)
+
+  const forbiddenProposal = guardAIResponse({ role: 'GUEST', intent: 'protected_action', answer: '', cards: [{ type: 'proposal', title: 'تغيير', proposal: { id: 'x', action: 'cart_add', summary: 'إضافة', expiresAt: future } }] })
+  assert.equal(forbiddenProposal.rejected, true)
+  assert.equal(forbiddenProposal.cards.length, 0)
+
+  const forbiddenDraft = guardAIResponse({ role: 'GUEST', intent: 'draft', answer: '', cards: [{ type: 'draft', title: 'مسودة', clientAction: { type: 'draft', target: 'listing', fields: { name: 'قطعة' } } }] })
+  assert.equal(forbiddenDraft.rejected, true)
+  assert.equal(forbiddenDraft.cards.length, 0)
+})
+
+test('buffers and deduplicates AI responses before they reach the browser', () => {
+  const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
+  const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
+  const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
+  assert.match(route, /readUIMessageStream/)
+  assert.match(route, /guardAIResponse/)
+  assert.match(route, /DUPLICATE_AI_REQUEST/)
+  assert.equal(route.includes('.tee()'), false)
+  assert.match(runtime, /acquireAIDedupLease/)
+  assert.match(runtime, /AI_DEDUPE_TTL_MS/)
+  assert.match(assistant, /submitLockRef/)
+  assert.match(assistant, /clientRequestId/)
+  assert.match(assistant, /guestMessages/)
+  assert.match(assistant, /onClientAction/)
 })
 
 test('keeps capability authority on the server for every role', () => {

@@ -195,3 +195,12 @@ export interface AIChatResponse {
   cards: AIToolCard[]
   expiresAt?: string
 }
+
+/** Server-side, fail-closed response envelope used before UI streaming. */
+export interface AIResponseGuardResult {
+  answer: string
+  cards: AIToolCard[]
+  sources: Array<{ type: 'source-url'; sourceId: string; url: string; title?: string }>
+  rejected: boolean
+  reasons: string[]
+}

@@ -18,6 +18,10 @@ export function presentAIResponse(modelAnswer: string, cards: AIToolCard[]) {
 function isImportantCard(card: AIToolCard) {
   if (card.clientAction) return true
   if (card.proposal || card.type === 'proposal') return true
+  // A result with a validated href is still interactive. Keep it as a card so
+  // the renderer can expose the keyboard-accessible “فتح” CTA instead of
+  // flattening an internal navigation target into plain prose.
+  if (card.items?.some((item) => item.href)) return true
   const selectable = card.items?.filter((item) => item.select).length || 0
   // A single selectable result is still an actionable entity. Keep it as a
   // structured card so the user can select/open it instead of burying it in

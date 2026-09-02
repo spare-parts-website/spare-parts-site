@@ -1,15 +1,15 @@
 import type { AIRequestPlan, AIRole, AIToolName } from '@/lib/ai/types'
 import type { AIConversationContext } from '@/lib/ai/context'
 import { capabilitiesForTools } from './structured-planner.ts'
+import { isExplicitFitmentRequest, isMarketplaceAvailabilityRequest, isMarketplaceTerm, isPartsBrowseRequest, isPurchaseRequest } from './normalization.ts'
 
 const ACTION = /(?:^|[\s،,.])(?:غي[ّ]?ر|عد[ّ]?ل|حد[ّ]?ث|زو[ّ]?د|قل[ّ]?ل|أضف|اضف|ضيف|حط|شيل|احذف|افرغ|أفرغ|فضي|فاضي|الغ[ِ]?|إلغاء|ارجع|استلم|وافق|ارفض|اشحن|احظر|وث[ّ]?ق|حل النزاع|اقفل|اغلق|أغلق|اعلق|اعمل|ابعت|ابعث|ارسل|إرسال|send|submit|change|update|set|add|remove|clear|empty|cancel|return|ship|approve|reject|block|verify|close|closed|resolve|resolved)(?=$|[\s،,.])/i
 const CURRENT = /(?:سعر|بكام|كام|متاح|توفر|مواصفات|خبر|جديد|أحدث|اليوم|حالي|price|cost|how much|available|availability|specs?|latest|current|news|new model)/i
 const NAVIGATION = /(?:افتح|روح|وديني|صفحة|open|go to|navigate)/i
 // “سيارة BMW للبيع؟” is a marketplace query. Compatibility is selected only
 // when the user actually asks whether a part fits/works with a vehicle.
-const COMPATIBILITY = /(?:متوافق|ينفع|يركب|compatible|fit(?:ment)?|fits?).{0,80}(?:مع|على|for|with|سيار|bmw|toyota|mercedes|hyundai|kia|nissan|honda|ford)/i
 const COMPARE = /(?:قارن|مقارنة|مقارنه|compare)/i
-const MARKETPLACE = /(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|للبيع|بيع|عداد|محرك|موتور|فرامل|تيل|فلتر|كشاف|طلمبة|engine|motor|brake|part|offer|sale|for sale|find|search)/i
+const MARKETPLACE = /(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|للبيع|بيع|موجود|متاح|اعرض|عرض|شراء|اشتري|عداد|محرك|موتور|فرامل|تيل|فلتر|كشاف|طلمبة|جنط|جنوط|engine|engin|motor|moter|brake|part|parts?|offer|listing|sale|for sale|find|search|wheel|whell|rim)/i
 const CHECKOUT = /(?:جهز(?:لي)?\s*(?:ال)?طلب|اطلب\s*(?:ال)?قطع|إتمام\s*(?:ال)?طلب|checkout|place\s+(?:the\s+)?order|buy\s+(?:the\s+)?items?)/i
 const SELLER_PRICE = /(?:اقترح|نصيحة|مناسب).*(?:سعر)|(?:سعر).*(?:اقترح|نصيحة|مناسب)|price advice|suggest.*price/i
 const ANALYTICS = /(?:تحليل|أداء|إحصائ|مبيعات|إيراد|ايراد|قيمة الطلبات|متوسط(?:\s+ال)?تقييم|مخزون(?:ها|ه|ي)?\s+(?:قليل|منخفض)|نفد|خلص|ناقص|ملخص|analytics|performance|statistics|insights|low stock|out of stock|revenue|average rating)/i
@@ -30,13 +30,16 @@ export function planAIRequest(message: string, role: AIRole, context?: AIConvers
   const supportReplyRequest = /(?:رد|reply|answer|ابعت الرد|send the reply).*(?:عليهم|له|لها|التذكرة|الدعم|support)|(?:رد|reply|answer|ابعت الرد|send the reply)$/i.test(text)
   const actionRequest = (ACTION.test(text) || supportReplyRequest || /(?:افتح|open).*(?:تذكرة|الدعم|support|نزاع|dispute)/i.test(text)) && !/(?:غير\s*(?:ال)?مقروء|not read|unread)/i.test(text)
   const hasPreviousResults = Boolean(context && (context.previousSearch || context.previousToolResults.length || context.previousEntities?.length))
-  const contextualShow = Boolean(hasPreviousResults && /^(?:اعرضهم|اعرضها|ورينيهم|show them)$/i.test(text))
+  const contextualShow = Boolean(hasPreviousResults && (isPartsBrowseRequest(text) || /^(?:اعرضهم|اعرضها|ورينيهم|show them)$/i.test(text)))
   const contextualCompare = Boolean(hasPreviousResults && COMPARE.test(text))
   const hasContextEntity = Boolean(context?.selectedEntity || hasPreviousResults)
+  const purchaseRequest = isPurchaseRequest(text)
+  const selectedEntityFollowup = Boolean(context?.selectedEntity && /(?:اخترت|اختيار|selected|choice)/i.test(text))
+  const contextualPurchase = Boolean((hasPreviousResults || context?.selectedEntity) && purchaseRequest && !actionRequest)
   const contextualEntityRequest = Boolean(hasContextEntity && /(?:ده|دي|هذا|هذه|هو|هي|it|this|the one|السعر|سعره|بكام|كام|how much|منه|منها|له|لها|من انهي متجر|which store|التاني|الثاني|الأول|الاول|first|second)/i.test(text))
   const roleRecordRequest = (role === 'SHOP_OWNER' && RECORDS.test(text)) || (role === 'ADMIN' && ADMIN_RECORDS.test(text)) || (role !== 'GUEST' && /(?:حسابي|طلباتي|مفضل|السلة|account|my orders|wishlist|cart)/i.test(text))
   const explicitWebSearch = /(?:الإنترنت|الانترنت|الويب|على الويب|web|internet|online|worldwide|global|external|خارج غيار ماركت)/i.test(text)
-  const marketplaceRequest = MARKETPLACE.test(text) || /(?:قطعة|قطع|متجر|عرض|للبيع|المخزون|غيار ماركت|part|parts|store|offer|listing)/i.test(text)
+  const marketplaceRequest = MARKETPLACE.test(text) || isMarketplaceTerm(text) || isMarketplaceAvailabilityRequest(text) || /(?:قطعة|قطع|متجر|عرض|للبيع|المخزون|غيار ماركت|part|parts|store|offer|listing)/i.test(text)
   const liveSearch = (explicitWebSearch || (CURRENT.test(text) && !marketplaceRequest)) && !actionRequest && !roleRecordRequest && !contextualEntityRequest && !CHECKOUT.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|رسال|عميل|(?:في|داخل) المتجر|my store|my account|my orders|inventory|platform|message|customer|in (?:my|the) store)/i.test(text)
   const asksForAnalysis = /(?:حل[ّ]?ل|تحليل|أداء|إحصائ|analytics|analy[sz]e|performance|statistics|insights)/i.test(text)
     || /(?:كم|كام|عدد|إجمالي|اجمالي|how many|total number)/i.test(text)
@@ -84,6 +87,18 @@ export function planAIRequest(message: string, role: AIRole, context?: AIConvers
     intent = 'checkout_preview'
     tools.add('getCheckoutPreview')
     forcedTool = 'getCheckoutPreview'
+  } else if (isPartsBrowseRequest(text) && !hasPreviousResults) {
+    intent = 'navigation'
+    tools.add('navigate')
+    forcedTool = 'navigate'
+  } else if ((contextualPurchase || selectedEntityFollowup) && (role === 'BUYER' || role === 'SHOP_OWNER')) {
+    // A purchase follow-up is resolved against the last server-backed result.
+    // An ordinal/selected entity can go straight to a protected proposal;
+    // otherwise re-render the same choices so the user has a real button.
+    const explicitEntity = selectedEntityFollowup || /(?:الأول|الاول|التاني|الثاني|الثالث|first|second|third|this|the one)/i.test(text)
+    intent = explicitEntity ? 'protected_action' : 'marketplace_selection'
+    tools.add(explicitEntity ? 'prepareAction' : 'searchMarketplace')
+    forcedTool = explicitEntity ? 'prepareAction' : 'searchMarketplace'
   } else if (liveSearch) {
     intent = 'web_search'
     tools.add('searchInternet')
@@ -141,11 +156,11 @@ export function planAIRequest(message: string, role: AIRole, context?: AIConvers
     intent = 'marketplace_search'
     tools.add('searchMarketplace')
     forcedTool = 'searchMarketplace'
-  } else if (contextualEntityRequest && !COMPATIBILITY.test(text)) {
+  } else if (contextualEntityRequest && !isExplicitFitmentRequest(text)) {
     intent = 'marketplace_search'
     tools.add('searchMarketplace')
     forcedTool = 'searchMarketplace'
-  } else if (COMPATIBILITY.test(text)) {
+  } else if (isExplicitFitmentRequest(text)) {
     intent = 'compatibility'
     tools.add('findCompatibleParts')
     forcedTool = 'findCompatibleParts'
@@ -153,7 +168,7 @@ export function planAIRequest(message: string, role: AIRole, context?: AIConvers
     intent = 'account_context'
     tools.add('getAccountContext')
     forcedTool = 'getAccountContext'
-  } else if (!liveSearch && (MARKETPLACE.test(text) || /(?:قطعة|متجر|store)/i.test(text))) {
+  } else if (!liveSearch && (MARKETPLACE.test(text) || isMarketplaceTerm(text) || /(?:قطعة|متجر|store)/i.test(text))) {
     intent = 'marketplace_search'
     tools.add('searchMarketplace')
     forcedTool = 'searchMarketplace'
