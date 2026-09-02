@@ -19,7 +19,8 @@ test('delivery status handling is idempotent and does not regress terminal event
   assert.equal(shouldApplyDeliveryStatus('SENT', 'DELIVERED'), true)
   assert.equal(shouldApplyDeliveryStatus('DELAYED', 'DELIVERED'), true)
   assert.equal(shouldApplyDeliveryStatus('DELIVERED', 'DELAYED'), false)
-  assert.equal(shouldApplyDeliveryStatus('BOUNCED', 'FAILED'), true)
+  assert.equal(shouldApplyDeliveryStatus('BOUNCED', 'FAILED'), false)
+  assert.equal(shouldApplyDeliveryStatus('DELIVERED', 'COMPLAINED'), true)
 })
 
 test('Resend webhook verifies Standard Webhooks signatures before database access', () => {

@@ -4,7 +4,7 @@ import { db } from '@/lib/db'
 import { passwordResetEmailHtml } from '@/lib/email-templates'
 import { applicationOrigin } from '@/lib/application-url'
 import { getTransactionalSender } from '@/lib/email-sender'
-import { normalizeRecipientEmail } from '@/lib/email-deliverability'
+import { isPermanentRecipientStatus, normalizeRecipientEmail } from '@/lib/email-deliverability'
 import { recordEmailDeliveryAttempt } from '@/lib/email-delivery'
 
 export const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000
@@ -55,7 +55,8 @@ async function sendPasswordResetEmail(input: { userId: string; email: string; na
   }
 }
 
-export async function issuePasswordReset(user: { id: string; email: string; name: string }) {
+export async function issuePasswordReset(user: { id: string; email: string; name: string; emailDeliveryStatus?: string | null }) {
+  if (isPermanentRecipientStatus(user.emailDeliveryStatus)) throw new Error('EMAIL_UNDELIVERABLE')
   const id = randomUUID()
   const token = randomBytes(32).toString('base64url')
   const now = new Date()

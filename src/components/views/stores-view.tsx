@@ -106,6 +106,7 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
       >
         <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <Input
+          aria-label="البحث عن متجر"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="ابحث عن متجر..."
@@ -133,22 +134,12 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
           {stores.map((store) => (
             <Card
               key={store.id}
-              role="link"
-              tabIndex={0}
-              aria-label={`زيارة ${store.name}`}
-              className="market-card w-full cursor-pointer transition group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => navigate({ name: 'store', storeId: store.id })}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  navigate({ name: 'store', storeId: store.id })
-                }
-              }}
+              className="market-card w-full transition group"
             >
               <CardHeader className="pb-3">
                 <div className="flex items-start gap-3">
                   <div className="relative size-24 rounded-2xl bg-primary/10 text-primary flex items-center justify-center shrink-0 overflow-hidden shadow-sm">
-                    {store.image ? <Image src={store.image} alt={store.name} fill sizes="160px" className="object-cover" /> : <StoreIcon className="size-7" />}
+                    {store.image ? <Image src={store.image} alt="" fill sizes="160px" className="object-cover" /> : <StoreIcon className="size-7" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">

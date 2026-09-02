@@ -122,6 +122,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
         >
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
+            aria-label="البحث في قطع الغيار"
             value={search}
             onChange={(e) => { setSearch(e.target.value); setPage(1) }}
             placeholder="ابحث عن قطعة، ماركة، أو وصف..."
@@ -135,7 +136,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
             <span>تصفية:</span>
           </div>
           <Select value={category || 'all'} onValueChange={(v) => { setCategory(v === 'all' ? '' : v); setPage(1) }}>
-            <SelectTrigger className="w-40 h-9">
+            <SelectTrigger aria-label="تصفية حسب الفئة" className="w-40 h-9">
               <SelectValue placeholder="الفئة" />
             </SelectTrigger>
             <SelectContent>
@@ -149,7 +150,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
           </Select>
 
           <Select value={condition || 'all'} onValueChange={(v) => { setCondition(v === 'all' ? '' : v); setPage(1) }}>
-            <SelectTrigger className="w-48 h-9">
+            <SelectTrigger aria-label="تصفية حسب حالة المنتج" className="w-48 h-9">
               <SelectValue placeholder="حالة المنتج" />
             </SelectTrigger>
             <SelectContent>
@@ -159,7 +160,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
           </Select>
 
           <Select value={brand || 'all'} onValueChange={(v) => { setBrand(v === 'all' ? '' : v); setPage(1) }}>
-            <SelectTrigger className="w-40 h-9">
+            <SelectTrigger aria-label="تصفية حسب الماركة" className="w-40 h-9">
               <SelectValue placeholder="الماركة" />
             </SelectTrigger>
             <SelectContent>
@@ -173,7 +174,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
           </Select>
 
           <Select value={sort} onValueChange={(v) => { setSort(v); setPage(1) }}>
-            <SelectTrigger className="w-40 h-9">
+            <SelectTrigger aria-label="ترتيب قطع الغيار" className="w-40 h-9">
               <SelectValue placeholder="ترتيب" />
             </SelectTrigger>
             <SelectContent>
@@ -209,7 +210,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-items-center">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-64 rounded-xl" />
+            <Skeleton key={i} className="aspect-[1.15/1] w-full rounded-xl" />
           ))}
         </div>
       ) : failed ? (
@@ -241,21 +242,11 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
           {parts.map((part) => (
             <Card
               key={part.id}
-              role="link"
-              tabIndex={0}
-              aria-label={`عرض تفاصيل ${part.name}`}
-              className="market-card w-full overflow-hidden cursor-pointer transition group h-full flex flex-col focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => navigate({ name: 'part', partId: part.id })}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter' || event.key === ' ') {
-                  event.preventDefault()
-                  navigate({ name: 'part', partId: part.id })
-                }
-              }}
+              className="market-card w-full overflow-hidden transition group h-full flex flex-col"
             >
               <button type="button" aria-label={`زيارة متجر ${part.store.name}`} className="relative block h-28 w-full overflow-hidden bg-primary/10 text-right focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" onClick={(event) => { event.stopPropagation(); navigate({ name: 'store', storeId: part.store.id }) }}>
                 {part.store.image ? (
-                  <Image src={part.store.image} alt={part.store.name} fill sizes="(max-width: 640px) 100vw, 420px" className="object-cover transition duration-300 hover:scale-105" />
+                  <Image src={part.store.image} alt="" fill sizes="(max-width: 640px) 100vw, 420px" className="object-cover transition duration-300 hover:scale-105" />
                 ) : (
                   <StoreIcon className="absolute inset-0 m-auto size-10 text-primary/40" />
                 )}
@@ -269,7 +260,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
                    
                   <Image
                     src={part.image}
-                    alt={part.name}
+                    alt=""
                     fill
                     sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, (max-width: 1280px) 33vw, 25vw"
                     className="object-contain group-hover:scale-105 transition"
@@ -305,12 +296,12 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
                     {formatPrice(part.price)}
                   </span>
                   {part.stock > 0 ? (
-                    <span className="text-xs text-emerald-600">متوفر</span>
+                    <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300">متوفر</span>
                   ) : (
                     <span className="text-xs text-red-500">غير متوفر</span>
                   )}
                 </div>
-                <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={(event) => { event.stopPropagation(); navigate({ name: 'part', partId: part.id }) }}>
+                <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={() => navigate({ name: 'part', partId: part.id })}>
                   عرض التفاصيل
                 </Button>
                 </div>

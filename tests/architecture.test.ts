@@ -64,6 +64,25 @@ test('server-renders bounded marketplace lists without seller profile data', () 
   assert.doesNotMatch(storesView, /completionRate \?\? 100/)
 })
 
+test('keeps marketplace navigation and controls accessible', () => {
+  const partsView = readFileSync(new URL('../src/components/views/parts-view.tsx', import.meta.url), 'utf8')
+  const storesView = readFileSync(new URL('../src/components/views/stores-view.tsx', import.meta.url), 'utf8')
+  const partView = readFileSync(new URL('../src/components/views/part-view.tsx', import.meta.url), 'utf8')
+  const checkout = readFileSync(new URL('../src/components/views/checkout-view.tsx', import.meta.url), 'utf8')
+  const dispute = readFileSync(new URL('../src/components/dispute-dialog.tsx', import.meta.url), 'utf8')
+
+  assert.match(partsView, /aria-label="البحث في قطع الغيار"/)
+  assert.match(partsView, /aria-label="تصفية حسب الفئة"/)
+  assert.match(partsView, /aria-label="ترتيب قطع الغيار"/)
+  assert.match(storesView, /aria-label="البحث عن متجر"/)
+  assert.doesNotMatch(partsView, /role="link"/)
+  assert.doesNotMatch(storesView, /role="link"/)
+  assert.match(partView, /<h2[^>]*>الوصف<\/h2>/)
+  assert.match(partView, /السيارات المتوافقة[\s\S]*<\/h2>/)
+  assert.match(checkout, /<SelectTrigger aria-label="اختيار المحافظة"/)
+  assert.match(dispute, /aria-label="نوع طلب الحماية"/)
+})
+
 test('keeps public SSR routes independent from session resolution', () => {
   const homePage = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8')
   const routes = readFileSync(new URL('../src/app/[...route]/page.tsx', import.meta.url), 'utf8')

@@ -22,14 +22,23 @@ This document records the safe, standards-based deliverability setup. Provider a
 - Users can correct their email from the profile after entering their current password. Changing the address clears the old deliverability state; admins can also correct an address or explicitly reactivate it after verification.
 - Admins have a delivery dashboard with sent, delivered, delayed, bounced, failed, complained, and provider-suppressed counts plus truthful rates over 7/30/90-day windows. “Delivered” is never labelled as Inbox placement.
 
-## Provider operations still required
+## Provider operations status
 
-Resend currently has **zero production webhooks** and the application endpoint requires the server-only `RESEND_WEBHOOK_SECRET`. The provider setup is therefore intentionally **BLOCKED** until the secret can be stored in Vercel without exposing it:
+The provider connection is now configured with exactly one enabled webhook (verified 2026-09-02):
 
-1. In Resend, create exactly one webhook for `https://ghyarmarket-eg.com/api/webhooks/resend`.
-2. Subscribe only to `email.sent`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.complained`, `email.failed`, and `email.suppressed`.
-3. Store the returned signing secret as the Vercel production `RESEND_WEBHOOK_SECRET` environment variable. Never commit it or put it in browser-visible configuration.
-4. Redeploy, send one authorized development test, and verify a signed lifecycle event updates the matching attempt. Do not send tests to customers and do not create a second webhook.
+- **Endpoint:** `https://ghyarmarket-eg.com/api/webhooks/resend`
+- **Webhook ID:** `83ec3c8f-9934-482a-a531-595a2a002aed`
+- **Events:** `email.sent`, `email.scheduled`, `email.delivered`, `email.delivery_delayed`, `email.bounced`, `email.failed`, `email.complained`, and `email.suppressed`
+- **Signing secret:** stored as the hidden `RESEND_WEBHOOK_SECRET` variable in Vercel Preview and Production. It is not in source control, browser code, or this document.
+
+The endpoint verifies the raw-body signature before JSON parsing or database access, returns a safe success for duplicate/stale events, and records unmatched provider events without creating a user record. The old production deployment did not contain this secret; a new production deployment is required before relying on live callbacks.
+
+The following provider-operations checks remain outstanding and should be completed with disposable/seed recipients only:
+
+1. Send one authorized test message and verify a signed lifecycle event updates its matching `EmailDeliveryAttempt` exactly once.
+2. Run seed inbox checks against Gmail, Outlook, and Yahoo, recording Inbox/Spam placement separately from Resend `delivered`.
+3. Configure Google Postmaster Tools and add a monitored DMARC `rua` mailbox only after that mailbox is provisioned.
+4. Add a verified `SUPPORT_EMAIL` recipient and valid notification sender in Vercel before enabling support/admin email flows. Never use a guessed or personal address.
 
 ## Reputation monitoring
 

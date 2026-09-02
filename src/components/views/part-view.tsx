@@ -388,14 +388,14 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
             <CardContent className="p-5 flex items-center justify-between">
               <div>
                 <p className="text-sm text-muted-foreground">السعر</p>
-                <p className="text-3xl font-bold text-primary">
+                <p className="text-3xl font-bold text-emerald-800 dark:text-emerald-300">
                   {formatPrice(part.price)}
                 </p>
               </div>
               <div className="text-left">
                 {part.stock > 0 ? (
                   <>
-                    <p className="text-sm text-emerald-600 font-medium flex items-center gap-1">
+                    <p className="text-sm text-emerald-800 dark:text-emerald-300 font-medium flex items-center gap-1">
                       <CheckCircle2 className="size-4" />
                       متوفر
                     </p>
@@ -412,7 +412,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
 
           {part.description && (
             <div>
-              <h3 className="font-semibold mb-2">الوصف</h3>
+              <h2 className="font-semibold mb-2">الوصف</h2>
               <p className="text-muted-foreground leading-relaxed whitespace-pre-wrap">
                 {part.description}
               </p>
@@ -421,14 +421,14 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
 
           {part.condition && (
             <div>
-              <h3 className="mb-2 font-semibold">حالة المنتج</h3>
+              <h2 className="mb-2 font-semibold">حالة المنتج</h2>
               <p className="text-muted-foreground">{part.condition}</p>
             </div>
           )}
 
           {(part.oemNumber || part.partNumber) && (
             <div>
-              <h3 className="mb-2 font-semibold">بيانات تعريف القطعة</h3>
+              <h2 className="mb-2 font-semibold">بيانات تعريف القطعة</h2>
               <div className="flex flex-wrap gap-2" dir="ltr">
                 {part.oemNumber && <Badge variant="outline" className="max-w-full whitespace-normal break-all">OEM: {part.oemNumber}</Badge>}
                 {part.partNumber && <Badge variant="outline" className="max-w-full whitespace-normal break-all">Part No: {part.partNumber}</Badge>}
@@ -448,10 +448,10 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
 
           {(part.universal || part.compatibilities?.length || part.carModels) && (
             <div>
-              <h3 className="font-semibold mb-2 flex items-center gap-2">
+              <h2 className="font-semibold mb-2 flex items-center gap-2">
                 <Car className="size-4 text-primary" />
                 السيارات المتوافقة
-              </h3>
+              </h2>
               <div className="flex flex-wrap gap-2">
                 {(part.universal
                   ? ['كل السيارات (قطعة عامة)']
@@ -584,7 +584,7 @@ export function PartView({ partId, initialPart = null, initialCanReview = false 
                   <div className="space-y-2">
                     <Label>عنوان التوصيل</Label>
                     <Select value={orderForm.governorate} onValueChange={(governorate) => setOrderForm({ ...orderForm, governorate })}>
-                      <SelectTrigger><SelectValue placeholder="اختر المحافظة لحساب الشحن" /></SelectTrigger>
+                      <SelectTrigger aria-label="اختيار المحافظة لحساب الشحن"><SelectValue placeholder="اختر المحافظة لحساب الشحن" /></SelectTrigger>
                       <SelectContent>
                         {Object.entries(GOVERNORATE_DELIVERY).map(([code, item]) => (
                           <SelectItem key={code} value={code}>{item.ar} — {formatPrice(item.fee)} — {item.days} أيام</SelectItem>

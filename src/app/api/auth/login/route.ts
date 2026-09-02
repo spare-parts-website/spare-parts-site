@@ -59,8 +59,15 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const verification = await issueLoginVerification(user)
-    return NextResponse.json({ verificationRequired: true, ...verification })
+    try {
+      const verification = await issueLoginVerification(user)
+      return NextResponse.json({ verificationRequired: true, ...verification })
+    } catch (error) {
+      if (error instanceof Error && error.message === 'EMAIL_UNDELIVERABLE') {
+        return NextResponse.json({ error: 'هذا البريد لا يستقبل رسائل التحقق حالياً. حدّث البريد من خلال الإدارة ثم حاول مرة أخرى.' }, { status: 409 })
+      }
+      throw error
+    }
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'تعذر تسجيل الدخول. حاول مرة أخرى لاحقاً.' }, { status: 500 })

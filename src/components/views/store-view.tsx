@@ -173,7 +173,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
         <CardContent className="p-5 md:p-8">
           <div className="flex flex-col sm:flex-row gap-4 items-start">
             <div className="relative size-24 rounded-2xl bg-primary text-primary-foreground flex items-center justify-center shadow-md shrink-0 overflow-hidden sm:size-28">
-              {store.image ? <Image src={store.image} alt={store.name} fill sizes="112px" className="object-cover" /> : <StoreIcon className="size-10" />}
+              {store.image ? <Image src={store.image} alt="" fill sizes="112px" className="object-cover" /> : <StoreIcon className="size-10" />}
             </div>
             <div className="flex-1 space-y-2">
               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -323,7 +323,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
                      
                     <Image
                       src={part.image}
-                      alt={part.name}
+                      alt=""
                       fill
                       sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
                       className="object-contain group-hover:scale-105 transition"
@@ -351,7 +351,7 @@ export function StoreView({ storeId, initialStore = null, initialCanReview = fal
                       {formatPrice(part.price)}
                     </span>
                     {part.stock > 0 ? (
-                      <span className="text-xs text-emerald-600">متوفر</span>
+                      <span className="text-xs font-medium text-emerald-800 dark:text-emerald-300">متوفر</span>
                     ) : (
                       <span className="text-xs text-red-500">غير متوفر</span>
                     )}

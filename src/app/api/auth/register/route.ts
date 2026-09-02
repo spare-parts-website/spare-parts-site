@@ -4,6 +4,7 @@ import { hashPassword, createSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { isProfileAvatar } from '@/lib/profile-avatars'
 import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
+import { recipientEmailError, validateRecipientEmail } from '@/lib/email-deliverability'
 
 export async function POST(req: NextRequest) {
   try {
@@ -13,7 +14,8 @@ export async function POST(req: NextRequest) {
     }
     const body = await req.json()
     const name = typeof body.name === 'string' ? body.name.trim() : ''
-    const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const emailValidation = validateRecipientEmail(body.email)
+    const email = emailValidation.email
     const password = typeof body.password === 'string' ? body.password : ''
     const role = body.role
     const phoneInput = typeof body.phone === 'string' ? body.phone.trim() : ''
@@ -28,8 +30,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'الاسم يجب أن يكون بين حرفين و100 حرف' }, { status: 400 })
     }
 
-    if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) {
-      return NextResponse.json({ error: 'البريد الإلكتروني غير صالح' }, { status: 400 })
+    if (!emailValidation.valid) {
+      return NextResponse.json({ error: recipientEmailError(emailValidation), suggestion: emailValidation.suggestion }, { status: 400 })
     }
 
     if (password.length < 8 || password.length > 128) {

@@ -49,9 +49,18 @@ export function parseResendDeliveryEvent(value: unknown): ParsedDeliveryEvent | 
   return { eventType, providerId, status, error, occurredAt: parsedDate && !Number.isNaN(parsedDate.getTime()) ? parsedDate : null }
 }
 
-const TERMINAL_STATUSES = new Set<DeliveryStatus>(['DELIVERED', 'BOUNCED', 'FAILED', 'COMPLAINED', 'SUPPRESSED'])
+const STATUS_RANK: Record<DeliveryStatus, number> = {
+  SENT: 0,
+  DELAYED: 1,
+  FAILED: 2,
+  DELIVERED: 3,
+  BOUNCED: 4,
+  COMPLAINED: 4,
+  SUPPRESSED: 4,
+}
 
-/** Prevent delayed/out-of-order provider events from regressing a terminal state. */
+/** Prevent delayed/out-of-order provider events from regressing a stronger lifecycle outcome. */
 export function shouldApplyDeliveryStatus(current: DeliveryStatus | string, incoming: DeliveryStatus) {
-  return !TERMINAL_STATUSES.has(current as DeliveryStatus) || TERMINAL_STATUSES.has(incoming)
+  const currentRank = STATUS_RANK[current as DeliveryStatus]
+  return currentRank === undefined || STATUS_RANK[incoming] >= currentRank
 }

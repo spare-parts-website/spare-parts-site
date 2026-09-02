@@ -116,7 +116,7 @@ export function SearchBar({ className }: { className?: string }) {
                 >
                   <div className="relative size-10 rounded bg-muted/30 flex items-center justify-center shrink-0 overflow-hidden">
                     {part.image ? (
-                      <Image src={part.image} alt={part.name} fill sizes="40px" className="object-contain" />
+                      <Image src={part.image} alt="" fill sizes="40px" className="object-contain" />
                     ) : (
                       <Package className="size-5 text-muted-foreground/50" />
                     )}

@@ -380,7 +380,7 @@ export function AdminDashboardView({ tab: initialTab }: { tab?: 'users' | 'parts
                               onValueChange={(v) => handleRoleChange(u.id, v)}
                               disabled={submitting || u.id === user.id}
                             >
-                              <SelectTrigger className="h-8 w-32">
+                              <SelectTrigger aria-label={`دور المستخدم ${u.name}`} className="h-8 w-32">
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>

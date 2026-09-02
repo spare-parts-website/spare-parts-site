@@ -8,10 +8,10 @@ Use this checkout and read `PRODUCTION_READINESS.md` first:
 
 - GitHub: `https://github.com/fakepixelpro/spare-parts-site.git`
 - Production branch: `main`
-- Working branch: `codex/preserve-mobile-navigation`
+- Working branch: `codex/ai-9-plus-hardening`
 - Vercel project: `spare-parts-site` (linked through `.vercel/project.json`)
 - Production domain: `https://ghyarmarket-eg.com`
-- Last production commit before this readiness batch: `5969e6c`
+- Last committed production baseline: `6952917` (`Label AI assistant as beta`); the current hardening batch is still uncommitted in this checkout.
 
 Do not use the old `C:\Users\HP\Documents\Codex\spare-parts-site-online` path or the old `codex/remake-preview` branch. Preserve unrelated work and `.codebase-memory/`; never commit secrets or that generated directory. The authorized release pattern is a normal push such as `git push origin HEAD:main`; never force-push.
 
@@ -42,7 +42,10 @@ Structured vehicle compatibility (`make`, `model`, years, engine, trim, notes, u
 - Service worker reduced to an explicit static allowlist; old caches are versioned and removed on upgrade.
 - Optimized WebP hero/preset avatars, 512px branding icon, favicon rewrite, and legacy image aliases without shipping the old multi-megabyte PNGs.
 - Public SSR/auth split, safe cache headers, and no saved-car personalization in public loaders.
-- Resend lifecycle webhook endpoint with Standard Webhooks verification, idempotency, delivery status updates, and minimal audit metadata. It requires `RESEND_WEBHOOK_SECRET` in Vercel before enabling the provider webhook.
+- Resend lifecycle webhook endpoint with Standard Webhooks verification, idempotency, delivery status updates, and minimal audit metadata. Exactly one enabled provider webhook is configured; its signing secret is stored as a hidden Vercel variable and is never kept in source control.
+- Recipient validation rejects malformed/known-typo addresses, and permanent provider failures suppress non-essential email plus login/password-reset sends until the address is corrected.
+- AI provider attempts have bounded backoff and a per-provider circuit breaker; the existing role policy, response guard, dedupe lease, timeout, and fallback behavior remain authoritative.
+- Marketplace cards and forms received an accessibility pass: interactive controls are no longer nested in link-like cards, controls have names, and heading/contrast issues found in the static review are corrected.
 
 ## Database changes applied safely
 
@@ -51,6 +54,8 @@ Additive/reversible SQL has been applied to Supabase project `sufrsfrrrzhhdluolx
 - `canonical_marketplace_taxonomy`
 - `optimized_profile_assets`
 - `resend_webhook_delivery_tracking`
+- `email_deliverability_hardening_20260902`
+- `email_delivery_records_20260902`
 
 No reset, drop, truncate, mass delete, or order/order-item deletion was used. Keep future migrations additive and validate row counts before and after any backfill.
 
@@ -72,10 +77,10 @@ The local build may log a handled homepage Prisma initialization warning when th
 
 ## Remaining release work
 
-1. Commit the validated readiness batch and push it normally to GitHub.
+1. Commit the validated hardening batch and push it normally to GitHub.
 2. Confirm the GitHub Actions run is green (npm ci, audit, lint, tests, build).
-3. Verify the Vercel preview, then promote only that commit to production and run public/protected smoke checks, including `/parts?search=bww`, `/favicon.ico`, logout/offline behavior, and no `/socket.io` requests.
-4. Set `RESEND_WEBHOOK_SECRET` in Vercel without printing it, deploy, then configure exactly one Resend webhook at `/api/webhooks/resend` for delivery/failure events. Verify one signed lifecycle event if available; never send a mass test email.
+3. Promote the READY Vercel Preview to production and rerun public smoke checks, including `/parts?search=bww`, `/favicon.ico`, logout/offline behavior, and no `/socket.io` requests.
+4. Send one authorized disposable-recipient Resend lifecycle test and verify the signed event updates one matching attempt; never send a mass test email.
 5. Recheck Vercel runtime errors/logs and the Supabase counts/RLS/storage posture after deployment.
 
 Do not mark a release gate complete without evidence. If a provider configuration cannot be completed securely, record it as `BLOCKED` in `PRODUCTION_READINESS.md` with the exact remaining action.

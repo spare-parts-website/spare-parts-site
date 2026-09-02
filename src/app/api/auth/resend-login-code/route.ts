@@ -23,8 +23,15 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: `يمكنك طلب رمز جديد بعد ${retryAfter} ثانية` }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
     }
 
-    const verification = await issueLoginVerification(challenge.user)
-    return NextResponse.json({ verificationRequired: true, ...verification })
+    try {
+      const verification = await issueLoginVerification(challenge.user)
+      return NextResponse.json({ verificationRequired: true, ...verification })
+    } catch (error) {
+      if (error instanceof Error && error.message === 'EMAIL_UNDELIVERABLE') {
+        return NextResponse.json({ error: 'هذا البريد لا يستقبل رسائل التحقق حالياً. حدّث البريد من خلال الإدارة ثم حاول مرة أخرى.' }, { status: 409 })
+      }
+      throw error
+    }
   } catch (error) {
     console.error(error)
     return NextResponse.json({ error: 'تعذر إرسال رمز جديد. حاول مرة أخرى لاحقاً.' }, { status: 500 })

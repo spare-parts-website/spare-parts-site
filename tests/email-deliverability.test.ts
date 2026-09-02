@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { readFileSync } from 'node:fs'
-import { isPermanentRecipientStatus, shouldSendNonessentialEmail, sanitizeDeliveryReason } from '../src/lib/email-deliverability.ts'
+import { isPermanentRecipientStatus, recipientEmailError, shouldSendNonessentialEmail, sanitizeDeliveryReason, validateRecipientEmail } from '../src/lib/email-deliverability.ts'
 import { getTransactionalSender } from '../src/lib/email-sender.ts'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -23,6 +23,17 @@ test('delivery reasons are bounded and never retain line breaks', () => {
   assert.equal(sanitizeDeliveryReason('x'.repeat(500))?.length, 300)
 })
 
+test('recipient validation rejects malformed and common typo domains with a safe suggestion', () => {
+  assert.deepEqual(validateRecipientEmail(' Buyer@GAMIL.com '), {
+    valid: false,
+    email: 'buyer@gamil.com',
+    suggestion: 'buyer@gmail.com',
+  })
+  assert.match(recipientEmailError(validateRecipientEmail('buyer@gamil.com')), /buyer@gmail\.com/)
+  assert.equal(validateRecipientEmail('buyer@gmail.com').valid, true)
+  assert.equal(validateRecipientEmail('buyer@@gmail.com').valid, false)
+})
+
 test('transactional senders are restricted to the verified Ghyar Market domain', () => {
   assert.equal(getTransactionalSender('alerts@ghyarmarket-eg.com'), 'alerts@ghyarmarket-eg.com')
   assert.equal(getTransactionalSender('alerts@other.example', 'security@ghyarmarket-eg.com'), 'security@ghyarmarket-eg.com')
@@ -38,6 +49,7 @@ test('notification delivery uses recipient state and stable dedupe keys', () => 
   const login = read('src/lib/login-verification.ts')
   const reset = read('src/lib/password-reset.ts')
   const support = read('src/lib/support-email.ts')
+  const delivery = read('src/lib/email-delivery.ts')
   const account = read('src/app/api/account/route.ts')
   const adminUsers = read('src/app/api/admin/users/route.ts')
   assert.match(notifications, /emailDeliveryStatus/)
@@ -47,6 +59,11 @@ test('notification delivery uses recipient state and stable dedupe keys', () => 
   assert.match(webhook, /isPermanentRecipientStatus/)
   assert.match(webhook, /normalizeRecipientEmail\(recipient\.email\)/)
   assert.match(webhook, /updateMany\(/)
+  assert.match(delivery, /shouldApplyDeliveryStatus/)
+  assert.match(delivery, /pg_advisory_xact_lock/)
+  assert.match(login, /isPermanentRecipientStatus/)
+  assert.match(reset, /isPermanentRecipientStatus/)
+  assert.match(support, /SUPPORT_EMAIL_INVALID/)
   assert.match(migration, /emailDeliveryStatus/)
   assert.match(migration, /Notification_dedupeKey_key/)
   assert.match(migration, /recipientEmail/)
@@ -59,4 +76,5 @@ test('notification delivery uses recipient state and stable dedupe keys', () => 
   assert.match(account, /أدخل كلمة المرور الحالية لتغيير البريد الإلكتروني/)
   assert.match(account, /emailDeliveryStatus: 'ACTIVE'/)
   assert.match(adminUsers, /emailDeliveryStatus/)
+  assert.match(adminUsers, /validateRecipientEmail/)
 })

@@ -5,6 +5,7 @@ import { deleteUserWithDependencies } from '@/lib/admin-deletion'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { isProfileAvatar } from '@/lib/profile-avatars'
 import { audit } from '@/lib/audit'
+import { recipientEmailError, validateRecipientEmail } from '@/lib/email-deliverability'
 
 export async function GET() {
   try {
@@ -60,7 +61,8 @@ export async function PUT(req: NextRequest) {
       if (admins <= 1) return NextResponse.json({ error: 'يجب أن يبقى مدير واحد على الأقل' }, { status: 409 })
     }
     const name = body.name === undefined ? target.name : typeof body.name === 'string' ? body.name.trim() : ''
-    const email = body.email === undefined ? target.email : typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
+    const emailValidation = validateRecipientEmail(body.email === undefined ? target.email : body.email)
+    const email = emailValidation.email
     const phone = body.phone === undefined ? target.phone : typeof body.phone === 'string' ? body.phone.trim() || null : null
     const emailNotifications = body.emailNotifications === undefined ? target.emailNotifications : body.emailNotifications
     const emailDeliveryStatus = body.emailDeliveryStatus === undefined ? target.emailDeliveryStatus : body.emailDeliveryStatus
@@ -72,7 +74,7 @@ export async function PUT(req: NextRequest) {
           ? body.avatar.trim()
           : undefined
     if (name.length < 2 || name.length > 100) return NextResponse.json({ error: 'الاسم يجب أن يكون بين حرفين و100 حرف' }, { status: 400 })
-    if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) return NextResponse.json({ error: 'البريد الإلكتروني غير صالح' }, { status: 400 })
+    if (!emailValidation.valid) return NextResponse.json({ error: recipientEmailError(emailValidation), suggestion: emailValidation.suggestion }, { status: 400 })
     if (phone && phone.length > 40) return NextResponse.json({ error: 'رقم الهاتف طويل جداً' }, { status: 400 })
     if (typeof emailNotifications !== 'boolean') return NextResponse.json({ error: 'إعداد إشعارات البريد غير صالح' }, { status: 400 })
     if (!['ACTIVE', 'BOUNCED', 'COMPLAINED', 'SUPPRESSED'].includes(emailDeliveryStatus)) return NextResponse.json({ error: 'حالة تسليم البريد غير صالحة' }, { status: 400 })

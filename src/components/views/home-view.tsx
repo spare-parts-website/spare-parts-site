@@ -214,7 +214,7 @@ function PartCard({ part }: { part: Part }) {
   return (
     <Link href={`/parts/${part.id}`} className="group overflow-hidden rounded-3xl border bg-card shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
       <div className="relative aspect-[4/3] overflow-hidden bg-white dark:bg-slate-900">
-        {part.image ? <Image src={part.image} alt={part.name} fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="object-contain p-4 transition duration-300 group-hover:scale-105" /> : <Package className="absolute inset-0 m-auto size-14 text-muted-foreground/30" />}
+        {part.image ? <Image src={part.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="object-contain p-4 transition duration-300 group-hover:scale-105" /> : <Package className="absolute inset-0 m-auto size-14 text-muted-foreground/30" />}
         <div className="absolute inset-x-3 top-3 flex justify-between gap-2">
           {part.condition && <Badge className="bg-slate-950/80 text-white">{part.condition}</Badge>}
           <Badge variant={part.stock > 0 ? 'secondary' : 'destructive'} className="mr-auto">{part.stock > 0 ? 'متوفر' : 'نفد'}</Badge>
@@ -236,7 +236,7 @@ function StoreCard({ store }: { store: Store }) {
       <Link href={`/stores/${store.id}`} className="block">
         <div className="flex items-center gap-4">
           <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-primary">
-            {store.image ? <Image src={store.image} alt={store.name} fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-8" />}
+            {store.image ? <Image src={store.image} alt="" fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-8" />}
           </div>
           <div className="min-w-0"><div className="flex items-center gap-1.5"><h3 className="truncate text-lg font-black group-hover:text-primary">{store.name}</h3>{store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="متجر موثق" />}</div><div className="mt-2 flex items-center gap-2"><RatingStars value={store.avgRating} /><span className="text-xs text-muted-foreground">({store.reviewCount})</span></div></div>
         </div>

@@ -12,6 +12,7 @@ import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard, ty
 import { buildSellerMessagePlan, buildSellerPerformancePlan, executeDeterministicAIRequest } from '@/lib/ai/tools'
 import { buildAIConversationContext, resolveContextSelection, safePageContext } from '@/lib/ai/context'
 import { guardAIResponse } from '@/lib/ai/response-guard'
+import { isProviderCircuitOpen, providerBackoffMs, providerHealthSnapshot, recordProviderFailure, recordProviderSuccess } from '@/lib/ai/provider-health'
 
 export const maxDuration = 120
 
@@ -99,6 +100,13 @@ export async function POST(request: Request) {
     const hasImage = current.parts.some((part) => part.type === 'file')
     const attempts: AIProviderAttempt[] = []
     for (const [index, provider] of aiProviderTargets({ hasImage }).entries()) {
+      if (isProviderCircuitOpen(provider)) {
+        attempts.push({ provider, model: providerModelName(provider), status: 'skipped', durationMs: 0, stepCount: 0, error: 'circuit_open' })
+        console.warn(JSON.stringify({ event: 'ai.provider.circuit_open', requestId, provider, model: providerModelName(provider), role, intent: plan.intent }))
+        continue
+      }
+      const backoff = providerBackoffMs(index)
+      if (backoff) await new Promise((resolve) => setTimeout(resolve, backoff))
       const attemptStarted = Date.now(); let stepCount = 0
       try {
         console.info(JSON.stringify({ event: 'ai.provider.started', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, images: hasImage ? 1 : 0 }))
@@ -116,17 +124,21 @@ export async function POST(request: Request) {
         if (!hasUsefulAIOutput(responseMessage) && !guarded.cards.length) throw new Error('EMPTY_AI_RESPONSE')
         const safeResult = { answer: guarded.answer, cards: guarded.cards, sources: guarded.sources }
         if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: safeResult.answer, metadata: { parts: responseParts(safeResult, requestId) } })
+        recordProviderSuccess(provider)
         attempts.push({ provider, model: providerModelName(provider), status: 'success', durationMs: Date.now() - attemptStarted, stepCount })
         console.info(JSON.stringify({ event: 'ai.request.completed', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, fallbackCount: index, stepCount, durationMs: Date.now() - startedAt, answerChars: safeResult.answer.length, cards: safeResult.cards.length, guard: guarded.rejected ? guarded.reasons : 'accepted' }))
         return directResultResponse(safeResult, { conversationId, expiresAt, requestId, provider, fallbackCount: index })
       } catch (error) {
-        attempts.push({ provider, model: providerModelName(provider), status: 'failed', durationMs: Date.now() - attemptStarted, stepCount, error: safeErrorCategory(error) })
+        const errorCategory = safeErrorCategory(error)
+        const health = recordProviderFailure(provider, errorCategory)
+        attempts.push({ provider, model: providerModelName(provider), status: 'failed', durationMs: Date.now() - attemptStarted, stepCount, error: errorCategory })
         console.warn(JSON.stringify({ event: 'ai.provider.failed', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, stepCount, durationMs: Date.now() - attemptStarted, error: safeErrorCategory(error) }))
+        if (health.circuitOpened) console.warn(JSON.stringify({ event: 'ai.provider.circuit_tripped', requestId, provider, failures: health.consecutiveFailures, openedUntil: new Date(health.openedUntil).toISOString() }))
       }
     }
     const fallback = terminalFallback(message, hasImage, requestId)
     if (conversationId) await appendAIMessage({ conversationId, role: 'assistant', content: fallback, metadata: { parts: [{ type: 'text', text: fallback }] } })
-    console.error(JSON.stringify({ event: 'ai.all_providers_failed', requestId, role, intent: plan.intent, complexity: plan.complexity, durationMs: Date.now() - startedAt, attempts }))
+    console.error(JSON.stringify({ event: 'ai.all_providers_failed', requestId, role, intent: plan.intent, complexity: plan.complexity, durationMs: Date.now() - startedAt, attempts, providerHealth: providerHealthSnapshot() }))
     return textUIResponse(fallback, { conversationId, expiresAt, requestId, provider: 'deterministic', fallbackCount: attempts.length })
   } catch (error) {
     const message = errorMessage(error); console.error(JSON.stringify({ event: 'ai.request.failed', requestId, durationMs: Date.now() - startedAt, error: message }))
@@ -197,7 +209,7 @@ function safeClientContext(value: unknown): AIClientContext {
 }
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
-type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 'success' | 'failed'; durationMs: number; stepCount: number; error?: string }
+type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 'success' | 'failed' | 'skipped'; durationMs: number; stepCount: number; error?: string }
 function providerModelName(provider: AIProviderTarget) {
   const openRouterModels: Partial<Record<AIProviderTarget, string>> = { 'openrouter-text-pool-a': 'openrouter/free-tool-pool-a', 'openrouter-text-pool-b': 'openrouter/free-tool-pool-b', 'openrouter-vision-pool': 'openrouter/free-vision-pool', openrouter: 'openrouter/free' }
   return openRouterModels[provider] || (provider === 'gateway' ? `google/${aiModel()}` : aiModel())

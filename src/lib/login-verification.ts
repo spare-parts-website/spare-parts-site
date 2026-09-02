@@ -3,7 +3,7 @@ import { Resend } from 'resend'
 import { db } from '@/lib/db'
 import { loginCodeEmailHtml } from '@/lib/email-templates'
 import { getTransactionalSender } from '@/lib/email-sender'
-import { normalizeRecipientEmail } from '@/lib/email-deliverability'
+import { isPermanentRecipientStatus, normalizeRecipientEmail } from '@/lib/email-deliverability'
 import { recordEmailDeliveryAttempt } from '@/lib/email-delivery'
 
 export const LOGIN_CODE_TTL_MS = 10 * 60 * 1000
@@ -57,7 +57,8 @@ async function sendCodeEmail(input: { userId: string; email: string; name: strin
   }
 }
 
-export async function issueLoginVerification(user: { id: string; email: string; name: string }) {
+export async function issueLoginVerification(user: { id: string; email: string; name: string; emailDeliveryStatus?: string | null }) {
+  if (isPermanentRecipientStatus(user.emailDeliveryStatus)) throw new Error('EMAIL_UNDELIVERABLE')
   const id = randomUUID()
   const code = String(randomInt(1000, 10000))
   const now = new Date()

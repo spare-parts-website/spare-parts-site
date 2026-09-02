@@ -193,7 +193,7 @@ export function CheckoutView() {
             </CardHeader>
             <CardContent className="space-y-3">
               <Select value={form.governorate} onValueChange={(value) => setForm({ ...form, governorate: value as GovernorateCode })}>
-                <SelectTrigger><SelectValue placeholder="اختر المحافظة" /></SelectTrigger>
+                <SelectTrigger aria-label="اختيار المحافظة"><SelectValue placeholder="اختر المحافظة" /></SelectTrigger>
                 <SelectContent>{Object.entries(GOVERNORATE_DELIVERY).map(([code, item]) => <SelectItem key={code} value={code}>{item.ar} — {formatPrice(item.fee)} — {item.days} أيام تقريبًا</SelectItem>)}</SelectContent>
               </Select>
               <Textarea

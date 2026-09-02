@@ -1,6 +1,6 @@
 # Feature parity and release checklist
 
-This checklist describes the current implementation in `codex/preserve-mobile-navigation`. It is intentionally evidence-based; an unchecked release item is not a claim of failure, only work still requiring remote or browser evidence.
+This checklist describes the current implementation in `codex/ai-9-plus-hardening`. It is intentionally evidence-based; an unchecked release item is not a claim of failure, only work still requiring remote or browser evidence.
 
 ## Authentication and profiles
 
@@ -52,8 +52,11 @@ This checklist describes the current implementation in `codex/preserve-mobile-na
 
 - [x] In-app notifications remain durable and email failures remain secondary/failure-safe.
 - [x] Resend delivery webhook endpoint verifies Standard Webhooks signatures, is idempotent, updates `EmailDeliveryAttempt`, and audits severe lifecycle events.
+- [x] Exactly one enabled Resend webhook is configured for the complete lifecycle, with its signing secret stored as a hidden Vercel Preview/Production variable.
+- [x] Malformed and common typo email domains are rejected at registration/profile/admin boundaries; permanent provider failures stop non-essential email and auth sends.
 - [x] Support ticket email notification is sent only after ticket persistence, uses `SUPPORT_EMAIL`, logs sent/skipped/failed delivery, and never rolls back the ticket on email failure.
-- [ ] `RESEND_WEBHOOK_SECRET` still needs to be stored in Vercel before enabling exactly one production Resend webhook.
+- [ ] A disposable positive signed lifecycle test still needs to be run against a seed recipient; no customer address should be used.
+- [ ] `SUPPORT_EMAIL` and the notification sender still need verified production values before support/admin outbound email is enabled.
 - [x] CI workflow retains npm install, production audit, lint, test, and build steps; GitHub Actions run 79 for release commit 8d95a3a completed successfully.
 
 ## Local verification completed
@@ -62,16 +65,15 @@ This checklist describes the current implementation in `codex/preserve-mobile-na
 - [x] `npm audit --omit=dev --audit-level=high`
 - [x] `npx tsc --noEmit`
 - [x] `npm run lint`
-- [x] `npm test` (76 passing, 1 isolated-DB checkout harness skipped by default)
+- [x] `npm test` (102 passing, 1 isolated-DB checkout harness skipped by default)
 - [x] `npm run build` (exits successfully; local placeholder DB URL emits a handled homepage warning)
 - [x] `git diff --check`
 - [x] `npm run test:smoke` against https://ghyarmarket-eg.com with SMOKE_EXPECT_BMW=1
 
 ## Release gates still requiring remote evidence
 
-- [x] Final readiness commits pushed without force-push (release commit 8d95a3a is on main).
-- [x] GitHub Actions final run 79 is green.
-- [x] Vercel preview for checkpoint commit 816713e is READY; direct public/protected smoke is limited by Vercel Authentication.
-- [x] Production deployment dpl_4MdTeEp5GdmotT2KNpZfbm7RvuYe for 8d95a3a is READY; live checks pass for /, /parts, /parts?search=bww, /stores, legal/auth pages, /favicon.ico, relevant APIs, and security headers.
+- [ ] Hardening batch commit still needs a normal push and GitHub Actions result.
+- [x] Vercel Preview `dpl_8KnuuNwyrjADB5gaZFeTEV1Y7Q66` is READY; direct protected smoke is limited by Vercel Authentication.
+- [ ] Production promotion of the hardening batch is still pending.
 - [x] Vercel runtime errors and production 5xx logs show no entries in the checked hour.
 - [x] Supabase post-deploy counts, RLS posture, and public/private storage bucket visibility are rechecked.

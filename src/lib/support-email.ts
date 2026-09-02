@@ -23,6 +23,7 @@ export async function sendSupportTicketEmail(input: SupportEmailInput) {
   const to = process.env.SUPPORT_EMAIL?.trim()
   const from = getTransactionalSender(process.env.NOTIFICATION_FROM_EMAIL, process.env.AUTH_FROM_EMAIL)
   if (!to) return { sent: false as const, reason: 'SUPPORT_EMAIL_NOT_CONFIGURED' as const }
+  if (!isValidEmailAddress(to)) return { sent: false as const, reason: 'SUPPORT_EMAIL_INVALID' as const }
   if (!process.env.RESEND_API_KEY || !from) return { sent: false as const, reason: 'RESEND_NOT_CONFIGURED' as const }
 
   const resend = new Resend(process.env.RESEND_API_KEY)

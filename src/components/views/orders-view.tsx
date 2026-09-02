@@ -168,7 +168,7 @@ export function OrdersView() {
                        
                       <Image
                         src={order.items?.[0]?.productImage || order.part.image!}
-                        alt={order.items?.[0]?.productName || order.part.name}
+                        alt=""
                         fill
                         sizes="96px"
                         className="object-contain rounded-lg"
@@ -355,10 +355,10 @@ export function OrdersView() {
                     {/* Timeline */}
                     {expandedOrder === order.id && order.timeline && (
                       <div className="mt-4 pt-4 border-t">
-                        <h4 className="font-semibold text-sm mb-3 flex items-center gap-2">
+                        <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
                           <Clock className="size-4 text-primary" />
                           تتبع حالة الطلب
-                        </h4>
+                        </h3>
                         <OrderTimeline timeline={order.timeline} currentStatus={order.status} />
                       </div>
                     )}

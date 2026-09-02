@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
       const emailKey = createHash('sha256').update(email).digest('hex')
       const emailLimit = await rateLimit(`password-reset-request:email:${emailKey}`, 3, 60 * 60 * 1000)
       if (emailLimit.allowed) {
-        const user = await db.user.findUnique({ where: { email }, select: { id: true, email: true, name: true } })
+        const user = await db.user.findUnique({ where: { email }, select: { id: true, email: true, name: true, emailDeliveryStatus: true } })
         if (user) {
           try {
             await issuePasswordReset(user)
