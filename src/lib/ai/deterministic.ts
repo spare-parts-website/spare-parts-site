@@ -40,20 +40,50 @@ export function deterministicToolInput(toolName: AIToolName, message: string, ro
   }
   if (toolName === 'getSellerInsights') return { focus: sellerInsightFocus(message) }
   if (toolName === 'getAdminInsights') return { focus: adminInsightFocus(message) }
+  if (toolName === 'getSupportTickets' || toolName === 'getAdminSupportTickets') {
+    const status = supportStatus(message)
+    const selectedTicket = context.selection?.kind === 'support_ticket' || context.selection?.kind === 'message' ? context.selection.id : undefined
+    return { ...(selectedTicket ? { ticketId: selectedTicket } : {}), ...(status ? { status } : {}), ...(toolName === 'getAdminSupportTickets' && message.length > 20 ? { search: cleanSubject(message, [/(?:اعرض|هات|شوف|تذاكر|الدعم|support|tickets?|المفتوحة|المفتوح|open|أحدث|آخر|latest|last)/gi]) || undefined } : {}), limit: requestedLimit(message, toolName === 'getAdminSupportTickets' ? 10 : 5) }
+  }
+  if (toolName === 'getBuyerDisputes') {
+    const status = /(?:مفتوح|مفتوحة|open)/i.test(message) ? 'OPEN' : /(?:للمشتري|حسم المشتري|resolved buyer)/i.test(message) ? 'RESOLVED_BUYER' : /(?:للبائع|حسم البائع|resolved seller)/i.test(message) ? 'RESOLVED_SELLER' : /(?:مرفوض|rejected)/i.test(message) ? 'REJECTED' : undefined
+    return { ...(status ? { status } : {}), limit: requestedLimit(message, 10) }
+  }
+  if (toolName === 'getSellerVerification') return {}
+  if (toolName === 'getAdminReviews') {
+    const state = /(?:محظور|محظورة|blocked)/i.test(message) ? 'blocked' : /(?:نشط|نشطة|active)/i.test(message) ? 'active' : 'all'
+    const rating = requestedRating(message)
+    return { state, ...(rating ? { rating } : {}), ...(message.length > 20 ? { query: cleanSubject(message, [/(?:اعرض|هات|شوف|تقييمات?|مراجعة|reviews?|ratings?|محظور|محظورة|blocked|نشط|نشطة|active|نجوم?|stars?)/gi]) || undefined } : {}), limit: requestedLimit(message, 10) }
+  }
+  if (toolName === 'getAdminEmailDeliverability') {
+    const days = message.match(/(?:7|30|90)/)?.[0]
+    return { days: days ? Number(days) : 30 }
+  }
+  if (toolName === 'getAdminModeration') return {}
   if (toolName === 'searchInternet') return { query: cleanWebSearchQuery(message) }
   if (toolName === 'searchMarketplace') {
     const query = cleanSubject(message, [
       /(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|find|search|show me|i need|looking for)/gi,
       /(?:^|\s)(?:على|عن|for)(?=\s|$)/gi,
+      /(?:^|\s)(?:هل|في|للبيع|مطلوب|سيارة|cars?)(?=\s|$)/gi,
       /(?:في|داخل)\s+(?:غيار ماركت|المتجر|الموقع)/gi,
       /(?:قطعة|قطع غيار|متجر|store|shop|part|parts)/gi,
     ])
-    return query ? { query: query.slice(0, 120), limit: requestedLimit(message, 8) } : undefined
+    const fallback = context.previousSearch
+      ? cleanSubject(context.previousSearch, [/(?:دور|ابحث|find|search|looking for)/gi])
+      : context.selection?.kind === 'part' ? context.selection.label : ''
+    return (query || fallback) ? { query: (query || fallback).slice(0, 120), limit: requestedLimit(message, 8) } : undefined
+  }
+  if (toolName === 'compareMarketplace') {
+    const query = cleanSubject(message, [/(?:قارن|مقارنة|مقارنه|compare|الموجود|المتاح|أحسن|أفضل|best|available)/gi, /(?:^|\s)(?:بين|من|في|على|عن|for|the)(?=\s|$)/gi])
+    const fallback = context.previousSearch ? cleanSubject(context.previousSearch, [/(?:دور|ابحث|find|search|looking for)/gi]) : ''
+    return { query: (query || fallback || message).slice(0, 120), limit: Math.min(8, requestedLimit(message, 3)) }
   }
   if (toolName === 'findCompatibleParts') {
     const query = cleanSubject(message, [/(?:هل|دور|ابحث|عايز|find|search|compatible|fit|fits|متوافق|ينفع|يركب)/gi, /(?:^|\s)(?:عن|مع|على|لـ?|for)(?=\s|$)/gi])
     return { carDescription: message.slice(0, 160), ...(query && query.length < message.length ? { query: query.slice(0, 120) } : {}) }
   }
+  if (toolName === 'getCheckoutPreview') return {}
   if (toolName === 'navigate') return navigationInput(message, role)
   if (toolName === 'getSellerWorkspace') return sellerWorkspaceInput(message)
   if (toolName === 'suggestSellerPrice') {
@@ -153,6 +183,16 @@ export function sellerMessageState(message: string): 'all' | 'unread' | 'read' |
   return 'all'
 }
 
+function supportStatus(message: string): 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_CUSTOMER' | 'WAITING_FOR_SUPPORT' | 'RESOLVED' | 'CLOSED' | undefined {
+  if (/(?:مفتوح|مفتوحة|open)/i.test(message)) return 'OPEN'
+  if (/(?:قيد العمل|in progress)/i.test(message)) return 'IN_PROGRESS'
+  if (/(?:بانتظار العميل|waiting for customer)/i.test(message)) return 'WAITING_FOR_CUSTOMER'
+  if (/(?:بانتظار الدعم|waiting for support)/i.test(message)) return 'WAITING_FOR_SUPPORT'
+  if (/(?:محلول|تم الحل|resolved)/i.test(message)) return 'RESOLVED'
+  if (/(?:مغلق|مغلقة|closed)/i.test(message)) return 'CLOSED'
+  return undefined
+}
+
 function requestedRating(message: string) {
   const match = message.match(/(?:تقييم|rating|نجوم?|stars?)\s*(?:=|:)?\s*([1-5])|([1-5])\s*(?:نجوم?|stars?)/i)
   if (match) return Number(match[1] || match[2])
@@ -214,7 +254,51 @@ function navigationInput(message: string, role: AIRole) {
 function actionInput(message: string, role: AIRole, context: AIClientContext): AIProposalInput | undefined {
   const quantity = integerAfter(message, /(?:كمية|عدد|quantity|qty)/i) || integerAfter(message, /(?:أضف|اضف|add)\s+/i) || 1
   const selectionName = context.selection?.label
-  if (/(?:أضف|اضف|ضيف|حط|add).*(?:السلة|cart)/i.test(message)) return { action: 'cart_add', quantity, ...entityReference(message, selectionName, /(?:أضف|اضف|ضيف|حط|add|إلى|الى|في|السلة|cart|quantity|qty|كمية|عدد)/gi) }
+  if (/(?:فض[ّي]|افرغ|أفرغ|فرغ|clear|empty).*(?:السلة|cart)|(?:السلة|cart).*(?:فاضية|فارغة|clear|empty)/i.test(message)) return { action: 'cart_clear' }
+  if (/(?:أضف|اضف|ضيف|حط|add).*(?:السلة|cart)/i.test(message)) return { action: 'cart_add', quantity, ...entityReference(message, selectionName || context.previousSearch, /(?:أضف|اضف|ضيف|حط|add|إلى|الى|في|السلة|cart|quantity|qty|كمية|عدد|الأفضل|المتاح|المتوفرة?)/gi) }
+  if (/(?:شيل|احذف|remove|delete).*(?:السلة|cart)/i.test(message)) return { action: 'cart_remove', ...entityReference(message, selectionName, /(?:شيل|احذف|remove|delete|من|السلة|cart)/gi) }
+  if (/(?:غير|عدل|حدث|set|change|update).*(?:كمية|عدد).*(?:السلة|cart)/i.test(message)) return { action: 'cart_update', quantity: integerAfter(message, /(?:إلى|الى|to|=|quantity|qty|كمية|عدد)/i) || 1, ...entityReference(message, selectionName, /(?:غير|عدل|حدث|set|change|update|كمية|عدد|إلى|الى|to|=|السلة|cart|\d+)/gi) }
+  if ((role === 'BUYER' || role === 'SHOP_OWNER') && /(?:رد|reply|answer)/i.test(message) && (/(?:تذكرة|الدعم|support)/i.test(message) || context.selection?.kind === 'support_ticket') && (context.selection?.kind === 'support_ticket' || context.selection?.kind === 'message')) {
+    const body = message.split(/[:：]/).slice(1).join(':').trim()
+    return { action: 'buyer_support_reply', targetId: context.selection.id, message: body || undefined }
+  }
+  if ((role === 'BUYER' || role === 'SHOP_OWNER') && /(?:تذكرة|الدعم|support ticket)/i.test(message) && /(?:افتح|اعمل|create|open)/i.test(message)) {
+    const subject = cleanSubject(message, [/(?:افتح|اعمل|create|open|تذكرة|الدعم|support|ticket|بخصوص|عن|regarding)/gi])
+    const category = /(?:طلب|order)/i.test(message) ? 'ORDER' : /(?:حساب|account)/i.test(message) ? 'ACCOUNT' : /(?:دفع|payment)/i.test(message) ? 'PAYMENT' : 'GENERAL'
+    const body = message.split(/[:：]/).slice(1).join(':').trim()
+    return { action: 'buyer_support_create', subject: subject || 'طلب دعم', message: body || undefined, ticketCategory: category, ...(context.selection?.kind === 'order' ? { targetId: context.selection.id } : {}) }
+  }
+  if (role === 'BUYER' && /(?:قيم|قيّم|تقييم|review|rate)/i.test(message)) {
+    const rating = integerAfter(message, /(?:تقييم|rating|نجوم?|stars?)/i) || integerBeforeOrAfter(message, /(?:نجوم?|stars?)/i)
+    const reviewType = /(?:متجر|store)/i.test(message) ? 'store' : 'product'
+    const comment = cleanSubject(message, [/(?:قيم|قيّم|تقييم|review|rate|القطعة|المنتج|المتجر|store|product|نجوم?|stars?|البائع|seller|التغليف|التعبئة|packaging|التوصيل|الشحن|delivery|shipping)/gi, /\b[1-5]\b/g]).replace(/(?:^|\s)و(?=\s|$)/g, ' ').replace(/\s+/g, ' ').trim()
+    const sellerRating = dimensionRating(message, /(?:تقييم\s*)?(?:البائع|seller)(?:\s*rating)?/i)
+    const packagingRating = dimensionRating(message, /(?:تقييم\s*)?(?:التغليف|التعبئة|packaging)(?:\s*rating)?/i)
+    const deliveryRating = dimensionRating(message, /(?:تقييم\s*)?(?:التوصيل|الشحن|delivery|shipping)(?:\s*rating)?/i)
+    return { action: 'buyer_review_create', reviewType, rating, description: comment || undefined, ...(sellerRating !== undefined ? { sellerRating } : {}), ...(packagingRating !== undefined ? { packagingRating } : {}), ...(deliveryRating !== undefined ? { deliveryRating } : {}), ...(context.selection?.id ? { targetId: context.selection.id } : {}) }
+  }
+  if (role === 'BUYER' && /(?:نزاع|مشكلة|dispute|return|ارجاع|إرجاع)/i.test(message) && /(?:افتح|اعمل|open|create|اطلب|request)/i.test(message)) {
+    const reason = cleanSubject(message, [/(?:افتح|اعمل|open|create|اطلب|request|نزاع|مشكلة|dispute|return|ارجاع|إرجاع|على|علي|الطلب|order)/gi])
+    return { action: 'buyer_dispute_create', disputeType: /(?:تالف|مكسور|damaged)/i.test(message) ? 'DAMAGED' : /(?:غلط|خطأ|wrong)/i.test(message) ? 'WRONG_ITEM' : 'OTHER', reason: reason || undefined, ...(context.selection?.kind === 'order' ? { targetId: context.selection.id } : {}) }
+  }
+  if ((role === 'BUYER' || role === 'SHOP_OWNER') && /(?:بلغ|بلاغ|report|flag)/i.test(message) && !/(?:تذكرة|دعم|support)/i.test(message)) {
+    const selectedKind = context.selection?.kind
+    const targetType = selectedKind === 'part' || selectedKind === 'store' || selectedKind === 'user'
+      ? selectedKind
+      : /(?:متجر|store|shop)/i.test(message) ? 'store' : /(?:مستخدم|حساب|user|account)/i.test(message) ? 'user' : 'part'
+    const reason = message.split(/[:：]/).slice(1).join(':').trim() || cleanSubject(message, [/(?:بلغ|بلاغ|report|flag|عن|على|متجر|store|shop|قطعة|part|عرض|offer|مستخدم|حساب|user|account)/gi])
+    return { action: 'buyer_report_create', targetType, reason: reason || undefined, ...(context.selection?.id ? { targetId: context.selection.id } : {}), ...(!context.selection?.id ? { entityName: cleanSubject(message, [/(?:بلغ|بلاغ|report|flag|عن|على|لأن|لان|بسبب)/gi]) || undefined } : {}) }
+  }
+  if ((role === 'BUYER' || role === 'SHOP_OWNER') && context.selection?.kind !== 'part' && !listingNameChange(message) && !/(?:قطعة|عرض|listing|part|product|منتج|متجر|store|shop)/i.test(message) && /(?:غير|عدل|حدث|change|update).*(?:اسمي|الاسم|name|الصورة|avatar|photo|الهاتف|phone)/i.test(message)) {
+    const name = message.match(/(?:اسمي|الاسم|name)\s*(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)?.[1]?.trim()
+    const phone = profilePhone(message)
+    const avatar = message.match(/https:\/\/[^\s،,؟?]+/i)?.[0]
+    return { action: 'buyer_account_update', ...(name ? { name } : {}), ...(phone ? { phone } : {}), ...(avatar ? { avatar } : {}), ...(context.selection?.kind === 'user' ? { targetId: context.selection.id } : {}) }
+  }
+  if (role === 'BUYER' && /(?:ابعت|ابعث|ارسل|إرسال|send).*(?:للبائع|للمتجر|البائع|store|seller)/i.test(message)) {
+    const body = message.split(/[:：]/).slice(1).join(':').trim() || cleanSubject(message, [/(?:ابعت|ابعث|ارسل|إرسال|send|للبائع|للمتجر|البائع|store|seller)/gi])
+    return { action: 'buyer_message_send', message: body || undefined, messageKind: /(?:طلب|order)/i.test(message) ? 'order' : 'part', ...(context.selection?.id ? { targetId: context.selection.id } : {}), ...(context.selection?.kind === 'order' ? { messageKind: 'order' as const } : {}) }
+  }
   if (/(?:المفضلة|wishlist|favorite)/i.test(message) && /(?:أضف|اضف|add|شيل|احذف|remove)/i.test(message)) {
     const remove = /(?:شيل|احذف|remove)/i.test(message)
     return { action: remove ? 'wishlist_store_remove' : 'wishlist_store_add', storeName: selectionName || cleanSubject(message, [/(?:أضف|اضف|add|شيل|احذف|remove|من|إلى|الى|المفضلة|wishlist|favorite|متجر|store)/gi]) }
@@ -225,18 +309,115 @@ function actionInput(message: string, role: AIRole, context: AIClientContext): A
     if (status) return { action: 'order_action', status, orderDescription: cleanSubject(message, [/(?:إلغاء|الغ|cancel|استلم|deliver|إرجاع|ارجع|return|وافق|approve|ارفض|reject|اشحن|ship|طلب|order)/gi]) || undefined, recency: recency(message) }
   }
   if (role === 'SHOP_OWNER') {
-    const price = numberAfter(message, /(?:إلى|الى|to)/i) ?? numberAfter(message, /(?:سعر|price)/i); const stock = integerAfter(message, /(?:مخزون|stock)/i)
-    if (/(?:غي[ّ]?ر|عدل|حدث|set|change|update)/i.test(message) && (price !== undefined || stock !== undefined)) return { action: 'seller_part_update', price, stock, ...entityReference(message, selectionName, /(?:غي[ّ]?ر|عدل|حدث|set|change|update|سعر|price|مخزون|stock|إلى|الى|to|جنيه|egp|قطعة|part|\d+(?:[.,]\d+)?)/gi) }
+    const bulkTargetIds = context.previousEntities?.filter((entity) => entity.kind === 'part').slice(0, 50).map((entity) => entity.id)
+    const bulkPricePercent = percentageAfter(message, /(?:بنسبة|نسبة|percent|percentage|%|سعر|price)/i)
+    const bulkStockDelta = signedIntegerAfter(message, /(?:المخزون|مخزون|stock|زود|زو[ّد]|زيادة|increase|نقص|قلل|decrease)/i)
+    const asksForMany = /(?:كل|جميع|all|every|الأول(?:ين)?|اول(?:ين)?|أول\s*(?:اتنين|اثنين|2)|اول\s*(?:اتنين|اثنين|2)|first\s*(?:two|2)|قطع BMW|bmw parts|الموجودين|selected)/i.test(message)
+    if (asksForMany && (bulkPricePercent !== undefined || bulkStockDelta !== undefined)) {
+      return {
+        action: 'seller_inventory_bulk_update',
+        ...(bulkPricePercent !== undefined ? { pricePercent: bulkPricePercent } : {}),
+        ...(bulkStockDelta !== undefined ? { stockDelta: bulkStockDelta } : {}),
+        ...(bulkTargetIds?.length ? { targetIds: bulkTargetIds } : {}),
+        ...(selectionName ? { entityName: selectionName } : bulkTargetIds?.length ? {} : { entityName: cleanSubject(message, [/(?:كل|جميع|all|every|زو[ّد]|زود|زيادة|نقص|قلل|بنسبة|نسبة|percent|percentage|%|المخزون|مخزون|stock|سعر|price|قطعة|قطع|parts?)/gi]) || undefined }),
+      }
+    }
+    const price = numberAfter(message, /(?:إلى|الى|to)/i) ?? numberAfter(message, /(?:سعر|price)/i)
+    const stock = /(?:زود|زو[ّد]|زيادة|نقص|قلل|increase|decrease)/i.test(message) ? undefined : integerAfter(message, /(?:مخزون|stock)/i)
+    const stockDelta = !asksForMany ? signedIntegerAfter(message, /(?:زود|زو[ّد]|زيادة|increase|نقص|قلل|decrease)\s*(?:المخزون|مخزون|stock)?/i) : undefined
+    const pricePercent = !asksForMany ? percentageAfter(message, /(?:بنسبة|نسبة|percent|percentage|%)/i) : undefined
+    const listingFields = parseListingUpdateFields(message)
+    const listingTarget = context.selection?.kind === 'part' || /(?:قطعة|عرض|listing|part|product|منتج)/i.test(message)
+    const storeRequest = /(?:متجري|المتجر|store|shop|كوبون|coupon)/i.test(message)
+    const listingFieldIntent = Object.keys(listingFields).length > 0
+    const listingUpdate = /(?:غي[ّ]?ر|عدل|حدث|set|change|update|خلي|خل[ّي]|make|زو[ّد]|زود|زيادة|نقص|قلل|increase|decrease)/i.test(message) || ((/(?:أضف|اضف|ضيف|add)/i.test(message)) && listingFieldIntent && !/(?:قطعة\s+(?:جديدة|new)|عرض\s+(?:جديد|new)|create)/i.test(message))
+    if (!storeRequest && listingUpdate && (listingTarget || listingFieldIntent || price !== undefined || stock !== undefined || stockDelta !== undefined || pricePercent !== undefined) && (price !== undefined || stock !== undefined || stockDelta !== undefined || pricePercent !== undefined || listingFieldIntent)) {
+      const namedTarget = listingNameChange(message)?.target
+      const fallbackReference = Object.keys(listingFields).length ? undefined : entityReference(message, selectionName || namedTarget, /(?:غي[ّ]?ر|عدل|حدث|set|change|update|خلي|خل[ّي]|make|زو[ّد]|زود|زيادة|نقص|قلل|increase|decrease|سعر|price|مخزون|stock|بنسبة|نسبة|percent|percentage|%|اسم(?:ها|ه)?|name|وصف|description|الفئة|التصنيف|category|الماركة|brand|الحالة|condition|رقم\s*(?:القطعة|OEM)|part\s*number|oem(?:\s*number)?|أسماء\s*بحث(?:\s*إضافية)?|search\s*aliases|ملاحظات\s*التوافق|fitment\s*notes|إلى|الى|to|جنيه|egp|قطعة|part|عرض|listing|product|منتج|\d+(?:[.,]\d+)?)/gi).entityName
+      const referenceName = listingEntityReference(message, selectionName, namedTarget) || fallbackReference
+      return { action: 'seller_part_update', price, stock, ...(stockDelta !== undefined ? { stockDelta } : {}), ...(pricePercent !== undefined ? { pricePercent } : {}), ...listingFields, ...(referenceName ? { entityName: referenceName } : {}) }
+    }
+    if (/(?:أنشئ|اعمل|أضف|اضف|ضيف|create|add).*(?:قطعة|عرض|listing|part|product)/i.test(message) && !/(?:السلة|cart)/i.test(message)) {
+      const condition = listingCreateCondition(message)
+      return { action: 'seller_part_create', name: listingCreateName(message), price: numberAfter(message, /(?:بسعر|سعر|price)/i), stock: integerAfter(message, /(?:مخزون|stock)/i), ...(condition ? { condition } : {}) }
+    }
+    if (/(?:رد|reply|answer|ابعت|ابعث|ارسل|إرسال|send).*(?:عميل|العميل|رسالة|message|customer|له|لها)/i.test(message) || (context.selection?.kind === 'message' && /(?:رد|reply|answer|ابعت|ابعث|ارسل|إرسال|send)/i.test(message))) {
+      const body = message.split(/[:：]/).slice(1).join(':').trim() || cleanSubject(message, [/(?:رد|reply|answer|ابعت|ابعث|ارسل|إرسال|send|على|للعميل|للعميلة|عميل|العميل|رسالة|message|customer|قوله|قولها|له|لها)/gi])
+      return { action: 'seller_message_send', message: body || undefined, ...(context.selection?.kind === 'message' ? { targetId: context.selection.id } : {}), ...(selectionName ? { entityName: selectionName } : {}) }
+    }
     if (/(?:أنشئ|اعمل|أضف|اضف|create|add).*(?:كوبون|coupon)/i.test(message)) {
       const code = message.match(/(?:كود|كوبون|code|coupon)\s*[:=]?\s*([A-Za-z0-9_-]{3,40})/i)?.[1]?.toUpperCase()
       const discountPercent = integerBeforeOrAfter(message, /(?:%|خصم|discount)/i); const maxUses = integerBeforeOrAfter(message, /(?:استخدام|uses?|مرات)/i)
       return { action: 'seller_coupon_create', code, discountPercent, maxUses }
     }
+    if (/(?:عدل|غير|حدث|update|change).*(?:كوبون|coupon)/i.test(message)) return { action: 'seller_coupon_update', code: message.match(/(?:كود|code)\s*[:=]?\s*([A-Za-z0-9_-]{3,40})/i)?.[1]?.toUpperCase(), discountPercent: integerBeforeOrAfter(message, /(?:%|خصم|discount)/i), maxUses: integerBeforeOrAfter(message, /(?:استخدام|uses?|مرات)/i), status: /(?:وقف|تعطيل|inactive|disable)/i.test(message) ? 'INACTIVE' : undefined, entityName: selectionName || cleanSubject(message, [/(?:عدل|غير|حدث|update|change|كوبون|coupon|كود|code|خصم|discount|استخدام|uses?|مرات)/gi]) }
+    if (/(?:ضيف|أضف|اضف|update|change|عد[ّ]?ل|حدث).*(?:توافق|fitment|compatible)/i.test(message)) return { action: 'seller_fitment_update', carModels: cleanSubject(message, [/(?:ضيف|أضف|اضف|update|change|عد[ّ]?ل|حدث|توافق|fitment|compatible|مع|لـ|الى|إلى)/gi]) || undefined, ...(selectionName ? { entityName: selectionName } : {}) }
+    if (/(?:غير|عدل|حدث|update|change).*(?:متجري|المتجر|store|shop)/i.test(message)) {
+      const name = message.match(/(?:اسم(?:ه)?|name)\s*(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)?.[1]?.trim()
+      const address = message.match(/(?:العنوان|address)\s*(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)?.[1]?.trim()
+      const phone = profilePhone(message)
+      const image = message.match(/https:\/\/[^\s،,؟?]+/i)?.[0]
+      const description = /(?:وصف|description)/i.test(message) ? cleanSubject(message, [/(?:غير|عدل|حدث|update|change|وصف|description|المتجر|store|shop)/gi]) : undefined
+      return { action: 'seller_store_update', ...(name ? { name } : {}), ...(description ? { description } : {}), ...(address ? { address } : {}), ...(phone ? { phone } : {}), ...(image ? { image } : {}) }
+    }
   }
   if (role === 'ADMIN') {
+    const selectedKind = context.selection?.kind
+    const profileFieldRequest = /(?:غير|عدل|حدث|update|change).*(?:اسم|name|بريد|email|إيميل|هاتف|phone|صورة|avatar|photo|إشعارات|notifications|دور|role)/i.test(message)
+    if (profileFieldRequest && (selectedKind === 'user' || /(?:مستخدم|حساب|user|account)/i.test(message))) {
+      const namedTarget = message.match(/(?:اسم)\s+([^،,؟?]+?)\s+(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)
+      const name = message.match(/(?:اسمه|اسمها|اسم(?:ه)?|name)\s*(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)?.[1]?.trim() || namedTarget?.[2]?.trim()
+      const targetName = namedTarget?.[1]?.trim()
+      const email = message.match(/(?:البريد|الإيميل|email)\s*(?:إلى|الى|to|=|:)\s*([^\s،,؟?]+@[^\s،,؟?]+)/i)?.[1]?.trim()
+      const phone = profilePhone(message)
+      const avatar = message.match(/https:\/\/[^\s،,؟?]+/i)?.[0]
+      const roleValue = /(?:مدير|admin)/i.test(message) ? 'ADMIN' : /(?:بائع|صاحب متجر|seller|shop owner)/i.test(message) ? 'SHOP_OWNER' : /(?:مشتري|buyer)/i.test(message) ? 'BUYER' : undefined
+      const deliveryStatus = /(?:مرتد|bounce)/i.test(message) ? 'BOUNCED' : /(?:شكوى|complain)/i.test(message) ? 'COMPLAINED' : /(?:محظور|suppressed)/i.test(message) ? 'SUPPRESSED' : /(?:نشط|active)/i.test(message) ? 'ACTIVE' : undefined
+      return { action: 'admin_user_update', ...(context.selection?.id ? { targetId: context.selection.id } : {}), ...(!context.selection?.id && targetName ? { entityName: targetName } : {}), ...(name ? { name } : {}), ...(email ? { email } : {}), ...(phone ? { phone } : {}), ...(avatar ? { avatar } : {}), ...(roleValue ? { role: roleValue } : {}), ...(deliveryStatus ? { emailDeliveryStatus: deliveryStatus } : {}), ...(message.includes('بدون إشعارات') || /(?:إيقاف|تعطيل).*(?:إشعارات|notifications)/i.test(message) ? { emailNotifications: false } : /(?:تفعيل|شغل|تشغيل).*(?:إشعارات|notifications)/i.test(message) ? { emailNotifications: true } : {}) }
+    }
+    if (/(?:غير|عدل|حدث|update|change).*(?:دور|role)/i.test(message) && (selectedKind === 'user' || /(?:مستخدم|حساب|user|account)/i.test(message))) {
+      const roleValue = /(?:مدير|admin)/i.test(message) ? 'ADMIN' : /(?:بائع|صاحب متجر|seller|shop owner)/i.test(message) ? 'SHOP_OWNER' : /(?:مشتري|buyer)/i.test(message) ? 'BUYER' : undefined
+      return { action: 'admin_user_role', ...(context.selection?.id ? { targetId: context.selection.id } : {}), ...(roleValue ? { role: roleValue } : {}) }
+    }
+    if ((/(?:غير|عدل|حدث|update|change).*(?:تقييم|review|rating)/i.test(message) || (selectedKind === 'review' && /(?:احظر|حظر|block|unblock|إلغاء حظر)/i.test(message))) && (/(?:احظر|حظر|block|unblock|إلغاء حظر)/i.test(message) || selectedKind === 'review')) {
+      const selectedReviewIsStore = context.selection?.kind === 'review' && /(?:تقييم متجر|store)/i.test(context.selection.label)
+      return { action: 'admin_review_moderate', status: /(?:unblock|إلغاء حظر)/i.test(message) ? 'ACTIVE' : 'BLOCKED', reviewType: /(?:متجر|store)/i.test(message) || selectedReviewIsStore ? 'store' : 'product', ...(context.selection?.id ? { targetId: context.selection.id } : {}) }
+    }
+    const explicitStoreName = explicitStoreReference(message)
+    const targetStoreName = selectionName || explicitStoreName
+    const storeNameChange = message.match(/(?:متجر|store|shop)\s+["«]?[^،,؟?]+?["»]?\s+(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)?.[1]?.trim()
+    if (/(?:غير|عدل|حدث|update|change).*(?:متجر|store|shop)/i.test(message) && targetStoreName) return { action: 'admin_store_update', ...(storeNameChange || message.match(/(?:اسم(?:ه)?|name)\s*(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)?.[1]?.trim() ? { name: storeNameChange || message.match(/(?:اسم(?:ه)?|name)\s*(?:إلى|الى|to|=|:)\s*([^،,؟?]+)/i)?.[1]?.trim() } : {}), ...( /(?:وصف|description)/i.test(message) ? { description: cleanSubject(message, [/(?:غير|عدل|حدث|update|change|وصف|description|متجر|store|shop)/gi]) } : {}), storeName: targetStoreName }
+    const adminListingFields = parseListingUpdateFields(message)
+    const adminPartTarget = selectedKind === 'part' || /(?:قطعة|عرض|listing|part|product|منتج)/i.test(message)
+    const adminStoreRequest = /(?:متجر|store|shop)/i.test(message)
+    const adminListingFieldIntent = Object.keys(adminListingFields).length > 0
+    const adminListingUpdate = /(?:غير|عدل|حدث|update|change|خلي|خل[ّي]|make|set|زو[ّد]|زود|زيادة|نقص|قلل|increase|decrease)/i.test(message) || ((/(?:أضف|اضف|ضيف|add)/i.test(message)) && adminListingFieldIntent && !/(?:قطعة\s+(?:جديدة|new)|عرض\s+(?:جديد|new)|create)/i.test(message))
+    if (!adminStoreRequest && adminListingUpdate && (adminPartTarget || adminListingFieldIntent || numberAfter(message, /(?:إلى|الى|to|سعر|price)/i) !== undefined || integerAfter(message, /(?:مخزون|stock)/i) !== undefined) && (numberAfter(message, /(?:إلى|الى|to|سعر|price)/i) !== undefined || integerAfter(message, /(?:مخزون|stock)/i) !== undefined || adminListingFieldIntent)) {
+      const namedTarget = listingNameChange(message)?.target
+      const fallbackReference = Object.keys(adminListingFields).length ? undefined : entityReference(message, selectionName || namedTarget, /(?:غير|عدل|حدث|update|change|خلي|خل[ّي]|make|set|سعر|price|مخزون|stock|وصف|description|الفئة|التصنيف|category|الماركة|brand|الحالة|condition|رقم\s*(?:القطعة|OEM)|part\s*number|oem(?:\s*number)?|أسماء\s*بحث(?:\s*إضافية)?|search\s*aliases|ملاحظات\s*التوافق|fitment\s*notes|اسم(?:ها|ه)?|name|صورة|image|إلى|الى|to|قطعة|عرض|listing|part|offer|product|منتج|\d+(?:[.,]\d+)?)/gi).entityName
+      const referenceName = listingEntityReference(message, selectionName, namedTarget) || fallbackReference
+      return { action: 'admin_part_update', ...(context.selection?.id ? { targetId: context.selection.id } : {}), ...adminListingFields, price: numberAfter(message, /(?:إلى|الى|to|سعر|price)/i), stock: integerAfter(message, /(?:مخزون|stock)/i), ...(referenceName ? { entityName: referenceName } : {}) }
+    }
     if (/(?:احظر|حظر|block|unblock|إلغاء حظر)/i.test(message) && /(?:قطعة|part|product)/i.test(message)) return { action: 'admin_part_block', status: /(?:unblock|إلغاء حظر)/i.test(message) ? 'ACTIVE' : 'BLOCKED', ...entityReference(message, selectionName, /(?:احظر|حظر|block|unblock|إلغاء حظر|قطعة|part|product)/gi) }
     if (/(?:وثق|اعتمد|verify|unverify|إلغاء اعتماد)/i.test(message) && /(?:متجر|store)/i.test(message)) return { action: 'admin_store_verify', status: /(?:unverify|إلغاء اعتماد)/i.test(message) ? 'UNVERIFIED' : 'VERIFIED', storeName: selectionName || cleanSubject(message, [/(?:وثق|اعتمد|verify|unverify|إلغاء اعتماد|متجر|store)/gi]) }
     if (/(?:وافق|approve|ارفض|reject)/i.test(message) && /(?:توثيق|verification)/i.test(message)) return { action: 'admin_verification_decision', status: /(?:ارفض|reject)/i.test(message) ? 'REJECTED' : 'APPROVED', entityName: selectionName || cleanSubject(message, [/(?:وافق|approve|ارفض|reject|طلب|توثيق|verification)/gi]) }
+    if (/(?:راجع|حل|احسم|اتخذ|قرر|dismiss|review|resolve|decide)/i.test(message) && /(?:بلاغ|report)/i.test(message)) return { action: 'admin_report_decision', status: /(?:تجاهل|ارفض|dismiss|reject)/i.test(message) ? 'DISMISSED' : /(?:احظر|حظر|block)/i.test(message) ? 'BLOCKED' : 'REVIEWED', ...(context.selection?.kind === 'report' ? { targetId: context.selection.id } : { entityName: cleanSubject(message, [/(?:راجع|حل|احسم|اتخذ|قرر|dismiss|review|resolve|decide|بلاغ|report|تجاهل|ارفض|احظر|حظر|block)/gi]) || undefined }) }
+    if (/(?:حل|احسم|اتخذ|قرر|وافق|ارفض|resolve|decide|reject)/i.test(message) && /(?:نزاع|dispute)/i.test(message)) {
+      const description = message.split(/[:：]/).slice(1).join(':').trim() || cleanSubject(message, [/(?:حل|احسم|اتخذ|قرر|وافق|ارفض|resolve|decide|reject|نزاع|dispute|لصالح|للمشتري|للبائع|buyer|seller)/gi])
+      const status = /(?:للبائع|لصالح البائع|seller)/i.test(message) ? 'RESOLVED_SELLER' : /(?:للمشتري|لصالح المشتري|buyer)/i.test(message) ? 'RESOLVED_BUYER' : 'REJECTED'
+      return { action: 'admin_dispute_decision', status, description: description || undefined, ...(context.selection?.kind === 'dispute' ? { targetId: context.selection.id } : {}) }
+    }
+    const supportStatusChange = /(?:تذكرة|تذاكر|دعم|support|ticket)/i.test(message) && /(?:افتح|فتح|open|ابدأ|start|قيد العمل|in progress|بانتظار العميل|waiting for customer|بانتظار الدعم|waiting for support|حل|محلول|تم الحل|resolve|resolved|اقفل|اغلق|أغلق|مغلق|مغلقة|close|closed)/i.test(message)
+    if (supportStatusChange) {
+      const status = /(?:اقفل|اغلق|أغلق|مغلق|مغلقة|close|closed)/i.test(message) ? 'CLOSED'
+        : /(?:قيد العمل|in progress)/i.test(message) ? 'IN_PROGRESS'
+          : /(?:بانتظار العميل|waiting for customer)/i.test(message) ? 'WAITING_FOR_CUSTOMER'
+            : /(?:بانتظار الدعم|waiting for support)/i.test(message) ? 'WAITING_FOR_SUPPORT'
+              : /(?:حل|محلول|تم الحل|resolve|resolved)/i.test(message) ? 'RESOLVED' : 'OPEN'
+      return { action: 'admin_support_status', status, ...(context.selection?.kind === 'support_ticket' ? { targetId: context.selection.id } : { entityName: cleanSubject(message, [/(?:افتح|فتح|open|ابدأ|start|قيد العمل|in progress|بانتظار العميل|waiting for customer|بانتظار الدعم|waiting for support|حل|محلول|تم الحل|resolve|resolved|اقفل|اغلق|أغلق|مغلق|مغلقة|close|closed|تذكرة|تذاكر|دعم|support|ticket)/gi]) || undefined }) }
+    }
+    if (/(?:رد|ابعت|ابعث|ارسل|إرسال|reply|send).*(?:تذكرة|دعم|support)/i.test(message) || (context.selection?.kind === 'support_ticket' && /(?:رد|ابعت|ابعث|ارسل|إرسال|reply|send)/i.test(message))) return { action: 'admin_support_reply', message: message.split(/[:：]/).slice(1).join(':').trim() || undefined, ...(context.selection?.id ? { targetId: context.selection.id } : {}) }
+    if (/(?:اعمل|أنشئ|أضف|اضف|create|add).*(?:عرض|قطعة|part|offer).*(?:ل(?:ه|ها)|للبائع|seller|store|متجر)/i.test(message)) return { action: 'admin_part_create', name: listingCreateName(message), price: numberAfter(message, /(?:سعر|price)/i), stock: integerAfter(message, /(?:مخزون|stock)/i), condition: listingCreateCondition(message), storeName: context.selection?.kind === 'store' ? selectionName : explicitStoreName, ...parseListingUpdateFields(message) }
   }
   return undefined
 }
@@ -250,6 +431,101 @@ function draftInput(message: string, role: AIRole) {
   if (role === 'ADMIN') return { target: 'moderation_note', fields: { note: body } }
   if (role !== 'GUEST') return { target: 'message', fields: { message: body } }
   return undefined
+}
+
+const LISTING_FIELD_MARKERS = String.raw`(?:اسم(?:\s+(?:القطعة|العرض|المنتج))?|الاسم|name|وصف|description|الفئة|التصنيف|category|الماركة|البراند|brand|الحالة|condition|رقم\s*القطعة|part\s*number|OEM\s*رقم|رقم\s*OEM|oem\s*number|oem|أسماء\s*بحث(?:\s*إضافية)?|مرادفات\s*البحث|search\s*aliases|aliases|ملاحظات\s*التوافق|fitment\s*notes)`
+const FIELD_VALUE_PREFIX = String.raw`\s*(?:إلى|الى|to|=|:|هو|هي|بقى|تبقى)?\s*`
+
+function explicitStoreReference(message: string) {
+  const quoted = message.match(/(?:لمتجر|للمتجر|متجر|store|shop)\s*["«]([^"»]+)["»]/i)?.[1]
+  if (quoted) return cleanFieldValue(quoted, 160)
+  const match = message.match(/(?:لمتجر|للمتجر|متجر|store|shop)\s+([^،,؟?؛;]+?)(?=\s+(?:بسعر|سعر|price|مخزون|stock|الحالة|condition|اسم|name|وصف|description|العنوان|address|صورة|image|إلى|الى|to|=|لديه|لها|له|اعمل|أنشئ|أضف|create|add)|[،,؟?؛;]|$)/i)
+  return cleanFieldValue(match?.[1], 160)
+}
+
+function listingCreateName(message: string) {
+  const colonValue = message.match(/[:：]\s*(.+?)(?=\s+(?:بسعر|سعر|price|مخزون|stock|الحالة|condition)|$)/i)?.[1]
+  let value = colonValue || message.replace(/^(?:.*?)(?:أنشئ|اعمل|أضف|اضف|ضيف|create|add)\s*/i, '')
+  value = value.replace(/^(?:(?:له|لها|للبائع|seller|على|for|قطعة|عرض|listing|part|product|منتج)(?:\s+(?:جديدة?|new|مستعمل|used))?\s*)+/i, '')
+  value = value.replace(/\s+(?:لمتجر|للمتجر|متجر|store|shop)\s+[^،,؟?؛;]+?(?=\s+(?:بسعر|سعر|price|مخزون|stock|الحالة|condition)|[،,؟?؛;]|$)/i, ' ')
+  value = value.replace(/\s+(?:بسعر|سعر|price|مخزون|stock|الحالة|condition).*$/i, '')
+  value = value.replace(/\s+و\s*$/i, '')
+  return cleanFieldValue(value, 160)
+}
+
+function listingCreateCondition(message: string) {
+  const labeled = normalizeConditionValue(listingFieldValue(message, /(?:الحالة|condition)/i, 120))
+  if (labeled) return labeled
+  if (/(?:استيراد\s*جديد|new\s*import|imported)/i.test(message)) return 'استيراد جديد'
+  if (/(?:استيراد\s*مستعمل|used\s*import)/i.test(message)) return 'استيراد مستعمل'
+  if (/(?:جديد|new)/i.test(message)) return 'جديد'
+  if (/(?:مستعمل|used)/i.test(message)) return 'مستعمل'
+  return undefined
+}
+
+function listingNameChange(message: string) {
+  const match = message.match(/(?:اسم(?:\s+(?:القطعة|العرض|المنتج))?|الاسم|name)\s+([^،,؟?؛;]+?)\s+(?:إلى|الى|to|=|:)\s*([^،,؟?؛;]+)/i)
+  if (!match) return undefined
+  const target = cleanFieldValue(match[1], 160)
+  const value = cleanFieldValue(match[2], 160)
+  return target && value ? { target, value } : undefined
+}
+
+function listingFieldValue(message: string, marker: RegExp, maxLength: number) {
+  const changed = message.match(new RegExp(`${marker.source}\\s+(?!(?:إلى|الى|to|=|:))([^،,؟?؛;]+?)\\s+(?:إلى|الى|to|=|:)\\s*([^،,؟?؛;]+)`, 'i'))
+  if (changed) return cleanFieldValue(withoutTargetQualifier(changed[2]), maxLength)
+  const boundary = String.raw`(?=\s+${LISTING_FIELD_MARKERS}${FIELD_VALUE_PREFIX}|[،,؛;]|$)`
+  const direct = message.match(new RegExp(`${marker.source}${FIELD_VALUE_PREFIX}([^،,؟?؛;]+?)${boundary}`, 'i'))
+  const loose = direct || message.match(new RegExp(`${marker.source}\\s+([^،,؟?؛;]+?)${boundary}`, 'i'))
+  return loose ? cleanFieldValue(withoutTargetQualifier(loose[1]), maxLength) : undefined
+}
+
+function withoutTargetQualifier(value: string) {
+  return value.replace(/\s+(?:ل(?:ل)?قطعة|ل(?:ل)?عرض|ل(?:ل)?منتج|for\s+(?:the\s+)?(?:part|listing|product))\s+.+$/i, '').trim()
+}
+
+function listingEntityReference(message: string, selected: string | undefined, namedTarget: string | undefined) {
+  if (selected) return selected
+  if (namedTarget) return namedTarget
+  const qualified = message.match(/\s+(?:ل(?:ل)?قطعة|ل(?:ل)?عرض|ل(?:ل)?منتج|for\s+(?:the\s+)?(?:part|listing|product))\s+([^،,؟?؛;]+)$/i)?.[1]
+  if (qualified && !isPronounReference(qualified)) return cleanFieldValue(qualified, 160)
+  const conditionTarget = message.match(/(?:الحالة|condition)\s*(?:إلى|الى|to|=|:)?\s*(?:استيراد\s*(?:جديد|مستعمل)|new\s*import|used\s*import|imported|جديد|new|مستعمل|used|مجدد|refurbished)\s+(?:لـ?\s*|على\s+)([^،,؟?؛;]+)/i)?.[1]
+  return conditionTarget && !isPronounReference(conditionTarget) ? cleanFieldValue(conditionTarget, 160) : undefined
+}
+
+function isPronounReference(value: string) {
+  return /^(?:دي|ده|هذه|هذا|تلك|ذلك|it|this|the\s+one|القطعة|العرض|المنتج)$/i.test(value.trim())
+}
+
+function cleanFieldValue(value: string | undefined, maxLength: number) {
+  return value?.trim().replace(/^["«'“”]+|["»'“”]+$/g, '').replace(/[؟?]+$/g, '').trim().slice(0, maxLength) || undefined
+}
+
+function normalizeConditionValue(value: string | undefined) {
+  if (!value) return undefined
+  if (/(?:استيراد\s*جديد|new\s*import|imported|جديد|new)/i.test(value)) return 'استيراد جديد'
+  if (/(?:استيراد\s*مستعمل|used\s*import|مستورد\s*مستعمل)/i.test(value)) return 'استيراد مستعمل'
+  if (/(?:مستعمل|used)/i.test(value)) return 'مستعمل'
+  if (/(?:مجدد|refurbished|reconditioned)/i.test(value)) return 'مجدد'
+  return value
+}
+
+function parseListingUpdateFields(message: string): Partial<Pick<AIProposalInput, 'name' | 'description' | 'category' | 'brand' | 'condition' | 'partNumber' | 'oemNumber' | 'searchAliases' | 'fitmentNotes' | 'image' | 'universal'>> {
+  const nameChange = listingNameChange(message)
+  const name = nameChange?.value || listingFieldValue(message, /(?:اسم(?:\s+(?:القطعة|العرض|المنتج))?|الاسم|name)/i, 160)
+  const description = listingFieldValue(message, /(?:وصف|description)/i, 2000)
+  const category = listingFieldValue(message, /(?:الفئة|التصنيف|category)/i, 120)
+  const brand = listingFieldValue(message, /(?:الماركة|البراند|brand)/i, 80)
+  const condition = normalizeConditionValue(listingFieldValue(message, /(?:الحالة|condition)/i, 120))
+  const partNumber = listingFieldValue(message, /(?:رقم\s*القطعة|part\s*number)/i, 100)
+  const oemNumber = listingFieldValue(message, /(?:OEM\s*رقم|رقم\s*OEM|oem\s*number|oem)/i, 100)
+  const searchAliases = listingFieldValue(message, /(?:أسماء\s*بحث(?:\s*إضافية)?|مرادفات\s*البحث|search\s*aliases|aliases)/i, 500)
+  const fitmentNotes = listingFieldValue(message, /(?:ملاحظات\s*التوافق|fitment\s*notes)/i, 1000)
+  const image = message.match(/https:\/\/[^\s،,؟?؛;]+/i)?.[0]?.slice(0, 500)
+  const universal = /(?:توافق\s*(?:عام|مع\s*(?:كل|جميع))|متوافق\s+مع\s*(?:كل|جميع)\s*(?:السيارات|العربيات|vehicles?|cars?)|universal|all\s+(?:cars?|vehicles?))/i.test(message)
+    ? true
+    : /(?:ليس\s+عام(?:اً|ا)?|غير\s+متوافق\s+مع\s*(?:كل|جميع)|not\s+universal)/i.test(message) ? false : undefined
+  return { ...(name ? { name } : {}), ...(description ? { description } : {}), ...(category ? { category } : {}), ...(brand ? { brand } : {}), ...(condition ? { condition } : {}), ...(partNumber ? { partNumber } : {}), ...(oemNumber ? { oemNumber } : {}), ...(searchAliases ? { searchAliases } : {}), ...(fitmentNotes ? { fitmentNotes } : {}), ...(image ? { image } : {}), ...(universal !== undefined ? { universal } : {}) }
 }
 
 function entityReference(message: string, selected: string | undefined, removals: RegExp): Pick<AIProposalInput, 'entityName'> {
@@ -275,6 +551,26 @@ function requestedLimit(message: string, fallback: number) { const value = integ
 function numberAfter(message: string, marker: RegExp) { const match = message.match(new RegExp(`${marker.source}\\s*(?:إلى|الى|to|=|:)?\\s*(\\d+(?:[.,]\\d+)?)`, 'i')); return match ? Number(match[1].replace(',', '.')) : undefined }
 function integerAfter(message: string, marker: RegExp) { const value = numberAfter(message, marker); return value === undefined ? undefined : Math.floor(value) }
 function integerBeforeOrAfter(message: string, marker: RegExp) { const after = integerAfter(message, marker); if (after !== undefined) return after; const match = message.match(new RegExp(`(\\d+)\\s*${marker.source}`, 'i')); return match ? Number(match[1]) : undefined }
+function dimensionRating(message: string, marker: RegExp) {
+  const value = integerBeforeOrAfter(message, marker)
+  return value !== undefined && value >= 1 && value <= 5 ? value : undefined
+}
+function percentageAfter(message: string, marker: RegExp) {
+  const direct = numberAfter(message, marker)
+  const match = message.match(/([+-]?\d+(?:[.,]\d+)?)\s*%/i)
+  const value = direct ?? (match ? Number(match[1].replace(',', '.')) : undefined)
+  if (value === undefined) return undefined
+  return /(?:خفض|قلل|نقص|decrease)/i.test(message) ? -Math.abs(value) : value
+}
+function signedIntegerAfter(message: string, marker: RegExp) {
+  const match = message.match(new RegExp(marker.source + '\\s*(?:هم|ها|ه|إلى|الى|to|بمقدار|بـ|=|:)?\\s*([+-]?\\d+)', 'i'))
+  if (!match) return undefined
+  const value = Number(match[1])
+  return /(?:نقص|قلل|decrease|خفض)/i.test(message) ? -Math.abs(value) : Math.abs(value)
+}
+function profilePhone(message: string) {
+  return message.match(/(?:الهاتف|هاتف|رقمي|phone|mobile|tel)\s*(?:إلى|الى|to|=|:)?\s*([+\d][\d\s()-]{7,})/i)?.[1]?.replace(/[\s()-]/g, '')
+}
 function isEnglish(message: string) { return /[A-Za-z]/.test(message) && !/[\u0600-\u06FF]/.test(message) }
 
 function greeting(role: AIRole, english: boolean) {

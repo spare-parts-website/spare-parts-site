@@ -127,7 +127,7 @@ export function AppShell({
       <CartDrawer />
       <MobileBottomNav />
       <PwaInstaller />
-      <AIAssistantLoader user={user} />
+      <AIAssistantLoader user={user} pathname={pathname} />
     </div>
   )
 }

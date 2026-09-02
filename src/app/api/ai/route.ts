@@ -8,8 +8,9 @@ import { appendAIMessage, getOrCreateConversation, loadConversationMessages, pur
 import { acquireAIConcurrency, aiModel, aiProviderTargets, aiQuota, releaseAIConcurrency, type AIProviderTarget } from '@/lib/ai/runtime'
 import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
-import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard } from '@/lib/ai/types'
+import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard, type AISelectedEntity } from '@/lib/ai/types'
 import { buildSellerMessagePlan, buildSellerPerformancePlan, executeDeterministicAIRequest } from '@/lib/ai/tools'
+import { buildAIConversationContext, resolveContextSelection, safePageContext } from '@/lib/ai/context'
 
 export const maxDuration = 120
 
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const user = await getSession(); const role: AIRole = user?.role || 'GUEST'
     const current = sanitizeIncomingUserMessage(body.messages.at(-1), user)
     const message: string = textFromMessage(current) || 'حلل الصورة المرفقة وساعدني بناءً على ما يظهر فيها.'
-    const plan = planAIRequest(message, role); const address = requestAddress(request)
+    const address = requestAddress(request)
     void purgeExpiredAIData().catch((error) => console.error(JSON.stringify({ event: 'ai.cleanup.failed', requestId, error: errorMessage(error) })))
 
     let conversationId: string | undefined; let expiresAt: string | undefined; let uiMessages: GhyarAIMessage[]
@@ -34,8 +35,19 @@ export async function POST(request: Request) {
     } else uiMessages = [...safeGuestHistory(body.messages.slice(0, -1)), current]
 
     const clientContext = safeClientContext(body.clientContext)
+    // Resolve bounded conversation/page/entity context before selecting the
+    // intent. Follow-ups can therefore reuse a prior result safely.
+    const conversationContext = buildAIConversationContext({ messages: uiMessages, currentMessage: message, role, clientContext })
+    const contextualSelection = clientContext.selection || resolveContextSelection(conversationContext, message)
+    const planningContext = {
+      ...clientContext,
+      ...(conversationContext.previousSearch ? { previousSearch: conversationContext.previousSearch } : {}),
+      ...(conversationContext.previousEntities?.length ? { previousEntities: conversationContext.previousEntities } : {}),
+      ...(contextualSelection ? { selection: contextualSelection } : {}),
+    }
+    const plan = planAIRequest(message, role, conversationContext)
     if (role === 'SHOP_OWNER' && plan.intent === 'seller_message_workflow' && user && conversationId) {
-      const result = await buildSellerMessagePlan({ user, conversationId, selection: clientContext.selection })
+      const result = await buildSellerMessagePlan({ user, conversationId, selection: planningContext.selection })
       await appendDirectResult({ result, conversationId, expiresAt, requestId, event: 'ai.seller_message_plan.completed', startedAt })
       return directResultResponse(result, { conversationId, expiresAt, requestId, provider: 'deterministic' })
     }
@@ -46,7 +58,7 @@ export async function POST(request: Request) {
       return directResultResponse(result, { conversationId, expiresAt, requestId, provider: 'deterministic' })
     }
     try {
-      const directResult = await executeDeterministicAIRequest({ toolName: plan.forcedTool, role, user, conversationId, clientContext, message })
+      const directResult = await executeDeterministicAIRequest({ toolName: plan.forcedTool, role, user, conversationId, clientContext: planningContext, message })
       if (directResult) {
         if (conversationId) await appendDirectResult({ result: directResult, conversationId, expiresAt, requestId, event: 'ai.deterministic.completed', startedAt })
         else console.info(JSON.stringify({ event: 'ai.deterministic.completed', requestId, role, intent: plan.intent, tool: plan.forcedTool || 'static', cards: directResult.cards.length, durationMs: Date.now() - startedAt }))
@@ -71,7 +83,7 @@ export async function POST(request: Request) {
       const attemptStarted = Date.now(); let stepCount = 0; let clientStream: ReadableStream<UIMessageChunk> | undefined
       try {
         console.info(JSON.stringify({ event: 'ai.provider.started', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, images: hasImage ? 1 : 0 }))
-        const agent = createGhyarAgent({ role, user, conversationId, clientContext, plan, provider })
+        const agent = createGhyarAgent({ role, user, conversationId, clientContext: planningContext, conversationContext, plan, provider })
         const source = await createAgentUIStream({
           agent, uiMessages: modelMessages, timeout: { totalMs: attemptTimeout(plan.complexity, hasImage, provider) }, sendReasoning: false, sendSources: true,
           messageMetadata: () => ({ conversationId, expiresAt, requestId, provider, fallbackCount: index }),
@@ -111,9 +123,48 @@ function safeGuestHistory(values: unknown[]): GhyarAIMessage[] {
   return values.slice(-10).flatMap((value, index) => {
     if (!value || typeof value !== 'object') return []
     const raw = value as { role?: unknown; parts?: unknown }; if (!['user', 'assistant'].includes(String(raw.role)) || !Array.isArray(raw.parts)) return []
-    const text = raw.parts.flatMap((part) => part && typeof part === 'object' && (part as { type?: unknown }).type === 'text' && typeof (part as { text?: unknown }).text === 'string' ? [(part as { text: string }).text.trim().slice(0, 4000)] : []).join('\n')
-    return text ? [{ id: `guest-${index}`, role: raw.role as 'user' | 'assistant', parts: [{ type: 'text' as const, text }] }] : []
+    const parts = raw.parts.flatMap((part, partIndex) => {
+      if (!part || typeof part !== 'object') return []
+      const candidate = part as { type?: unknown; text?: unknown; state?: unknown; output?: unknown }
+      if (candidate.type === 'text' && typeof candidate.text === 'string') {
+        const text = candidate.text.trim().slice(0, 4000)
+        return text ? [{ type: 'text' as const, text }] : []
+      }
+      // Preserve only the bounded public result-card shape so a guest can say
+      // “the second one” on the next turn. Proposals, client actions, files,
+      // private links, and arbitrary tool inputs are intentionally discarded.
+      if (raw.role !== 'assistant' || candidate.type !== 'dynamic-tool' || candidate.state !== 'output-available') return []
+      const card = safeGuestCard(candidate.output)
+      return card ? [{ type: 'dynamic-tool', toolName: 'guest-context', toolCallId: `guest-${index}-${partIndex}`, state: 'output-available', input: {}, output: card, dynamic: true } as GhyarAIMessage['parts'][number]] : []
+    })
+    return parts.length ? [{ id: `guest-${index}`, role: raw.role as 'user' | 'assistant', parts: parts as GhyarAIMessage['parts'] }] : []
   })
+}
+
+function safeGuestCard(value: unknown): AIToolCard | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const raw = value as Record<string, unknown>
+  const type = raw.type === 'results' || raw.type === 'insight' || raw.type === 'navigation' ? raw.type : 'results'
+  const title = typeof raw.title === 'string' ? raw.title.trim().slice(0, 160) : ''
+  if (!title) return undefined
+  const description = typeof raw.description === 'string' ? raw.description.trim().slice(0, 800) : undefined
+  const items = Array.isArray(raw.items) ? raw.items.slice(0, 8).flatMap((item) => {
+    if (!item || typeof item !== 'object') return []
+    const candidate = item as Record<string, unknown>
+    const id = typeof candidate.id === 'string' ? candidate.id.slice(0, 100) : ''
+    const itemTitle = typeof candidate.title === 'string' ? candidate.title.trim().slice(0, 160) : ''
+    if (!id || !itemTitle) return []
+    const href = typeof candidate.href === 'string' && /^\/(?:parts|stores)(?:\/|$)/i.test(candidate.href) ? candidate.href.slice(0, 240) : undefined
+    const selectRaw = candidate.select
+    const select = selectRaw && typeof selectRaw === 'object' ? selectRaw as Record<string, unknown> : undefined
+    const selectKind: AISelectedEntity['kind'] | undefined = select && (select.kind === 'part' || select.kind === 'store') ? select.kind : undefined
+    const selectId = select && typeof select.id === 'string' ? select.id.slice(0, 100) : ''
+    const selectLabel = select && typeof select.label === 'string' ? select.label.trim().slice(0, 160) : ''
+    const selection: AISelectedEntity | undefined = selectKind && selectId && selectLabel ? { kind: selectKind, id: selectId, label: selectLabel } : undefined
+    const itemValue = typeof candidate.value === 'string' || typeof candidate.value === 'number' ? candidate.value : undefined
+    return [{ id, title: itemTitle, ...(typeof candidate.subtitle === 'string' ? { subtitle: candidate.subtitle.trim().slice(0, 240) } : {}), ...(href ? { href } : {}), ...(itemValue !== undefined ? { value: itemValue } : {}), ...(selection ? { select: selection } : {}) }]
+  }) : []
+  return { type, title, ...(description ? { description } : {}), ...(items.length ? { items } : {}) }
 }
 
 function safeClientContext(value: unknown): AIClientContext {
@@ -122,7 +173,8 @@ function safeClientContext(value: unknown): AIClientContext {
   const selection = rawSelection && typeof rawSelection === 'object' ? rawSelection as Record<string, unknown> : null
   const kind = selection && AI_ENTITY_KINDS.includes(selection.kind as (typeof AI_ENTITY_KINDS)[number]) ? selection.kind as (typeof AI_ENTITY_KINDS)[number] : undefined
   const id = typeof selection?.id === 'string' ? selection.id.slice(0, 100) : ''; const label = typeof selection?.label === 'string' ? selection.label.trim().slice(0, 160) : ''
-  return { cart: cart.slice(0, 20).flatMap((raw) => { if (!raw || typeof raw !== 'object') return []; const item = raw as Record<string, unknown>; const partId = typeof item.partId === 'string' ? item.partId.slice(0, 100) : ''; const name = typeof item.name === 'string' ? item.name.trim().slice(0, 160) : ''; const quantity = Number(item.quantity); const price = Number(item.price); return partId && name && Number.isInteger(quantity) && quantity > 0 && Number.isFinite(price) && price >= 0 ? [{ partId, name, quantity: Math.min(quantity, 1000), price: Math.min(price, 100000000) }] : [] }), ...(kind && id && label ? { selection: { kind, id, label } } : {}) }
+  const page = safePageContext(value && typeof value === 'object' ? (value as { page?: unknown }).page : undefined)
+  return { cart: cart.slice(0, 20).flatMap((raw) => { if (!raw || typeof raw !== 'object') return []; const item = raw as Record<string, unknown>; const partId = typeof item.partId === 'string' ? item.partId.slice(0, 100) : ''; const name = typeof item.name === 'string' ? item.name.trim().slice(0, 160) : ''; const quantity = Number(item.quantity); const price = Number(item.price); return partId && name && Number.isInteger(quantity) && quantity > 0 && Number.isFinite(price) && price >= 0 ? [{ partId, name, quantity: Math.min(quantity, 1000), price: Math.min(price, 100000000) }] : [] }), ...(kind && id && label ? { selection: { kind, id, label } } : {}), ...(page ? { page } : {}) }
 }
 
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }

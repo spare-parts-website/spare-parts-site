@@ -7,6 +7,7 @@ import type { AuthUser } from '@/lib/store'
 
 type AssistantProps = {
   user: AuthUser | null
+  pathname: string
   initiallyOpen?: boolean
   initialPrompt?: string
 }
@@ -18,7 +19,7 @@ function loadAssistant() {
   return assistantPromise
 }
 
-export function AIAssistantLoader({ user }: { user: AuthUser | null }) {
+export function AIAssistantLoader({ user, pathname }: { user: AuthUser | null; pathname: string }) {
   const [requested, setRequested] = useState(false)
   const [initialPrompt, setInitialPrompt] = useState('')
   const [Assistant, setAssistant] = useState<ComponentType<AssistantProps> | null>(null)
@@ -48,7 +49,7 @@ export function AIAssistantLoader({ user }: { user: AuthUser | null }) {
   }, [Assistant, requestAssistant])
 
   if (Assistant) {
-    return <Assistant user={user} initiallyOpen initialPrompt={initialPrompt} />
+    return <Assistant user={user} pathname={pathname} initiallyOpen initialPrompt={initialPrompt} />
   }
 
   return (

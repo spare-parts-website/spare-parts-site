@@ -123,6 +123,23 @@ export async function resolveSellerMessage(user: SessionUser, query?: string, re
   return finish('message', 'الرسالة', rows.map((message) => ({ id: message.id, label: `${message.part.name} — ${message.sender.name}`, subtitle: `${message.message.slice(0, 140)} • ${message.createdAt.toLocaleDateString('ar-EG')}` })))
 }
 
+/** Resolve an admin support ticket without exposing requester contact data. */
+export async function resolveSupportTicket(reference: NaturalReference, selection?: AISelectedEntity): Promise<EntityResolution> {
+  const id = selectedId(selection, 'support_ticket') || reference.targetId
+  const query = text(reference.entityName, reference.name, reference.orderDescription)
+  const rows = await db.supportTicket.findMany({
+    where: id
+      ? { id }
+      : query
+        ? { OR: [{ subject: { contains: query, mode: 'insensitive' } }, { user: { name: { contains: query, mode: 'insensitive' } } }] }
+        : {},
+    select: { id: true, subject: true, status: true, category: true, updatedAt: true, user: { select: { name: true } } },
+    orderBy: { updatedAt: 'desc' },
+    take: id || !query ? 1 : 6,
+  })
+  return finish('support_ticket', 'تذكرة الدعم', rows.map((ticket) => ({ id: ticket.id, label: ticket.subject, subtitle: `${ticket.user.name} • ${ticket.category} • ${ticket.status} • ${ticket.updatedAt.toLocaleDateString('ar-EG')}` })))
+}
+
 export async function resolveAdminEntity(kind: Extract<AIEntityKind, 'user' | 'report' | 'verification' | 'dispute'>, reference: NaturalReference, selection?: AISelectedEntity): Promise<EntityResolution> {
   const id = selectedId(selection, kind) || reference.targetId
   const query = text(reference.entityName, reference.name, reference.storeName, reference.orderDescription)

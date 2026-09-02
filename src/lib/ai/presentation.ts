@@ -19,6 +19,10 @@ function isImportantCard(card: AIToolCard) {
   if (card.clientAction) return true
   if (card.proposal || card.type === 'proposal') return true
   const selectable = card.items?.filter((item) => item.select).length || 0
+  // A single selectable result is still an actionable entity. Keep it as a
+  // structured card so the user can select/open it instead of burying it in
+  // prose (the UI must not refer to a list that was not rendered).
+  if (selectable === 1) return true
   return selectable > 1 && /(?:اختر|حد[ّ]?د|المقصود|نتائج البحث|قطع متوافقة)/i.test(card.title)
 }
 

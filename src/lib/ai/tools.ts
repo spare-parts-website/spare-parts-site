@@ -7,6 +7,10 @@ import { planDeterministicRequest } from '@/lib/ai/deterministic'
 import { presentSellerInventory } from '@/lib/ai/deterministic-presenters'
 import { presentAIResponse } from '@/lib/ai/presentation'
 import { resolutionCard, resolveAdminEntity, resolveOrder, resolvePart, resolveSellerCoupon, resolveSellerMessage, resolveStore } from '@/lib/ai/resolver'
+import { allowedToolNamesForRole } from '@/lib/ai/capabilities'
+import { getPublicPartsList, getPublicStoresList } from '@/lib/public-marketplace'
+import { deliveryQuote } from '@/lib/delivery'
+import { buildGroupedOrderDrafts } from '@/lib/grouped-orders'
 import { AI_ACTIONS, type AIClientContext, type AIRole, type AIToolCard, type AIToolName } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
@@ -44,84 +48,71 @@ const actionSchema = z.object({
   role: z.enum(['BUYER', 'SHOP_OWNER', 'ADMIN']).optional(),
   trackingNumber: z.string().max(100).optional(),
   brand: z.string().max(80).optional(),
+  message: z.string().max(5000).optional(),
+  messageKind: z.enum(['part', 'order']).optional(),
+  subject: z.string().max(160).optional(),
+  ticketCategory: z.string().max(40).optional(),
+  reviewType: z.enum(['product', 'store']).optional(),
+  rating: z.number().int().min(1).max(5).optional(),
+  sellerRating: z.number().int().min(1).max(5).optional(),
+  packagingRating: z.number().int().min(1).max(5).optional(),
+  deliveryRating: z.number().int().min(1).max(5).optional(),
+  reason: z.string().max(2000).optional(),
+  disputeType: z.enum(['RETURN', 'WRONG_ITEM', 'DAMAGED', 'DELIVERY', 'OTHER']).optional(),
+  address: z.string().max(300).optional(),
+  phone: z.string().max(40).optional(),
+  avatar: z.string().max(500).optional(),
+  verified: z.boolean().optional(),
+  image: z.string().max(500).optional(),
+  images: z.array(z.string().max(500)).max(4).optional(),
+  universal: z.boolean().optional(),
+  fitmentNotes: z.string().max(1000).optional(),
+  email: z.string().email().max(254).optional(),
+  emailNotifications: z.boolean().optional(),
+  emailDeliveryStatus: z.enum(['ACTIVE', 'BOUNCED', 'COMPLAINED', 'SUPPRESSED']).optional(),
+  stockDelta: z.number().int().min(-1000000).max(1000000).optional(),
+  pricePercent: z.number().finite().min(-100).max(1000).optional(),
+  targetIds: z.array(z.string().max(100)).max(200).optional(),
 })
+
+async function marketplaceCard(query: string, limit: number, compare = false): Promise<AIToolCard> {
+  const boundedQuery = query.trim().slice(0, 160)
+  const [partsResult, storesResult] = await Promise.all([
+    getPublicPartsList({ search: boundedQuery, sort: compare ? 'price-asc' : 'newest', page: 1 }),
+    compare ? Promise.resolve({ stores: [] as Array<never> }) : getPublicStoresList(boundedQuery, 1),
+  ])
+  const parts = partsResult.parts.slice(0, Math.max(1, Math.min(limit, 10)))
+  const stores = storesResult.stores.slice(0, Math.min(4, limit))
+  if (compare) {
+    const comparisonItems = parts.map((part, index) => {
+      const fitment = part.universal ? 'توافق عام' : part.compatibilities.length ? `${part.compatibilities.length} توافقات مسجلة` : 'لا توجد بيانات توافق'
+      return {
+        id: `compare-part-${part.id}`,
+        title: `${index + 1}. ${part.name}`,
+        subtitle: `${part.store.name} • ${part.stock > 0 ? `متاح ${part.stock}` : 'غير متاح'} • ${part.condition || 'الحالة غير محددة'} • ${fitment}`,
+        value: `${part.price.toLocaleString('ar-EG')} ج.م`,
+        href: `/parts/${encodeURIComponent(part.id)}`,
+        select: { kind: 'part' as const, id: part.id, label: part.name },
+      }
+    })
+    return { type: 'results', title: `مقارنة ${comparisonItems.length} عروض حقيقية`, description: comparisonItems.length ? 'المقارنة مرتبة من الأقل سعراً، وكل البيانات من العروض العامة الحالية. لم أضف مواصفات غير موجودة.' : 'لم أجد عروضاً كافية للمقارنة حالياً.', items: comparisonItems }
+  }
+  const prices = parts.map((part) => part.price).filter((price) => Number.isFinite(price))
+  const priceSummary = prices.length ? ` • الأسعار من ${Math.min(...prices).toLocaleString('ar-EG')} إلى ${Math.max(...prices).toLocaleString('ar-EG')} ج.م` : ''
+  return {
+    type: 'results',
+    title: `نتائج البحث عن «${boundedQuery}»`,
+    description: parts.length || stores.length ? `${parts.length} قطع و${stores.length} متاجر من البحث العام الرسمي${priceSummary}. تحقق من التوافق والمخزون قبل الشراء.` : 'لم نجد نتائج مطابقة حالياً. جرّب اسم القطعة أو الماركة أو رقم OEM أو موديل السيارة.',
+    items: [
+      ...parts.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.store.name}${part.brand ? ` • ${part.brand}` : ''} • ${part.stock > 0 ? `متاح ${part.stock}` : 'غير متاح حالياً'}`, value: `${part.price.toLocaleString('ar-EG')} ج.م`, href: `/parts/${encodeURIComponent(part.id)}`, select: { kind: 'part' as const, id: part.id, label: part.name } })),
+      ...stores.map((store) => ({ id: `store-${store.id}`, title: store.name, subtitle: store.verified ? 'متجر معتمد' : 'متجر غير معتمد بعد', value: store.avgRating ? `${store.avgRating.toFixed(1)}/5` : undefined, href: `/stores/${encodeURIComponent(store.id)}`, select: { kind: 'store' as const, id: store.id, label: store.name } })),
+    ],
+  }
+}
 
 export function createAITools(input: { role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; internetSearchEnabled?: boolean; allowedTools?: AIToolName[] }) {
   let internetSearches = 0
-  const commonTools = {
-    searchMarketplace: tool({
-      description: 'ابحث في قطع الغيار والمتاجر العامة. استخدمها قبل اقتراح منتجات أو متاجر.',
-      inputSchema: z.object({ query: z.string().min(1).max(120), limit: z.number().int().min(1).max(10).default(6) }),
-      execute: async ({ query, limit }): Promise<AIToolCard> => {
-        const terms: string[] = [...new Set<string>(query.split(/\s+/).map((term: string) => term.trim()).filter((term: string) => term.length >= 2))].slice(0, 6)
-        const partSearch = (terms.length ? terms : [query]).flatMap((term) => [{ name: { contains: term } }, { description: { contains: term } }, { brand: { contains: term } }, { partNumber: { contains: term } }, { oemNumber: { contains: term } }, { searchAliases: { contains: term } }, { compatibilities: { some: { OR: [{ make: { contains: term } }, { model: { contains: term } }] } } }])
-        const storeSearch = (terms.length ? terms : [query]).flatMap((term) => [{ name: { contains: term } }, { description: { contains: term } }])
-        const [parts, stores] = await Promise.all([
-          db.part.findMany({
-            where: { blocked: false, OR: partSearch },
-            select: { id: true, name: true, price: true, stock: true, brand: true, description: true, partNumber: true, oemNumber: true, searchAliases: true, store: { select: { name: true } } },
-            take: limit,
-            orderBy: { createdAt: 'desc' },
-          }),
-          db.store.findMany({ where: { OR: storeSearch }, select: { id: true, name: true, description: true, verified: true }, take: Math.min(4, limit) }),
-        ])
-        const relevance = (value: string) => terms.reduce((score, term) => score + (value.toLocaleLowerCase().includes(term.toLocaleLowerCase()) ? 1 : 0), 0)
-        const visibleParts = parts.filter((part) => !isBlockedStoreName(part.store.name)).sort((a, b) => relevance([b.name, b.brand, b.description, b.partNumber, b.oemNumber, b.searchAliases].filter(Boolean).join(' ')) - relevance([a.name, a.brand, a.description, a.partNumber, a.oemNumber, a.searchAliases].filter(Boolean).join(' ')))
-        const visibleStores = stores.filter((store) => !isBlockedStoreName(store.name)).sort((a, b) => relevance(`${b.name} ${b.description || ''}`) - relevance(`${a.name} ${a.description || ''}`))
-        const prices = visibleParts.map((part) => part.price)
-        const priceSummary = prices.length ? ` • الأسعار من ${Math.min(...prices).toLocaleString('ar-EG')} إلى ${Math.max(...prices).toLocaleString('ar-EG')} ج.م` : ''
-        return {
-          type: 'results', title: `نتائج البحث عن «${query}»`,
-          description: visibleParts.length || visibleStores.length ? `${visibleParts.length} قطع و${visibleStores.length} متاجر من بيانات غيار ماركت الحالية${priceSummary}. تحقق من التوافق والمخزون قبل الشراء.` : 'لم نجد نتائج مطابقة حالياً. جرّب اسم القطعة أو الماركة أو رقم OEM أو موديل السيارة.',
-          items: [
-            ...visibleParts.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.store.name}${part.brand ? ` • ${part.brand}` : ''} • ${part.stock > 0 ? `متاح ${part.stock}` : 'غير متاح حالياً'}`, value: `${part.price.toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })),
-            ...visibleStores.map((store) => ({ id: `store-${store.id}`, title: store.name, subtitle: store.verified ? 'متجر معتمد' : 'متجر غير معتمد بعد', select: { kind: 'store' as const, id: store.id, label: store.name } })),
-          ],
-        }
-      },
-    }),
-    navigate: tool<{ destination: string; query?: string }, AIToolCard, Record<string, never>>({
-      description: 'جهّز انتقالاً فورياً داخل الموقع. هذا لا يغيّر أي بيانات.',
-      inputSchema: z.object({ destination: z.string().min(1).max(40), query: z.string().max(120).optional() }),
-      execute: async ({ destination, query }) => {
-        const parsedDestination = navigationDestinations.safeParse(destination)
-        if (!parsedDestination.success) throw new Error('NAVIGATION_FORBIDDEN')
-        const href = navigationHref(parsedDestination.data, input.role, query)
-        return { type: 'navigation', title: 'الصفحة جاهزة', description: 'يمكن فتح الصفحة المطلوبة الآن.', clientAction: { type: 'navigate', href } } satisfies AIToolCard
-      },
-    }),
-    prepareDraft: tool({
-      description: 'حضّر مسودة فقط دون حفظها. استخدمها للوصف أو البحث أو الرسائل أو نماذج البائع.',
-      inputSchema: z.object({ target: z.enum(['search', 'message', 'listing', 'coupon', 'moderation_note']), fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])) }),
-      execute: async ({ target, fields }): Promise<AIToolCard> => {
-        assertDraftAllowed(target, input.role)
-        return { type: 'draft', title: 'تم تجهيز المسودة', description: 'راجعها قبل الحفظ أو الإرسال.', clientAction: { type: 'draft', target, fields } }
-      },
-    }),
-  }
-
-  const buyerTools = input.user && input.user.role !== 'ADMIN' ? {
-    getAccountContext: tool<{ focus: 'overview' | 'orders' | 'cart' | 'favorites'; orderStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED' }, AIToolCard, Record<string, never>>({
-      description: 'اعرض الجزء المطلوب فقط من حساب المشتري: ملخص أو متاجر مفضلة أو طلبات أو سلة.',
-      inputSchema: z.object({ focus: z.enum(['overview', 'orders', 'cart', 'favorites']).default('overview'), orderStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']).optional() }),
-      execute: async ({ focus, orderStatus }): Promise<AIToolCard> => {
-        const [favorites, orders, favoriteCount, orderCount, wishlistCount] = await Promise.all([
-          db.storeWishlist.findMany({ where: { userId: input.user!.id }, include: { store: { select: { id: true, name: true } } }, take: 10 }),
-          db.order.findMany({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) }, include: { part: { select: { name: true } }, items: { select: { productName: true, quantity: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
-          db.storeWishlist.count({ where: { userId: input.user!.id } }),
-          db.order.count({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) } }),
-          db.wishlist.count({ where: { userId: input.user!.id } }),
-        ])
-        const cartTotal = input.clientContext.cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
-        const cartItems = input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `الكمية ${item.quantity} • سعر الوحدة ${item.price.toLocaleString('ar-EG')} ج.م`, value: `${(item.price * item.quantity).toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: item.partId, label: item.name } }))
-        const favoriteItems = favorites.map((favorite) => ({ id: `store-${favorite.store.id}`, title: favorite.store.name, subtitle: 'متجر محفوظ في المفضلة', select: { kind: 'store' as const, id: favorite.store.id, label: favorite.store.name } }))
-        const orderItems = orders.map((order) => { const label = order.items.length > 1 ? `${order.items.length} منتجات` : order.items[0]?.productName || order.part.name; return { id: `order-${order.id}`, title: label, subtitle: `${order.store.name} • ${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label } } })
-        if (focus === 'cart') return { type: 'insight', title: 'سلة مشترياتك', description: cartItems.length ? `${cartItems.length} عناصر بقيمة إجمالية ${cartTotal.toLocaleString('ar-EG')} ج.م. الأسعار والمخزون قد يتغيران حتى إتمام الطلب.` : 'سلة مشترياتك فارغة حالياً.', items: cartItems }
-        if (focus === 'favorites') return { type: 'insight', title: 'المفضلة', description: favoriteCount || wishlistCount ? `${favoriteCount} متجر مفضل${wishlistCount ? ` • ${wishlistCount} قطعة محفوظة في البيانات القديمة` : ''}. أعرض أحدث المتاجر المحفوظة.` : 'لا توجد متاجر محفوظة في المفضلة حالياً.', items: favoriteItems }
-        if (focus === 'orders') return { type: 'insight', title: orderStatus ? `طلباتك — ${humanStatus(orderStatus)}` : 'طلباتك', description: orderCount ? `لديك ${orderCount} ${orderStatus ? `طلبات بحالة «${humanStatus(orderStatus)}»` : 'طلب إجمالاً'}. أعرض أحدث ${orders.length} مع الحالة والكمية والتاريخ والسعر.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'في حسابك'} حالياً.`, items: orderItems }
-        return { type: 'insight', title: 'ملخص حسابك', description: `${orderCount} طلب إجمالي • ${favoriteCount} متجر مفضل • ${input.clientContext.cart.length} عناصر في السلة بقيمة ${cartTotal.toLocaleString('ar-EG')} ج.م.`, items: [...orderItems.slice(0, 2), ...cartItems.slice(0, 2)] }
-      },
-    }),
+  const compatibilityTool = {
     findCompatibleParts: tool<{ carDescription?: string; query?: string }, AIToolCard, Record<string, never>>({
       description: 'ابحث عن قطع متوافقة باستخدام ماركة وموديل مكتوبين مباشرة، مثل BMW 320i 2020. لا توجد سيارات محفوظة داخل المساعد.',
       inputSchema: z.object({ carDescription: z.string().max(160).optional(), query: z.string().max(120).optional() }),
@@ -145,6 +136,113 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         })
         const visible = parts.filter((part) => !isBlockedStoreName(part.store.name))
         return { type: 'results', title: `قطع متوافقة مع ${vehicle.make} ${vehicle.model}`, description: `التوافق مبني على بيانات البائع المسجلة${vehicle.year ? ` لسنة ${vehicle.year}` : ''}. راجع رقم القطعة قبل الشراء.`, items: visible.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.store.name} • مخزون ${part.stock}`, value: `${part.price} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
+      },
+    }),
+  }
+  const commonTools = {
+    ...compatibilityTool,
+    searchMarketplace: tool({
+      description: 'ابحث في قطع الغيار والمتاجر العامة. استخدمها قبل اقتراح منتجات أو متاجر.',
+      inputSchema: z.object({ query: z.string().min(1).max(120), limit: z.number().int().min(1).max(10).default(6) }),
+      execute: async ({ query, limit }): Promise<AIToolCard> => marketplaceCard(query, limit),
+    }),
+    compareMarketplace: tool({
+      description: 'قارن عروض قطع حقيقية من البحث الحالي أو الاستعلام المقدم، بدون اختلاق مواصفات.',
+      inputSchema: z.object({ query: z.string().min(1).max(120), limit: z.number().int().min(2).max(8).default(3) }),
+      execute: async ({ query, limit }): Promise<AIToolCard> => marketplaceCard(query, limit, true),
+    }),
+    navigate: tool<{ destination: string; query?: string }, AIToolCard, Record<string, never>>({
+      description: 'جهّز انتقالاً فورياً داخل الموقع. هذا لا يغيّر أي بيانات.',
+      inputSchema: z.object({ destination: z.string().min(1).max(40), query: z.string().max(120).optional() }),
+      execute: async ({ destination, query }) => {
+        const parsedDestination = navigationDestinations.safeParse(destination)
+        if (!parsedDestination.success) throw new Error('NAVIGATION_FORBIDDEN')
+        const href = navigationHref(parsedDestination.data, input.role, query)
+        return { type: 'navigation', title: 'الصفحة جاهزة', description: 'يمكن فتح الصفحة المطلوبة الآن.', clientAction: { type: 'navigate', href } } satisfies AIToolCard
+      },
+    }),
+    prepareDraft: tool({
+      description: 'حضّر مسودة فقط دون حفظها. استخدمها للوصف أو البحث أو الرسائل أو نماذج البائع.',
+      inputSchema: z.object({ target: z.enum(['search', 'message', 'listing', 'coupon', 'moderation_note']), fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean()])) }),
+      execute: async ({ target, fields }): Promise<AIToolCard> => {
+        assertDraftAllowed(target, input.role)
+        return { type: 'draft', title: 'تم تجهيز المسودة', description: 'راجعها قبل الحفظ أو الإرسال.', clientAction: { type: 'draft', target, fields } }
+      },
+    }),
+  }
+
+  const buyerTools = input.user ? {
+    getAccountContext: tool<{ focus: 'overview' | 'orders' | 'cart' | 'favorites'; orderStatus?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'PAID' | 'SHIPPED' | 'DELIVERED' | 'RETURNED' | 'CANCELLED' }, AIToolCard, Record<string, never>>({
+      description: 'اعرض الجزء المطلوب فقط من حساب المشتري: ملخص أو متاجر مفضلة أو طلبات أو سلة.',
+      inputSchema: z.object({ focus: z.enum(['overview', 'orders', 'cart', 'favorites']).default('overview'), orderStatus: z.enum(['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED']).optional() }),
+      execute: async ({ focus, orderStatus }): Promise<AIToolCard> => {
+        const [favorites, orders, favoriteCount, orderCount, wishlistCount] = await Promise.all([
+          db.storeWishlist.findMany({ where: { userId: input.user!.id }, include: { store: { select: { id: true, name: true } } }, take: 10 }),
+          db.order.findMany({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) }, include: { part: { select: { name: true } }, items: { select: { productName: true, quantity: true } }, store: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 5 }),
+          db.storeWishlist.count({ where: { userId: input.user!.id } }),
+          db.order.count({ where: { buyerId: input.user!.id, ...(orderStatus ? { status: orderStatus } : {}) } }),
+          db.wishlist.count({ where: { userId: input.user!.id } }),
+        ])
+        const cartTotal = input.clientContext.cart.reduce((sum, item) => sum + item.price * item.quantity, 0)
+        const cartItems = input.clientContext.cart.map((item) => ({ id: `cart-${item.partId}`, title: item.name, subtitle: `الكمية ${item.quantity} • سعر الوحدة ${item.price.toLocaleString('ar-EG')} ج.م`, value: `${(item.price * item.quantity).toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: item.partId, label: item.name } }))
+        const favoriteItems = favorites.map((favorite) => ({ id: `store-${favorite.store.id}`, title: favorite.store.name, subtitle: 'متجر محفوظ في المفضلة', select: { kind: 'store' as const, id: favorite.store.id, label: favorite.store.name } }))
+        const orderItems = orders.map((order) => { const label = order.items.length > 1 ? `${order.items.length} منتجات` : order.items[0]?.productName || order.part.name; return { id: `order-${order.id}`, title: label, subtitle: `${order.store.name} • ${humanStatus(order.status)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}${order.trackingNumber ? ` • رقم التتبع ${order.trackingNumber}` : ''}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label } } })
+        if (focus === 'cart') return { type: 'insight', title: 'سلة مشترياتك', description: cartItems.length ? `${cartItems.length} عناصر بقيمة إجمالية ${cartTotal.toLocaleString('ar-EG')} ج.م. الأسعار والمخزون قد يتغيران حتى إتمام الطلب.` : 'سلة مشترياتك فارغة حالياً.', items: cartItems }
+        if (focus === 'favorites') return { type: 'insight', title: 'المفضلة', description: favoriteCount || wishlistCount ? `${favoriteCount} متجر مفضل${wishlistCount ? ` • ${wishlistCount} قطعة محفوظة في البيانات القديمة` : ''}. أعرض أحدث المتاجر المحفوظة.` : 'لا توجد متاجر محفوظة في المفضلة حالياً.', items: favoriteItems }
+        if (focus === 'orders') return { type: 'insight', title: orderStatus ? `طلباتك — ${humanStatus(orderStatus)}` : 'طلباتك', description: orderCount ? `لديك ${orderCount} ${orderStatus ? `طلبات بحالة «${humanStatus(orderStatus)}»` : 'طلب إجمالاً'}. أعرض أحدث ${orders.length} مع الحالة والكمية والتاريخ والسعر.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'في حسابك'} حالياً.`, items: orderItems }
+        return { type: 'insight', title: 'ملخص حسابك', description: `${orderCount} طلب إجمالي • ${favoriteCount} متجر مفضل • ${input.clientContext.cart.length} عناصر في السلة بقيمة ${cartTotal.toLocaleString('ar-EG')} ج.م.`, items: [...orderItems.slice(0, 2), ...cartItems.slice(0, 2)] }
+      },
+    }),
+    getSupportTickets: tool<{ ticketId?: string; status?: 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_CUSTOMER' | 'WAITING_FOR_SUPPORT' | 'RESOLVED' | 'CLOSED'; limit: number }, AIToolCard, Record<string, never>>({
+      description: 'اعرض تذاكر الدعم الخاصة بالحساب ورسائلها الأخيرة دون كشف بيانات خاصة لجهة أخرى.',
+      inputSchema: z.object({ ticketId: z.string().max(100).optional(), status: z.enum(['OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER', 'WAITING_FOR_SUPPORT', 'RESOLVED', 'CLOSED']).optional(), limit: z.number().int().min(1).max(10).default(5) }),
+      execute: async ({ ticketId, status, limit }): Promise<AIToolCard> => {
+        const tickets = await db.supportTicket.findMany({
+          where: { userId: input.user!.id, ...(ticketId ? { id: ticketId } : {}), ...(status ? { status } : {}) },
+          select: { id: true, subject: true, category: true, status: true, orderId: true, updatedAt: true, messages: { orderBy: { createdAt: 'desc' }, take: 2, select: { body: true, authorRole: true, createdAt: true } } },
+          orderBy: { updatedAt: 'desc' }, take: limit,
+        })
+        return { type: 'results', title: 'تذاكر الدعم الخاصة بك', description: tickets.length ? `عرضت ${tickets.length} تذاكر مع آخر رد متاح لكل تذكرة.` : 'لا توجد تذاكر دعم مطابقة حالياً.', items: tickets.map((ticket) => ({ id: `support-${ticket.id}`, title: ticket.subject, subtitle: `${ticket.category} • ${ticket.status}${ticket.orderId ? ` • طلب مرتبط` : ''}${ticket.messages[0] ? ` • ${ticket.messages[0].authorRole === 'ADMIN' ? 'آخر رد من الدعم' : 'بانتظار الدعم'}: ${ticket.messages[0].body.slice(0, 110)}` : ''}`, select: { kind: 'support_ticket' as const, id: ticket.id, label: ticket.subject } })) }
+      },
+    }),
+    getBuyerDisputes: tool<{ status?: 'OPEN' | 'RESOLVED_BUYER' | 'RESOLVED_SELLER' | 'REJECTED'; limit: number }, AIToolCard, Record<string, never>>({
+      description: 'اعرض نزاعات المشتري الخاصة به مع حالة الطلب والقرار، دون إظهار أدلة أو بيانات مشاركين غير لازمة.',
+      inputSchema: z.object({ status: z.enum(['OPEN', 'RESOLVED_BUYER', 'RESOLVED_SELLER', 'REJECTED']).optional(), limit: z.number().int().min(1).max(20).default(10) }),
+      execute: async ({ status, limit }): Promise<AIToolCard> => {
+        const disputes = await db.dispute.findMany({
+          where: { buyerId: input.user!.id, ...(status ? { status } : {}) },
+          select: { id: true, type: true, reason: true, status: true, resolution: true, createdAt: true, order: { select: { part: { select: { name: true } }, items: { select: { productName: true } }, store: { select: { name: true } } } } },
+          orderBy: { createdAt: 'desc' }, take: limit,
+        })
+        return { type: 'results', title: 'نزاعاتك', description: disputes.length ? `${disputes.length} نزاعات معروضة بالحالة والقرار المتاح.` : 'لا توجد نزاعات مطابقة حالياً.', items: disputes.map((dispute) => { const label = dispute.order.items.length > 1 ? `${dispute.order.items.length} منتجات` : dispute.order.items[0]?.productName || dispute.order.part.name; return { id: `dispute-${dispute.id}`, title: label, subtitle: `${dispute.order.store.name} • ${humanStatus(dispute.status)} • ${dispute.type} • ${dispute.reason.slice(0, 100)}${dispute.resolution ? ` • القرار: ${dispute.resolution.slice(0, 90)}` : ''}`, select: { kind: 'dispute' as const, id: dispute.id, label } } }) }
+      },
+    }),
+    getCheckoutPreview: tool<{ couponCode?: string; governorate?: string; deliveryAddress?: string }, AIToolCard, Record<string, never>>({
+      description: 'جهّز ملخصاً حقيقياً للسلة قبل إتمام الطلب: يعيد فحص السعر والمخزون، يجمع المنتجات حسب المتجر، ويعرض الشحن إن عُرفت المحافظة. لا ينشئ طلباً.',
+      inputSchema: z.object({ couponCode: z.string().max(40).optional(), governorate: z.string().max(40).optional(), deliveryAddress: z.string().max(500).optional() }),
+      execute: async ({ couponCode, governorate, deliveryAddress }): Promise<AIToolCard> => {
+        const cart = input.clientContext.cart.slice(0, 50)
+        if (!cart.length) return { type: 'insight', title: 'السلة فارغة', description: 'أضف قطعة واحدة على الأقل قبل تجهيز الطلب.', items: [{ id: 'cart', title: 'فتح السلة', href: '/cart' }] }
+        const ids = [...new Set(cart.map((item) => item.partId))]
+        const parts = await db.part.findMany({ where: { id: { in: ids }, blocked: false }, select: { id: true, name: true, price: true, stock: true, image: true, store: { select: { id: true, name: true, ownerId: true } } } })
+        const byId = new Map(parts.map((part) => [part.id, part]))
+        const missing = cart.filter((item) => !byId.has(item.partId))
+        if (missing.length) return { type: 'results', title: 'السلة تحتاج تحديثاً', description: `لم تعد ${missing.length} ${missing.length === 1 ? 'قطعة' : 'قطع'} متاحة بالسعر والمخزون الحاليين. افتح السلة لمراجعة العناصر قبل الطلب.`, items: missing.map((item) => ({ id: `missing-${item.partId}`, title: item.name, subtitle: 'لم تعد متاحة حالياً', href: '/cart' })) }
+        if (input.user?.role === 'SHOP_OWNER' && parts.some((part) => part.store.ownerId === input.user!.id)) return { type: 'insight', title: 'لا يمكن شراء عرض من متجرك', description: 'أزل عروض متجرك من السلة أو استخدم حساب مشتري لإكمال الطلب.' }
+        const stale = cart.filter((item) => { const part = byId.get(item.partId)!; return item.quantity > part.stock || item.price !== part.price })
+        if (stale.length) return { type: 'results', title: 'السلة تغيّرت', description: 'أعدت فحص السعر والمخزون ووجدت عناصر تحتاج مراجعة قبل إتمام الطلب.', items: stale.map((item) => { const part = byId.get(item.partId)!; return { id: `stale-${part.id}`, title: part.name, subtitle: `${item.price !== part.price ? `السعر الآن ${part.price.toLocaleString('ar-EG')} ج.م` : ''}${item.quantity > part.stock ? ` • المتاح ${part.stock}` : ''}`, value: `${part.price.toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } } }) }
+        const lines = cart.map((item) => { const part = byId.get(item.partId)!; return { partId: part.id, storeId: part.store.id, ownerId: part.store.ownerId, storeName: part.store.name, productName: part.name, productImage: part.image, unitPrice: part.price, quantity: item.quantity } })
+        const coupon = couponCode ? await db.coupon.findUnique({ where: { code: couponCode.trim().toUpperCase() }, select: { code: true, storeId: true, discountPercent: true, active: true, usedCount: true, maxUses: true, expiresAt: true } }) : null
+        const couponValid = coupon && coupon.active && coupon.usedCount < coupon.maxUses && (!coupon.expiresAt || coupon.expiresAt > new Date())
+        if (couponCode && !couponValid) return { type: 'insight', title: 'الكوبون غير صالح', description: 'لم أطبّق الكوبون لأن الكود غير موجود أو منتهي أو استُنفدت استخداماته. يمكنك إتمام الطلب بدونه.', items: [{ id: 'checkout', title: 'فتح صفحة إتمام الطلب', href: '/checkout' }] }
+        const quote = deliveryQuote(governorate)
+        const drafts = buildGroupedOrderDrafts(lines, quote?.fee || 0, couponValid ? { code: coupon.code, storeId: coupon.storeId, discountPercent: coupon.discountPercent } : null)
+        const subtotal = drafts.reduce((sum, draft) => sum + draft.itemsTotal, 0)
+        const shipping = quote ? drafts.reduce((sum, draft) => sum + draft.shippingFee, 0) : undefined
+        const total = subtotal + (shipping || 0)
+        const items = lines.map((line) => ({ id: `checkout-${line.partId}`, title: line.productName, subtitle: `${line.storeName} • ${line.quantity} × ${line.unitPrice.toLocaleString('ar-EG')} ج.م`, value: `${(line.quantity * line.unitPrice).toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: line.partId, label: line.productName } }))
+        const addressHint = deliveryAddress?.trim() ? 'العنوان موجود في المسودة فقط وسيعاد التحقق منه في صفحة الإتمام.' : 'أدخل عنوان التوصيل في صفحة الإتمام.'
+        return { type: 'results', title: 'ملخص الطلب قبل الدفع', description: `${drafts.length} ${drafts.length === 1 ? 'متجر' : 'متاجر'} • المنتجات ${subtotal.toLocaleString('ar-EG')} ج.م${shipping === undefined ? ' • اختر المحافظة لحساب الشحن' : ` • الشحن ${shipping.toLocaleString('ar-EG')} ج.م (${quote!.ar})`} • الإجمالي${shipping === undefined ? ' قبل الشحن' : ''} ${total.toLocaleString('ar-EG')} ج.م. ${addressHint} لا ينشئ هذا الملخص طلباً أو يحجز مخزوناً.`, items: [...items, { id: 'checkout', title: 'فتح صفحة إتمام الطلب', subtitle: 'إعادة فحص نهائية، تجميع حسب المتجر، ودفع عند الاستلام', href: '/checkout' }] }
       },
     }),
   } : {}
@@ -198,8 +296,8 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         }
         if (section === 'orders') {
           const selectedId = input.clientContext.selection?.kind === 'order' ? input.clientContext.selection.id : undefined
-          const orders = await db.order.findMany({ where: { storeId: store.id, ...(orderStatus ? { status: orderStatus } : {}), ...(selectedId ? { id: selectedId } : query ? { OR: [{ part: { name: { contains: query, mode: 'insensitive' as const } } }, { items: { some: { productName: { contains: query, mode: 'insensitive' as const } } } }] } : {}) }, select: { id: true, status: true, paymentStatus: true, totalPrice: true, quantity: true, createdAt: true, part: { select: { name: true } }, items: { select: { productName: true } } }, orderBy, take: limit })
-          return { type: 'results', title: orderStatus ? `طلبات ${humanStatus(orderStatus)}` : 'طلبات المتجر', description: orders.length ? `${orders.length} طلبات تخص متجرك. لا يعرض المساعد بيانات اتصال المشترين.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'مطابقة'} حالياً.`, items: orders.map((order) => { const label = order.items.length > 1 ? `${order.items.length} منتجات` : order.items[0]?.productName || order.part.name; return { id: `order-${order.id}`, title: label, subtitle: `${humanStatus(order.status)} • الدفع ${humanStatus(order.paymentStatus)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label } } }) }
+          const orders = await db.order.findMany({ where: { storeId: store.id, ...(orderStatus ? { status: orderStatus } : {}), ...(selectedId ? { id: selectedId } : query ? { OR: [{ part: { name: { contains: query, mode: 'insensitive' as const } } }, { items: { some: { productName: { contains: query, mode: 'insensitive' as const } } } }] } : {}) }, select: { id: true, status: true, paymentStatus: true, trackingNumber: true, totalPrice: true, quantity: true, createdAt: true, part: { select: { name: true } }, items: { select: { productName: true } } }, orderBy, take: limit })
+          return { type: 'results', title: orderStatus ? `طلبات ${humanStatus(orderStatus)}` : 'طلبات المتجر', description: orders.length ? `${orders.length} طلبات تخص متجرك. لا يعرض المساعد بيانات اتصال المشترين.` : `لا توجد طلبات ${orderStatus ? `بحالة «${humanStatus(orderStatus)}»` : 'مطابقة'} حالياً.`, items: orders.map((order) => { const label = order.items.length > 1 ? `${order.items.length} منتجات` : order.items[0]?.productName || order.part.name; return { id: `order-${order.id}`, title: label, subtitle: `${humanStatus(order.status)} • الدفع ${humanStatus(order.paymentStatus)} • الكمية ${order.quantity} • ${order.createdAt.toLocaleDateString('ar-EG')}${order.trackingNumber ? ` • رقم التتبع ${order.trackingNumber}` : ''}`, value: `${order.totalPrice.toLocaleString('ar-EG')} ج.م`, select: { kind: 'order' as const, id: order.id, label } } }) }
         }
         if (section === 'coupons') {
           const selectedId = input.clientContext.selection?.kind === 'coupon' ? input.clientContext.selection.id : undefined
@@ -216,7 +314,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
           db.productReview.findMany({ where: { part: { storeId: store.id, ...(query ? { name: { contains: query, mode: 'insensitive' as const } } : {}) }, blocked: false, ...(rating ? { rating } : {}) }, select: { id: true, rating: true, comment: true, part: { select: { name: true } } }, orderBy, take: limit }),
           db.storeReview.findMany({ where: { storeId: store.id, blocked: false, ...(rating ? { rating } : {}), ...(query ? { comment: { contains: query, mode: 'insensitive' as const } } : {}) }, select: { id: true, rating: true, comment: true }, orderBy, take: limit }),
         ])
-        const reviewItems = [...productReviews.map((review) => ({ id: review.id, title: `${review.part.name} — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' })), ...storeReviews.map((review) => ({ id: review.id, title: `تقييم المتجر — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics' }))]
+        const reviewItems = [...productReviews.map((review) => ({ id: review.id, title: `تقييم قطعة — ${review.part.name} — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics', select: { kind: 'review' as const, id: review.id, label: `تقييم قطعة — ${review.part.name}` } })), ...storeReviews.map((review) => ({ id: review.id, title: `تقييم متجر — ${review.rating}/5`, subtitle: review.comment?.slice(0, 160) || 'بدون تعليق', href: '/seller/analytics', select: { kind: 'review' as const, id: review.id, label: 'تقييم متجر' } }))]
         return { type: 'results', title: rating ? `تقييمات ${rating}/5` : 'أحدث التقييمات', description: reviewItems.length ? `${reviewItems.length} تقييمات مطابقة. استخدمها لتحسين الخدمة؛ أي تحليل هو توصية تحتاج مراجعتك.` : 'لا توجد تقييمات مطابقة حالياً.', items: reviewItems }
       },
     }),
@@ -227,9 +325,95 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         ? resolutionCard(await resolveSellerCoupon(input.user!, query, recency, input.clientContext.selection), 'coupon', 'الكوبون المقصود')
         : resolutionCard(await resolveSellerMessage(input.user!, query, recency, input.clientContext.selection), 'message', 'الرسالة المقصودة'),
     }),
+    getSellerVerification: tool({
+      description: 'اعرض حالة طلب توثيق متجرك فقط. لا تعرض روابط المستندات الخاصة داخل المساعد.',
+      inputSchema: z.object({}),
+      execute: async (): Promise<AIToolCard> => {
+        const store = await db.store.findUnique({ where: { ownerId: input.user!.id }, select: { id: true, name: true, verificationStatus: true, verification: { select: { businessName: true, status: true, adminNote: true, submittedAt: true, reviewedAt: true } } } })
+        if (!store) return { type: 'insight', title: 'لا يوجد متجر مرتبط', description: 'أنشئ متجراً أولاً من صفحة البائع.' }
+        const verification = store.verification
+        return { type: 'results', title: `توثيق ${store.name}`, description: verification ? `الحالة الحالية: ${humanStatus(verification.status)}${verification.businessName ? ` • النشاط: ${verification.businessName}` : ''}${verification.adminNote ? ` • ملاحظة الإدارة: ${verification.adminNote.slice(0, 240)}` : ''}` : `المتجر غير موثق حالياً (${humanStatus(store.verificationStatus)}). ارفع المستندات من صفحة التوثيق لإرسال الطلب.`, items: [{ id: `store-${store.id}`, title: store.name, subtitle: verification ? `${humanStatus(verification.status)} • آخر إرسال ${verification.submittedAt.toLocaleDateString('ar-EG')}` : humanStatus(store.verificationStatus), href: '/seller/verification', select: { kind: 'store' as const, id: store.id, label: store.name } }] }
+      },
+    }),
   } : {}
 
   const adminTools = input.user?.role === 'ADMIN' ? {
+    getAdminReviews: tool<{ query?: string; state?: 'all' | 'active' | 'blocked'; rating?: number; limit: number }, AIToolCard, Record<string, never>>({
+      description: 'اعرض تقييمات المنتجات والمتاجر للمراجعة الإدارية دون تمرير البريد أو الأدلة الخاصة.',
+      inputSchema: z.object({ query: z.string().max(120).optional(), state: z.enum(['all', 'active', 'blocked']).default('all'), rating: z.number().int().min(1).max(5).optional(), limit: z.number().int().min(1).max(20).default(10) }),
+      execute: async ({ query, state = 'all', rating, limit }): Promise<AIToolCard> => {
+        const blocked = state === 'all' ? undefined : state === 'blocked'
+        const productWhere = { ...(blocked === undefined ? {} : { blocked }), ...(rating ? { rating } : {}), ...(query ? { OR: [{ comment: { contains: query, mode: 'insensitive' as const } }, { part: { name: { contains: query, mode: 'insensitive' as const } } }, { user: { name: { contains: query, mode: 'insensitive' as const } } }] } : {}) }
+        const storeWhere = { ...(blocked === undefined ? {} : { blocked }), ...(rating ? { rating } : {}), ...(query ? { OR: [{ comment: { contains: query, mode: 'insensitive' as const } }, { store: { name: { contains: query, mode: 'insensitive' as const } } }, { user: { name: { contains: query, mode: 'insensitive' as const } } }] } : {}) }
+        const [products, stores] = await Promise.all([
+          db.productReview.findMany({ where: productWhere, select: { id: true, rating: true, comment: true, blocked: true, createdAt: true, part: { select: { name: true } }, user: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: limit }),
+          db.storeReview.findMany({ where: storeWhere, select: { id: true, rating: true, comment: true, blocked: true, createdAt: true, store: { select: { name: true } }, user: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: limit }),
+        ])
+        const items = [...products.map((review) => ({ id: `review-${review.id}`, title: `تقييم قطعة — ${review.part.name}`, subtitle: `${review.rating}/5 • ${review.user.name} • ${review.blocked ? 'محظور' : 'نشط'}${review.comment ? ` • ${review.comment.slice(0, 120)}` : ''}`, select: { kind: 'review' as const, id: review.id, label: `تقييم قطعة — ${review.part.name}` } })), ...stores.map((review) => ({ id: `review-${review.id}`, title: `تقييم متجر — ${review.store.name}`, subtitle: `${review.rating}/5 • ${review.user.name} • ${review.blocked ? 'محظور' : 'نشط'}${review.comment ? ` • ${review.comment.slice(0, 120)}` : ''}`, select: { kind: 'review' as const, id: review.id, label: `تقييم متجر — ${review.store.name}` } }))].slice(0, limit)
+        return { type: 'results', title: state === 'blocked' ? 'التقييمات المحظورة' : state === 'active' ? 'التقييمات النشطة' : 'تقييمات المنصة', description: items.length ? `${items.length} تقييمات مطابقة. اختر تقييماً ثم اطلب حظره أو إلغاء حظره.` : 'لا توجد تقييمات مطابقة حالياً.', items }
+      },
+    }),
+    getAdminEmailDeliverability: tool<{ days: 7 | 30 | 90 }, AIToolCard, Record<string, never>>({
+      description: 'اعرض مؤشرات تسليم البريد مجمعة فقط. لا تعرض عناوين البريد أو محتوى الرسائل أو مفاتيح مزودي الخدمة.',
+      inputSchema: z.object({ days: z.union([z.literal(7), z.literal(30), z.literal(90)]).default(30) }),
+      execute: async ({ days = 30 }): Promise<AIToolCard> => {
+        const to = new Date()
+        const from = new Date(to.getTime() - days * 24 * 60 * 60 * 1000)
+        const statuses = ['SENT', 'DELIVERED', 'DELAYED', 'BOUNCED', 'FAILED', 'COMPLAINED', 'SUPPRESSED'] as const
+        const [grouped, suppressedRecipients] = await Promise.all([
+          db.emailDeliveryAttempt.groupBy({ by: ['status'], where: { createdAt: { gte: from, lte: to } }, _count: { _all: true } }),
+          db.user.count({ where: { emailDeliveryStatus: { in: ['BOUNCED', 'COMPLAINED', 'SUPPRESSED'] } } }),
+        ])
+        const counts = Object.fromEntries(statuses.map((status) => [status, 0])) as Record<(typeof statuses)[number], number>
+        for (const row of grouped) if (row.status in counts) counts[row.status as (typeof statuses)[number]] = row._count._all
+        const total = Object.values(counts).reduce((sum, count) => sum + count, 0)
+        const resolved = counts.DELIVERED + counts.BOUNCED + counts.FAILED + counts.COMPLAINED + counts.SUPPRESSED
+        const rate = resolved ? Math.round((counts.DELIVERED / resolved) * 1000) / 10 : 0
+        return {
+          type: 'insight',
+          title: `تسليم البريد — آخر ${days} يوماً`,
+          description: `${total} محاولة إرسال مسجلة • معدل التسليم ${rate}% • ${suppressedRecipients} حساباً في حالة ارتداد/شكوى/كتم. المؤشرات مجمعة ولا تكشف أي عنوان بريد.`,
+          items: statuses.map((status) => ({ id: `email-${status.toLowerCase()}`, title: humanStatus(status), value: counts[status], href: '/admin/email-deliverability' })),
+        }
+      },
+    }),
+    getAdminModeration: tool<Record<string, never>, AIToolCard, Record<string, never>>({
+      description: 'اعرض ملخص مركز المراجعة والإشراف الإداري بأرقام مجمعة فقط، دون مستندات أو أدلة أو بيانات اتصال خاصة.',
+      inputSchema: z.object({}),
+      execute: async (): Promise<AIToolCard> => {
+        const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+        const [openReports, pendingVerifications, openDisputes, duplicateParts, suspiciousAccounts, recentAuditEvents] = await Promise.all([
+          db.report.count({ where: { status: 'OPEN' } }),
+          db.sellerVerification.count({ where: { status: 'PENDING' } }),
+          db.dispute.count({ where: { status: 'OPEN' } }),
+          db.part.groupBy({ by: ['name', 'storeId'], where: { blocked: false }, _count: { _all: true }, having: { id: { _count: { gt: 1 } } }, orderBy: { _count: { id: 'desc' } }, take: 100 }),
+          db.report.groupBy({ by: ['targetId'], where: { targetType: 'user', status: 'OPEN' }, _count: { _all: true }, having: { id: { _count: { gte: 2 } } }, orderBy: { _count: { id: 'desc' } }, take: 100 }),
+          db.auditLog.count({ where: { createdAt: { gte: since } } }),
+        ])
+        const items = [
+          { id: 'moderation-reports', title: 'بلاغات مفتوحة', value: openReports, href: '/admin/reports' },
+          { id: 'moderation-verifications', title: 'توثيقات معلقة', value: pendingVerifications, href: '/admin/stores' },
+          { id: 'moderation-disputes', title: 'نزاعات مفتوحة', value: openDisputes, href: '/admin/reports' },
+          { id: 'moderation-duplicates', title: 'مجموعات قطع مكررة', value: duplicateParts.length, href: '/admin/parts' },
+          { id: 'moderation-accounts', title: 'حسابات بها بلاغات متكررة', value: suspiciousAccounts.length, href: '/admin/reports' },
+          { id: 'moderation-audit', title: 'أحداث تدقيق آخر 24 ساعة', value: recentAuditEvents, href: '/admin/reports' },
+        ]
+        const attention = openReports + pendingVerifications + openDisputes + duplicateParts.length + suspiciousAccounts.length
+        return { type: 'insight', title: 'مركز المراجعة والإشراف', description: attention ? `${attention} مؤشرات تحتاج مراجعة أو متابعة. هذه أرقام مجمعة فقط؛ افتح الصفحة المصرح بها لمراجعة التفاصيل.` : 'لا توجد مؤشرات مفتوحة أو مكررة تحتاج متابعة حالياً.', items }
+      },
+    }),
+    getAdminSupportTickets: tool<{ ticketId?: string; status?: 'OPEN' | 'IN_PROGRESS' | 'WAITING_FOR_CUSTOMER' | 'WAITING_FOR_SUPPORT' | 'RESOLVED' | 'CLOSED'; search?: string; limit: number }, AIToolCard, Record<string, never>>({
+      description: 'اعرض تذاكر الدعم الإدارية مع ملخص الرسائل فقط، دون تمرير البريد أو الأدلة الخاصة للنموذج.',
+      inputSchema: z.object({ ticketId: z.string().max(100).optional(), status: z.enum(['OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER', 'WAITING_FOR_SUPPORT', 'RESOLVED', 'CLOSED']).optional(), search: z.string().max(120).optional(), limit: z.number().int().min(1).max(20).default(10) }),
+      execute: async ({ ticketId, status, search, limit }): Promise<AIToolCard> => {
+        const tickets = await db.supportTicket.findMany({
+          where: { ...(ticketId ? { id: ticketId } : {}), ...(status ? { status } : {}), ...(search ? { OR: [{ subject: { contains: search, mode: 'insensitive' } }, { user: { name: { contains: search, mode: 'insensitive' } } }] } : {}) },
+          select: { id: true, subject: true, category: true, status: true, orderId: true, updatedAt: true, user: { select: { id: true, name: true } }, messages: { orderBy: { createdAt: 'desc' }, take: 2, select: { body: true, authorRole: true, createdAt: true } } },
+          orderBy: { updatedAt: 'desc' }, take: limit,
+        })
+        return { type: 'results', title: 'تذاكر الدعم', description: tickets.length ? `${tickets.length} تذاكر مطابقة. بيانات الهوية معروضة بالاسم فقط؛ افتح التذكرة المصرح بها للمزيد.` : 'لا توجد تذاكر دعم مطابقة حالياً.', items: tickets.map((ticket) => ({ id: `support-${ticket.id}`, title: ticket.subject, subtitle: `${ticket.user.name} • ${ticket.category} • ${ticket.status}${ticket.orderId ? ' • طلب مرتبط' : ''}${ticket.messages[0] ? ` • ${ticket.messages[0].body.slice(0, 110)}` : ''}`, select: { kind: 'support_ticket' as const, id: ticket.id, label: ticket.subject } })) }
+      },
+    }),
     getAdminInsights: tool({
       description: 'اعرض الإحصاء المطلوب فقط من المنصة دون بيانات شخصية خام: مستخدمون أو متاجر أو قطع أو طلبات أو بلاغات أو نزاعات أو إيراد.',
       inputSchema: z.object({ focus: z.enum(['overview', 'users', 'stores', 'parts', 'orders', 'reports', 'disputes', 'revenue']).default('overview') }),
@@ -275,8 +459,12 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
     }),
   })
   Object.assign(tools, buyerTools, actionTools, sellerTools, adminTools)
-  if (!input.allowedTools) return tools
-  return Object.fromEntries(Object.entries(tools).filter(([name]) => input.allowedTools!.includes(name as AIToolName))) as ToolSet
+  // A model-supplied allowlist is only an upper bound. The registry-derived
+  // role allowlist is the server authority, even if a caller accidentally
+  // requests a tool that was not exposed for the current session.
+  const roleTools = new Set(allowedToolNamesForRole(input.role))
+  const requestedTools = input.allowedTools ? new Set(input.allowedTools) : null
+  return Object.fromEntries(Object.entries(tools).filter(([name]) => roleTools.has(name as AIToolName) && (!requestedTools || requestedTools.has(name as AIToolName)))) as ToolSet
 }
 
 export async function executeDeterministicAIRequest(input: { toolName?: AIToolName; role: AIRole; user: SessionUser | null; conversationId?: string; clientContext: AIClientContext; message: string }): Promise<{ answer: string; cards: AIToolCard[] } | undefined> {
