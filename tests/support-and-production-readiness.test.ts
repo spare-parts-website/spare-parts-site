@@ -51,8 +51,12 @@ test('public marketplace details advertise shared caching while viewer overlays 
   for (const publicPage of [partsPage, partPage, storesPage, storePage]) {
     assert.match(publicPage, /export const revalidate = 30/)
   }
-  assert.match(partPage, /generateStaticParams/)
-  assert.match(storePage, /generateStaticParams/)
+  // Public detail pages read the request-scoped CSP nonce, so they must stay
+  // dynamic; cacheable anonymous API responses still provide the data cache.
+  assert.match(partPage, /export const dynamic = 'force-dynamic'/)
+  assert.match(storePage, /export const dynamic = 'force-dynamic'/)
+  assert.doesNotMatch(partPage, /generateStaticParams/)
+  assert.doesNotMatch(storePage, /generateStaticParams/)
   assert.match(support, /const PRIVATE_HEADERS = \{ 'Cache-Control': 'private, no-store, max-age=0' \}/)
   assert.match(breadcrumbs, /BreadcrumbList/)
 })

@@ -68,9 +68,14 @@ function browserMutationAllowed(request: NextRequest) {
 export function proxy(request: NextRequest) {
   const id = requestId(request)
   const value = nonce()
+  const policy = contentSecurityPolicy(value, request)
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', value)
   requestHeaders.set('x-request-id', id)
+  // Next uses the request policy to propagate the nonce to its own inline
+  // framework scripts. Keeping the same policy on the response enforces it in
+  // the browser while this request header makes the rendered markup match.
+  requestHeaders.set('Content-Security-Policy', policy)
 
   if (!browserMutationAllowed(request)) {
     const response = NextResponse.json({ error: 'طلب غير صالح' }, { status: 403 })

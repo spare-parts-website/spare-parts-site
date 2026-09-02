@@ -12,12 +12,6 @@ export const revalidate = 30
 export const dynamicParams = true
 export const dynamic = 'force-dynamic'
 
-// Empty at build time keeps inventory out of the build artifact while allowing
-// each public detail URL to be rendered and revalidated on first request.
-export function generateStaticParams() {
-  return []
-}
-
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params
   const canonical = `https://ghyarmarket-eg.com/stores/${encodeURIComponent(id)}`
