@@ -249,10 +249,12 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                         value={form.phone}
                         onChange={(e) => setForm({ ...form, phone: e.target.value })}
                         className="pr-9"
-                        placeholder="05xxxxxxxx"
+                        placeholder="01********"
                         type="tel"
+                        dir="ltr"
                       />
                     </div>
+                    <p className="text-xs text-muted-foreground">صيغة رقم الموبايل المصري (مثل: 01012345678)</p>
                   </div>
 
                 </>
@@ -273,6 +275,11 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                     dir="ltr"
                   />
                 </div>
+                {mode === 'register' && (
+                  <p className="text-xs text-muted-foreground">
+                    يلزم تأكيد بريدك الإلكتروني برمز تحقق مكوّن من 4 أرقام لتفعيل الحساب واستخدامه.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">

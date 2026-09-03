@@ -121,7 +121,7 @@ export function ProfileView() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div className="space-y-2 sm:col-span-2"><Label>البريد الإلكتروني</Label><Input type="email" dir="ltr" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /><p className="text-xs text-muted-foreground">تغيير البريد يتطلب كلمة المرور الحالية وسيعيد حالة التسليم إلى نشطة.</p></div>
             <div className="space-y-2"><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} /></div>
+            <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="01********" /></div>
             <div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير البريد أو كلمة المرور" /></div>
             <div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div>
           </div>

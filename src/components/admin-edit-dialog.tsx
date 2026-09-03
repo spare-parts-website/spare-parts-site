@@ -79,7 +79,7 @@ export function AdminEditDialog({ target, onClose, onSaved }: { target: AdminEdi
           <div className="space-y-4">
             <div className="space-y-2"><Label htmlFor="admin-user-email">البريد الإلكتروني</Label><Input id="admin-user-email" type="email" value={form.email || ''} maxLength={254} dir="ltr" onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} /><p className="text-xs text-muted-foreground">تغيير البريد يعيد حالة التسليم إلى نشطة حتى يمكن للحساب استلام رسائل التحقق.</p></div>
             <div className="space-y-2"><Label htmlFor="admin-user-name">الاسم</Label><Input id="admin-user-name" value={form.name || ''} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></div>
-            <div className="space-y-2"><Label htmlFor="admin-user-phone">رقم الهاتف</Label><Input id="admin-user-phone" value={form.phone || ''} maxLength={40} dir="ltr" onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></div>
+            <div className="space-y-2"><Label htmlFor="admin-user-phone">رقم الهاتف</Label><Input id="admin-user-phone" value={form.phone || ''} maxLength={40} dir="ltr" onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="01********" /></div>
             <div className="space-y-2"><Label>صورة الحساب</Label><ImageUpload purpose="avatar" cropPreview value={form.avatar || ''} onChange={(avatar) => setForm((current) => ({ ...current, avatar }))} onUploadingChange={setUploading} /></div>
             <label className="flex cursor-pointer items-center gap-2 rounded-xl border p-3 text-sm font-medium">
               <input type="checkbox" checked={form.emailNotifications !== false} onChange={(event) => setForm((current) => ({ ...current, emailNotifications: event.target.checked }))} />
@@ -93,7 +93,7 @@ export function AdminEditDialog({ target, onClose, onSaved }: { target: AdminEdi
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2"><Label htmlFor="admin-store-name">اسم المتجر</Label><Input id="admin-store-name" value={form.name || ''} maxLength={120} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></div>
-              <div className="space-y-2"><Label htmlFor="admin-store-phone">هاتف المتجر</Label><Input id="admin-store-phone" value={form.phone || ''} maxLength={40} dir="ltr" onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} /></div>
+              <div className="space-y-2"><Label htmlFor="admin-store-phone">هاتف المتجر</Label><Input id="admin-store-phone" value={form.phone || ''} maxLength={40} dir="ltr" onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} placeholder="01********" /></div>
             </div>
             <div className="space-y-2"><Label htmlFor="admin-store-address">العنوان</Label><Input id="admin-store-address" value={form.address || ''} maxLength={300} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} /></div>
             <div className="space-y-2"><Label htmlFor="admin-store-description">الوصف</Label><Textarea id="admin-store-description" value={form.description || ''} maxLength={2000} rows={4} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></div>

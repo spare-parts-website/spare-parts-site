@@ -800,7 +800,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
                 <Input
                   value={storeForm.phone}
                   onChange={(e) => setStoreForm({ ...storeForm, phone: e.target.value })}
-                  placeholder="01xxxxxxxxx"
+                  placeholder="01********"
                   dir="ltr"
                 />
               </div>
