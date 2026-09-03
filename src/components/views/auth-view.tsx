@@ -51,10 +51,15 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
         toast({ title: 'خطأ', description: data.error || 'حدث خطأ', variant: 'destructive' })
         return
       }
-      if (mode === 'login' && data.verificationRequired) {
+      if (data.verificationRequired) {
         setVerification({ challengeId: data.challengeId, emailHint: data.emailHint })
         setVerificationCode('')
-        toast({ title: 'تحقق من بريدك', description: 'أرسلنا رمزاً من 4 أرقام إلى بريدك الإلكتروني.' })
+        toast({
+          title: 'تحقق من بريدك',
+          description: mode === 'register'
+            ? 'تم إنشاء الحساب! أرسلنا رمز تحقق من 4 أرقام لتأكيد بريدك الإلكتروني.'
+            : 'أرسلنا رمزاً من 4 أرقام إلى بريدك الإلكتروني.',
+        })
         return
       }
       setUser(data)
@@ -175,7 +180,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                 </div>
 
                 <Button type="submit" className="w-full" size="lg" disabled={loading || verificationCode.length !== 4}>
-                  {loading ? 'جاري التحقق...' : 'تأكيد وتسجيل الدخول'}
+                  {loading ? 'جاري التحقق...' : mode === 'register' ? 'تأكيد البريد وتفعيل الحساب' : 'تأكيد وتسجيل الدخول'}
                 </Button>
 
                 <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm">
@@ -183,7 +188,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
                     إرسال رمز جديد
                   </button>
                   <button type="button" onClick={() => { setVerification(null); setVerificationCode('') }} disabled={loading} className="text-muted-foreground hover:text-foreground disabled:opacity-50">
-                    العودة لتسجيل الدخول
+                    {mode === 'register' ? 'العودة للتسجيل' : 'العودة لتسجيل الدخول'}
                   </button>
                 </div>
               </form>

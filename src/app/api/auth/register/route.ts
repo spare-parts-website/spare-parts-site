@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { hashPassword, createSession } from '@/lib/auth'
+import { hashPassword } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { isProfileAvatar } from '@/lib/profile-avatars'
 import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 import { recipientEmailError, validateRecipientEmail } from '@/lib/email-deliverability'
+
+import { issueLoginVerification } from '@/lib/login-verification'
 
 export async function POST(req: NextRequest) {
   try {
@@ -45,58 +47,98 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'رقم الموبايل المصري غير صالح' }, { status: 400 })
     }
 
-    const existing = await db.user.findUnique({ where: { email } })
+    const existing = await db.user.findUnique({
+      where: { email },
+      include: {
+        loginVerifications: { where: { verifiedAt: { not: null } } },
+        orders: { select: { id: true }, take: 1 },
+      },
+    })
     if (existing) {
-      return NextResponse.json({ error: 'البريد الإلكتروني مستخدم بالفعل' }, { status: 400 })
+      const isVerified = existing.orders.length > 0 || existing.loginVerifications.length > 0
+      if (isVerified) {
+        return NextResponse.json({ error: 'البريد الإلكتروني مستخدم بالفعل' }, { status: 400 })
+      }
     }
 
     const hashedPassword = await hashPassword(password)
-    const user = await db.$transaction(async (tx) => {
-      const createdUser = await tx.user.create({
+    let targetUser: {
+      id: string
+      name: string
+      email: string
+      role: string
+      phone: string | null
+      avatar: string | null
+      emailDeliveryStatus?: string | null
+    }
+
+    if (existing) {
+      targetUser = await db.user.update({
+        where: { id: existing.id },
         data: {
           name,
-          email,
           password: hashedPassword,
           role,
           phone,
           avatar,
         },
       })
-
-      // If shop owner, create the store atomically with the account.
       if (role === 'SHOP_OWNER') {
-        await tx.store.create({
+        const store = await db.store.findUnique({ where: { ownerId: existing.id } })
+        if (!store) {
+          await db.store.create({
+            data: {
+              name: `متجر ${name}`,
+              description: '',
+              ownerId: existing.id,
+            },
+          })
+        }
+      }
+    } else {
+      targetUser = await db.$transaction(async (tx) => {
+        const createdUser = await tx.user.create({
           data: {
-            name: `متجر ${name}`,
-            description: '',
-            ownerId: createdUser.id,
+            name,
+            email,
+            password: hashedPassword,
+            role,
+            phone,
+            avatar,
           },
         })
+
+        // If shop owner, create the store atomically with the account.
+        if (role === 'SHOP_OWNER') {
+          await tx.store.create({
+            data: {
+              name: `متجر ${name}`,
+              description: '',
+              ownerId: createdUser.id,
+            },
+          })
+        }
+
+        return createdUser
+      })
+    }
+
+    try {
+      const verification = await issueLoginVerification(targetUser, 'register')
+      return NextResponse.json({
+        verificationRequired: true,
+        ...verification,
+      }, { status: 201 })
+    } catch (error) {
+      if (!existing) {
+        await db.user.delete({ where: { id: targetUser.id } }).catch(() => undefined)
       }
-
-      return createdUser
-    })
-
-    await createSession({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
-      phone: user.phone,
-      avatar: user.avatar,
-      emailDeliveryStatus: user.emailDeliveryStatus,
-      sessionVersion: user.sessionVersion,
-    })
-
-    return NextResponse.json({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      phone: user.phone,
-      avatar: user.avatar,
-      emailDeliveryStatus: user.emailDeliveryStatus,
-    })
+      if (error instanceof Error && error.message === 'EMAIL_UNDELIVERABLE') {
+        return NextResponse.json({ error: 'تعذر إرسال رمز التحقق إلى هذا البريد. تأكد من صحة البريد.' }, { status: 400 })
+      }
+      console.error('Registration verification failed:', error)
+      return NextResponse.json({ error: 'تعذر إرسال رمز التحقق إلى بريدك الإلكتروني. حاول مرة أخرى لاحقاً.' }, { status: 500 })
+    }
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'حدث خطأ أثناء التسجيل' }, { status: 500 })

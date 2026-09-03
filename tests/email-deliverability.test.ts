@@ -78,3 +78,12 @@ test('notification delivery uses recipient state and stable dedupe keys', () => 
   assert.match(adminUsers, /emailDeliveryStatus/)
   assert.match(adminUsers, /validateRecipientEmail/)
 })
+
+test('registration requires email verification and does not issue unverified session', () => {
+  const register = read('src/app/api/auth/register/route.ts')
+  const authView = read('src/components/views/auth-view.tsx')
+  assert.match(register, /issueLoginVerification/)
+  assert.match(register, /verificationRequired: true/)
+  assert.ok(!register.includes('createSession('))
+  assert.match(authView, /if \(data\.verificationRequired\)/)
+})

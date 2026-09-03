@@ -18,6 +18,7 @@ function verificationSecret() {
   return 'local-development-only-change-me'
 }
 
+
 function hashCode(challengeId: string, code: string) {
   return createHmac('sha256', verificationSecret())
     .update(`${challengeId}:${code}`)
@@ -31,19 +32,27 @@ export function maskEmail(email: string) {
   return `${visible}${'*'.repeat(Math.max(3, local.length - visible.length))}@${domain}`
 }
 
-async function sendCodeEmail(input: { userId: string; email: string; name: string; code: string; challengeId: string }) {
+async function sendCodeEmail(input: { userId: string; email: string; name: string; code: string; challengeId: string; purpose?: 'login' | 'register' }) {
   const apiKey = process.env.RESEND_API_KEY
   const from = getTransactionalSender(process.env.AUTH_FROM_EMAIL, process.env.NOTIFICATION_FROM_EMAIL)
   if (!apiKey || !from) throw new Error('Email verification is not configured')
+
+  const isRegister = input.purpose === 'register'
+  const subject = isRegister
+    ? 'رمز تأكيد البريد الإلكتروني في غيار ماركت'
+    : 'رمز التحقق لتسجيل الدخول إلى غيار ماركت'
+  const text = isRegister
+    ? `مرحباً ${input.name}\n\nرمز تأكيد بريدك الإلكتروني وتفعيل الحساب هو: ${input.code}\n\nينتهي الرمز خلال 10 دقائق. إذا لم تنشئ حساباً، تجاهل هذه الرسالة.`
+    : `مرحباً ${input.name}\n\nرمز التحقق الخاص بك هو: ${input.code}\n\nينتهي الرمز خلال 10 دقائق. إذا لم تحاول تسجيل الدخول، تجاهل هذه الرسالة.`
 
   const resend = new Resend(apiKey)
   const result = await resend.emails.send(
     {
       from: `غيار ماركت <${from}>`,
       to: input.email,
-      subject: 'رمز التحقق لتسجيل الدخول إلى غيار ماركت',
-      text: `مرحباً ${input.name}\n\nرمز التحقق الخاص بك هو: ${input.code}\n\nينتهي الرمز خلال 10 دقائق. إذا لم تحاول تسجيل الدخول، تجاهل هذه الرسالة.`,
-      html: loginCodeEmailHtml({ name: input.name, code: input.code }),
+      subject,
+      text,
+      html: loginCodeEmailHtml({ name: input.name, code: input.code, purpose: input.purpose }),
     },
     { idempotencyKey: `login-code/${input.challengeId}` },
   )
@@ -57,7 +66,10 @@ async function sendCodeEmail(input: { userId: string; email: string; name: strin
   }
 }
 
-export async function issueLoginVerification(user: { id: string; email: string; name: string; emailDeliveryStatus?: string | null }) {
+export async function issueLoginVerification(
+  user: { id: string; email: string; name: string; emailDeliveryStatus?: string | null },
+  purpose: 'login' | 'register' = 'login',
+) {
   if (isPermanentRecipientStatus(user.emailDeliveryStatus)) throw new Error('EMAIL_UNDELIVERABLE')
   const id = randomUUID()
   const code = String(randomInt(1000, 10000))
@@ -75,7 +87,7 @@ export async function issueLoginVerification(user: { id: string; email: string; 
   ])
 
   try {
-    await sendCodeEmail({ userId: user.id, email: user.email, name: user.name, code, challengeId: id })
+    await sendCodeEmail({ userId: user.id, email: user.email, name: user.name, code, challengeId: id, purpose })
   } catch (error) {
     try {
       await recordEmailDeliveryAttempt({ deliveryKey: `login-code/${id}`, category: 'AUTHENTICATION', recipientUserId: user.id, recipientEmail: normalizeRecipientEmail(user.email), status: 'FAILED', error: error instanceof Error ? error.message.slice(0, 300) : 'provider error' })
