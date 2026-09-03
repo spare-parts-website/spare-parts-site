@@ -14,7 +14,7 @@ function invalidCode(attemptsRemaining?: number) {
 export async function POST(req: NextRequest) {
   try {
     const address = requestAddress(req)
-    const addressLimit = await rateLimit(`login-verify:address:${address}`, 25, 10 * 60 * 1000)
+    const addressLimit = await rateLimit(`login-verify-v2:address:${address}`, 100, 15 * 60 * 1000)
     if (!addressLimit.allowed) {
       return NextResponse.json({ error: 'محاولات كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(addressLimit.retryAfter) } })
     }
@@ -24,7 +24,7 @@ export async function POST(req: NextRequest) {
     const code = typeof body.code === 'string' ? body.code.trim() : ''
     if (!challengeId || !/^\d{4}$/.test(code)) return invalidCode()
 
-    const challengeLimit = await rateLimit(`login-verify:challenge:${challengeId}`, LOGIN_CODE_MAX_ATTEMPTS, 10 * 60 * 1000)
+    const challengeLimit = await rateLimit(`login-verify-v2:challenge:${challengeId}`, LOGIN_CODE_MAX_ATTEMPTS, 15 * 60 * 1000)
     if (!challengeLimit.allowed) {
       return NextResponse.json({ error: 'تم تجاوز عدد المحاولات المسموح. اطلب رمزاً جديداً.' }, { status: 429 })
     }

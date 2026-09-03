@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
     const challengeId = typeof body.challengeId === 'string' ? body.challengeId : ''
     if (!challengeId) return NextResponse.json({ error: 'طلب غير صالح' }, { status: 400 })
 
-    const limit = await rateLimit(`login-resend:${challengeId}:${requestAddress(req)}`, 3, 10 * 60 * 1000)
+    const limit = await rateLimit(`login-resend-v2:${challengeId}:${requestAddress(req)}`, 10, 10 * 60 * 1000)
     if (!limit.allowed) {
       return NextResponse.json({ error: 'طلبت رموزاً كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     }
@@ -18,8 +18,8 @@ export async function POST(req: NextRequest) {
     if (!challenge || challenge.verifiedAt) return NextResponse.json({ error: 'انتهت جلسة التحقق. سجّل الدخول مرة أخرى.' }, { status: 400 })
 
     const elapsed = Date.now() - challenge.createdAt.getTime()
-    if (elapsed < 60_000) {
-      const retryAfter = Math.ceil((60_000 - elapsed) / 1000)
+    if (elapsed < 30_000) {
+      const retryAfter = Math.ceil((30_000 - elapsed) / 1000)
       return NextResponse.json({ error: `يمكنك طلب رمز جديد بعد ${retryAfter} ثانية` }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
     }
 

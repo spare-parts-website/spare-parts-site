@@ -10,7 +10,7 @@ import { issueLoginVerification } from '@/lib/login-verification'
 
 export async function POST(req: NextRequest) {
   try {
-    const limit = await rateLimit(`register:${requestAddress(req)}`, 5, 60 * 60 * 1000)
+    const limit = await rateLimit(`register-v2:${requestAddress(req)}`, 100, 15 * 60 * 1000)
     if (!limit.allowed) {
       return NextResponse.json({ error: 'محاولات تسجيل كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
     }

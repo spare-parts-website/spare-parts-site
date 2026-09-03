@@ -7,7 +7,7 @@ import { isPermanentRecipientStatus, normalizeRecipientEmail } from '@/lib/email
 import { recordEmailDeliveryAttempt } from '@/lib/email-delivery'
 
 export const LOGIN_CODE_TTL_MS = 10 * 60 * 1000
-export const LOGIN_CODE_MAX_ATTEMPTS = 5
+export const LOGIN_CODE_MAX_ATTEMPTS = 15
 
 function verificationSecret() {
   const secret = process.env.AUTH_SECRET
