@@ -25,6 +25,9 @@
       }
     ],
     "paths": {
+      "@/lib/ai/deterministic": [
+        "./src/lib/ai/deterministic-routing.ts"
+      ],
       "@/*": [
         "./src/*"
       ]
