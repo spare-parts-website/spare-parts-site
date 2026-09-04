@@ -18,6 +18,18 @@ test('ships the AI assistant without beta or provider-specific user-facing brand
   assert.match(assistant, /role="status" aria-live="polite"/)
 })
 
+test('clears the composer before waiting for the AI response', () => {
+  const prepare = assistant.indexOf('const files = await Promise.all')
+  const clearInput = assistant.indexOf("setInput('')", prepare)
+  const clearAttachments = assistant.indexOf('clearAttachmentState()', prepare)
+  const stopUploading = assistant.indexOf('setUploading(false)', prepare)
+  const send = assistant.indexOf('await sendMessage', prepare)
+  assert.ok(prepare >= 0)
+  assert.ok(prepare < clearInput && clearInput < send)
+  assert.ok(prepare < clearAttachments && clearAttachments < send)
+  assert.ok(prepare < stopUploading && stopUploading < send)
+})
+
 test('bounds server provider fallback work below the existing client timeout', () => {
   assert.match(route, /AI_PROVIDER_BUDGET_MS = 44_000/)
   assert.match(route, /AI_MIN_PROVIDER_ATTEMPT_MS = 2_500/)

@@ -143,8 +143,12 @@ export function AIAssistant({
     setLocalError(''); clearError(); selectionRef.current = selection; setUploading(Boolean(attachments.length))
     try {
       const files = await Promise.all(attachments.map((attachment) => prepareAttachment(attachment.file!, Boolean(user))))
+      // Once attachments are safely materialized, clear the composer before
+      // waiting for the model so the sent text/image never linger as a draft.
+      setInput('')
+      clearAttachmentState()
+      setUploading(false)
       await sendMessage(prompt ? { text: prompt, files } : { files })
-      setInput(''); clearAttachmentState()
     } catch (cause) { submitLockRef.current.cooldownUntil = 0; setLocalError(cause instanceof Error ? cause.message : 'تعذر إرسال الطلب') }
     finally { submitLockRef.current.active = false; pendingRequestIdRef.current = ''; setUploading(false); selectionRef.current = undefined }
   }
