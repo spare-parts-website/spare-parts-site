@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { ToolLoopAgent, gateway, isStepCount, NoSuchToolError } from 'ai'
 import { createGoogle } from '@ai-sdk/google'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
@@ -104,15 +105,17 @@ function providerModel(provider: AIProviderTarget) {
 }
 
 function providerOptions(input: { provider: AIProviderTarget; user: SessionUser | null; plan: AIRequestPlan }): ProviderOptions | undefined {
-  if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-3-flash', 'alibaba/qwen3-vl-instruct'], user: input.user?.id || 'guest', tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`] } }
+  const user = providerUserId(input.user)
+  if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-3-flash', 'alibaba/qwen3-vl-instruct'], user, tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`], zeroDataRetention: true } }
   // Let the current Gemini model choose a compatible thinking configuration.
   // The former explicit zero-budget payload was rejected by the direct API.
   if (input.provider === 'google') return undefined
+  const privacyPolicy = input.user ? { data_collection: 'deny' as const, zdr: true } : { data_collection: 'deny' as const }
   if (input.provider === 'openrouter-primary') return {
     openrouter: {
       models: [aiPaidPrimaryModel() || 'openrouter/auto'],
-      user: input.user?.id || 'guest',
-      provider: { allow_fallbacks: false, require_parameters: true, sort: 'throughput' },
+      user,
+      provider: { allow_fallbacks: false, require_parameters: true, sort: 'throughput', ...privacyPolicy },
     },
   }
   if (input.provider === 'openrouter-text-pool-a') return {
@@ -122,8 +125,8 @@ function providerOptions(input: { provider: AIProviderTarget; user: SessionUser 
         'z-ai/glm-5.2:free',
         'minimax/minimax-m3:free',
       ],
-      user: input.user?.id || 'guest',
-      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput' },
+      user,
+      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput', ...privacyPolicy },
     },
   }
   if (input.provider === 'openrouter-text-pool-b') return {
@@ -133,16 +136,21 @@ function providerOptions(input: { provider: AIProviderTarget; user: SessionUser 
         'poolside/laguna-xs-2.1:free',
         'google/gemma-4-31b-it:free',
       ],
-      user: input.user?.id || 'guest',
-      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput' },
+      user,
+      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput', ...privacyPolicy },
     },
   }
   if (input.provider === 'openrouter-vision-pool') return {
     openrouter: {
       models: ['google/gemma-4-26b-a4b-it:free', 'google/gemma-4-31b-it:free'],
-      user: input.user?.id || 'guest',
-      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput' },
+      user,
+      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput', ...privacyPolicy },
     },
   }
   return undefined
+}
+
+function providerUserId(user: SessionUser | null) {
+  if (!user) return 'guest'
+  return `ghyar_${createHash('sha256').update(`ghyar-ai:${user.id}`).digest('hex').slice(0, 24)}`
 }

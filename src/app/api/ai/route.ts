@@ -16,6 +16,8 @@ import { isProviderCircuitOpen, providerBackoffMs, providerHealthSnapshot, recor
 import { notifyOperationalAlert } from '@/lib/operational-alerts'
 
 export const maxDuration = 120
+const AI_PROVIDER_BUDGET_MS = 44_000
+const AI_MIN_PROVIDER_ATTEMPT_MS = 2_500
 
 export async function POST(request: Request) {
   const requestId = randomUUID(); const startedAt = Date.now(); let lease = ''; let streamOwnsLease = false
@@ -100,20 +102,31 @@ export async function POST(request: Request) {
     const modelMessages = await materializePrivateImages(compactConversationContext(uiMessages), user)
     const hasImage = current.parts.some((part) => part.type === 'file')
     const attempts: AIProviderAttempt[] = []
-    for (const [index, provider] of aiProviderTargets({ hasImage }).entries()) {
+    for (const [index, provider] of aiProviderTargets({ hasImage, privateContext: Boolean(user) }).entries()) {
+      const budgetBeforeAttempt = remainingAIProviderBudget(startedAt)
+      if (budgetBeforeAttempt < AI_MIN_PROVIDER_ATTEMPT_MS) {
+        attempts.push({ provider, model: providerModelName(provider), status: 'skipped', durationMs: 0, stepCount: 0, error: 'request_budget_exhausted' })
+        console.warn(JSON.stringify({ event: 'ai.provider.budget_exhausted', requestId, provider, role, intent: plan.intent, elapsedMs: Date.now() - startedAt }))
+        break
+      }
       if (isProviderCircuitOpen(provider)) {
         attempts.push({ provider, model: providerModelName(provider), status: 'skipped', durationMs: 0, stepCount: 0, error: 'circuit_open' })
         console.warn(JSON.stringify({ event: 'ai.provider.circuit_open', requestId, provider, model: providerModelName(provider), role, intent: plan.intent }))
         continue
       }
-      const backoff = providerBackoffMs(index)
+      const backoff = Math.min(providerBackoffMs(index), Math.max(0, budgetBeforeAttempt - AI_MIN_PROVIDER_ATTEMPT_MS))
       if (backoff) await new Promise((resolve) => setTimeout(resolve, backoff))
+      const remainingBudget = remainingAIProviderBudget(startedAt)
+      if (remainingBudget < AI_MIN_PROVIDER_ATTEMPT_MS) {
+        attempts.push({ provider, model: providerModelName(provider), status: 'skipped', durationMs: 0, stepCount: 0, error: 'request_budget_exhausted' })
+        break
+      }
       const attemptStarted = Date.now(); let stepCount = 0
       try {
         console.info(JSON.stringify({ event: 'ai.provider.started', requestId, provider, model: providerModelName(provider), role, intent: plan.intent, complexity: plan.complexity, attempt: index + 1, images: hasImage ? 1 : 0 }))
         const agent = createGhyarAgent({ role, user, conversationId, clientContext: planningContext, conversationContext, plan, provider })
         const source = await createAgentUIStream({
-          agent, uiMessages: modelMessages, timeout: { totalMs: attemptTimeout(plan.complexity, hasImage, provider) }, sendReasoning: false, sendSources: true,
+          agent, uiMessages: modelMessages, timeout: { totalMs: Math.min(attemptTimeout(plan.complexity, hasImage, provider), remainingBudget) }, sendReasoning: false, sendSources: true,
           messageMetadata: () => ({ conversationId, expiresAt, requestId, provider, fallbackCount: index }),
           onStepEnd: () => { stepCount += 1 },
           onError: (error) => errorMessage(error),
@@ -221,6 +234,9 @@ function attemptTimeout(_complexity: 'quick' | 'standard' | 'heavy', hasImage: b
   if (provider === 'google') return hasImage ? 12_000 : 10_000
   return hasImage ? 12_000 : 9_000
 }
+function remainingAIProviderBudget(startedAt: number) {
+  return Math.max(0, AI_PROVIDER_BUDGET_MS - (Date.now() - startedAt))
+}
 function hasUsefulAIOutput(message: GhyarAIMessage) {
   // A tool result alone is not a user-visible answer in every client renderer.
   // Require final visible text so a tool-only completion fails over instead of
@@ -239,8 +255,8 @@ function safeErrorCategory(error: unknown) {
 }
 function terminalFallback(message: string, hasImage: boolean, requestId: string) {
   const english = /[A-Za-z]/.test(message) && !/[\u0600-\u06FF]/.test(message)
-  if (english) return hasImage ? `I couldn't safely analyze this image because all free AI services are busy right now. Your image was not guessed or misidentified. Please retry shortly. Request: ${requestId}` : `All free AI services are busy right now. Your request was kept intact; please retry shortly. Request: ${requestId}`
-  return hasImage ? `تعذر تحليل الصورة بأمان لأن كل خدمات الذكاء الاصطناعي المجانية مشغولة حالياً. لم أخمّن محتوى الصورة أو أحددها بشكل خاطئ. أعد المحاولة بعد قليل. رقم الطلب: ${requestId}` : `كل خدمات الذكاء الاصطناعي المجانية مشغولة حالياً. احتفظنا بطلبك دون اختلاق إجابة؛ أعد المحاولة بعد قليل. رقم الطلب: ${requestId}`
+  if (english) return hasImage ? `I couldn't safely analyze this image because the available AI providers are busy or unavailable right now. I did not guess or misidentify the image. Please retry shortly. Request: ${requestId}` : `The available AI providers are busy or unavailable right now. I kept your request intact instead of inventing an answer. Please retry shortly. Request: ${requestId}`
+  return hasImage ? `تعذر تحليل الصورة بأمان لأن مزودي الذكاء الاصطناعي المتاحين مشغولون أو غير متاحين حالياً. لم أخمّن محتوى الصورة أو أحددها بشكل خاطئ. أعد المحاولة بعد قليل. رقم الطلب: ${requestId}` : `مزودو الذكاء الاصطناعي المتاحون مشغولون أو غير متاحين حالياً. احتفظنا بطلبك دون اختلاق إجابة؛ أعد المحاولة بعد قليل. رقم الطلب: ${requestId}`
 }
 function textUIResponse(text: string, metadata: GhyarAIMessage['metadata']) {
   const id = randomUUID()
@@ -283,8 +299,8 @@ function safeClientRequestId(value: unknown) {
 }
 function friendlyAIError(error: unknown, requestId: string) {
   const message = errorMessage(error)
-  if (/429|rate.?limit|resource.?exhausted/i.test(message)) return `وصل Gemini إلى حد الاستخدام المجاني للمشروع حالياً. حاول بعد قليل. رقم الطلب: ${requestId}`
-  if (/timeout|timed out|abort/i.test(message)) return `استغرق Gemini وقتاً أطول من الحد المتاح. اختصر الطلب أو حاول مرة أخرى. رقم الطلب: ${requestId}`
-  if (message === 'AI_UNAVAILABLE') return `مفتاح Gemini غير مضاف إلى الخادم بعد. رقم الطلب: ${requestId}`
-  return `تعذر على Gemini إكمال الطلب حالياً، ولم يتم استخدام موديل بديل. رقم الطلب: ${requestId}`
+  if (/429|rate.?limit|resource.?exhausted/i.test(message)) return `وصل أحد مزودي الذكاء الاصطناعي إلى حد استخدام مؤقت. حاول بعد قليل. رقم الطلب: ${requestId}`
+  if (/timeout|timed out|abort/i.test(message)) return `استغرق طلب الذكاء الاصطناعي وقتاً أطول من الحد المتاح. اختصر الطلب أو حاول مرة أخرى. رقم الطلب: ${requestId}`
+  if (message === 'AI_UNAVAILABLE') return `خدمة الذكاء الاصطناعي غير مهيأة بالكامل على الخادم حالياً. رقم الطلب: ${requestId}`
+  return `تعذر على خدمة الذكاء الاصطناعي إكمال الطلب حالياً. أعد المحاولة بعد قليل. رقم الطلب: ${requestId}`
 }

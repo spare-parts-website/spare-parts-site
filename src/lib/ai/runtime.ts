@@ -24,19 +24,23 @@ export function aiModel() {
   return AI_MODEL
 }
 
-export function aiProviderTargets(options?: { hasImage?: boolean }): AIProviderTarget[] {
+export function aiProviderTargets(options?: { hasImage?: boolean; privateContext?: boolean }): AIProviderTarget[] {
   const targets: AIProviderTarget[] = []
   if (process.env.OPENROUTER_API_KEY && aiPaidPrimaryModel()) targets.push('openrouter-primary')
-  // The direct Google free quota is independent from OpenRouter and Gateway,
-  // so prefer it before shared free routers.
-  if (process.env.GEMINI_API_KEY) targets.push('google')
+  // The direct Gemini free tier can be used for public/guest prompts, but its
+  // data-use policy differs from paid/ZDR routes. Authenticated account,
+  // seller, and admin context stays on providers where we can enforce privacy.
+  if (process.env.GEMINI_API_KEY && !options?.privateContext) targets.push('google')
   if (process.env.OPENROUTER_API_KEY) {
     if (options?.hasImage) targets.push('openrouter-vision-pool')
-    else targets.push('openrouter-text-pool-a', 'openrouter-text-pool-b')
+    else {
+      targets.push('openrouter-text-pool-a')
+      if (!options?.privateContext) targets.push('openrouter-text-pool-b')
+    }
     targets.push('openrouter')
   }
-  // Vercel's included free Gateway credit is useful as a final independent
-  // route, but it must not delay every request after its monthly cap is hit.
+  // Vercel AI Gateway is the final independent route. Agent-level provider
+  // options enforce zero-data-retention before authenticated content is sent.
   targets.push('gateway')
   return targets
 }
