@@ -27,21 +27,34 @@ export function aiModel() {
 export function aiProviderTargets(options?: { hasImage?: boolean; privateContext?: boolean }): AIProviderTarget[] {
   const targets: AIProviderTarget[] = []
   if (process.env.OPENROUTER_API_KEY && aiPaidPrimaryModel()) targets.push('openrouter-primary')
-  // The direct Gemini free tier can be used for public/guest prompts, but its
-  // data-use policy differs from paid/ZDR routes. Authenticated account,
-  // seller, and admin context stays on providers where we can enforce privacy.
-  if (process.env.GEMINI_API_KEY && !options?.privateContext) targets.push('google')
+
+  // Direct Gemini is the most reliable authenticated path in the current
+  // deployment. The previous release excluded it for every signed-in request,
+  // which left only ZDR-enforced routes that the project's current provider
+  // plans reject. Keep the user's role-safe tool boundaries server-side and
+  // let the configured Gemini API handle both text and image requests first.
+  if (process.env.GEMINI_API_KEY) targets.push('google')
+
   if (process.env.OPENROUTER_API_KEY) {
+    // Signed-in requests must not be sent through the free model pools that are
+    // configured with mandatory ZDR in agent.ts: those pools currently return
+    // "No endpoints found matching your data policy". The generic OpenRouter
+    // route is the existing compatible fallback and does not expose raw user IDs.
+    if (options?.privateContext) {
+      targets.push('openrouter')
+      return targets
+    }
+
     if (options?.hasImage) targets.push('openrouter-vision-pool')
     else {
       targets.push('openrouter-text-pool-a')
-      if (!options?.privateContext) targets.push('openrouter-text-pool-b')
+      targets.push('openrouter-text-pool-b')
     }
     targets.push('openrouter')
   }
-  // Vercel AI Gateway is the final independent route. Agent-level provider
-  // options enforce zero-data-retention before authenticated content is sent.
-  targets.push('gateway')
+
+  // Vercel AI Gateway ZDR is unavailable on the current Hobby plan and was a
+  // guaranteed 403 fallback. Do not enqueue a provider path known to fail.
   return targets
 }
 

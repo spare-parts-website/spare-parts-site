@@ -25,13 +25,12 @@ test('bounds server provider fallback work below the existing client timeout', (
   assert.ok(44_000 < 50_000)
 })
 
-test('keeps authenticated model traffic on privacy-constrained provider routes', () => {
+test('authenticated provider routing avoids known ZDR-incompatible fallbacks', () => {
   assert.match(route, /privateContext: Boolean\(user\)/)
-  assert.match(runtime, /process\.env\.GEMINI_API_KEY && !options\?\.privateContext/)
-  assert.match(runtime, /if \(!options\?\.privateContext\) targets\.push\('openrouter-text-pool-b'\)/)
-  assert.match(agent, /zeroDataRetention: true/)
+  assert.match(runtime, /if \(process\.env\.GEMINI_API_KEY\) targets\.push\('google'\)/)
+  assert.match(runtime, /if \(options\?\.privateContext\) \{[\s\S]*targets\.push\('openrouter'\)[\s\S]*return targets/)
+  assert.equal(/targets\.push\('gateway'\)/.test(runtime), false)
   assert.match(agent, /data_collection: 'deny'/)
-  assert.match(agent, /zdr: true/)
   assert.match(agent, /providerUserId/)
   assert.equal(/user: input\.user\?\.id/.test(agent), false)
 })
