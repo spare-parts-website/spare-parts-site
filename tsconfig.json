@@ -28,6 +28,9 @@
       "@/lib/ai/deterministic": [
         "./src/lib/ai/deterministic-routing.ts"
       ],
+      "@/lib/ai/planner": [
+        "./src/lib/ai/planner-model-first.ts"
+      ],
       "@/*": [
         "./src/*"
       ]
