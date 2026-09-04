@@ -3,12 +3,14 @@ import test from 'node:test'
 import { readFileSync } from 'node:fs'
 
 const assistant = readFileSync(new URL('../src/components/ai-assistant.tsx', import.meta.url), 'utf8')
+const assistantLoader = readFileSync(new URL('../src/components/ai-assistant-loader.tsx', import.meta.url), 'utf8')
 const route = readFileSync(new URL('../src/app/api/ai/route.ts', import.meta.url), 'utf8')
 const agent = readFileSync(new URL('../src/lib/ai/agent.ts', import.meta.url), 'utf8')
 const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
 
 test('ships the AI assistant without beta or provider-specific user-facing branding', () => {
   assert.equal(/\bBeta\b/i.test(assistant), false)
+  assert.equal(/\bBeta\b/i.test(assistantLoader), false)
   assert.equal(/Gemini/.test(assistant), false)
   assert.equal(/Gemini/.test(route), false)
   assert.equal(assistant.includes('الخدمة الأولى مشغولة'), false)

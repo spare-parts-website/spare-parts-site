@@ -55,12 +55,12 @@ export function AIAssistantLoader({ user, pathname }: { user: AuthUser | null; p
   return (
     <Button
       className="fixed bottom-24 left-4 z-40 h-12 rounded-2xl px-4 shadow-xl lg:bottom-6"
-      aria-label={requested ? 'جاري فتح مساعد غيار ماركت Beta' : 'فتح مساعد غيار ماركت Beta'}
+      aria-label={requested ? 'جاري فتح مساعد غيار ماركت' : 'فتح مساعد غيار ماركت'}
       onClick={() => requestAssistant()}
       disabled={requested}
     >
       {requested ? <Loader2 className="ml-2 size-5 animate-spin" /> : <Sparkles className="ml-2 size-5" />}
-      {requested ? 'جاري الفتح...' : loadFailed ? 'حاول فتح المساعد مجدداً' : <>اسأل غيار <span className="text-[10px] font-bold uppercase opacity-80">Beta</span></>}
+      {requested ? 'جاري الفتح...' : loadFailed ? 'حاول فتح المساعد مجدداً' : 'اسأل غيار'}
     </Button>
   )
 }
