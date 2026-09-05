@@ -20,9 +20,31 @@ type SupportCacheEntry = { fetchedAt: number; tickets: SupportTicket[] }
 const SUPPORT_CACHE_TTL = 30_000
 const SUPPORT_REFRESH_INTERVAL = 15_000
 const supportCache = new Map<string, SupportCacheEntry>()
+const supportInFlight = new Map<string, Promise<SupportTicket[]>>()
 
 function supportCacheKey(userId: string, role: string, status: string, category: string, search: string) {
   return [userId, role, status, category, search].map((value) => encodeURIComponent(value)).join(':')
+}
+
+export async function warmSupportTickets(userId: string, role: string, force = false) {
+  const key = supportCacheKey(userId, role, '', '', '')
+  const cached = supportCache.get(key)
+  if (!force && cached && Date.now() - cached.fetchedAt < SUPPORT_CACHE_TTL) return cached.tickets
+  const pending = supportInFlight.get(key)
+  if (!force && pending) return pending
+
+  const request = fetch('/api/support/tickets', { cache: 'no-store' })
+    .then(async (response) => {
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'SUPPORT_WARMUP_FAILED')
+      const tickets = (data.tickets || []) as SupportTicket[]
+      supportCache.set(key, { fetchedAt: Date.now(), tickets })
+      return tickets
+    })
+    .finally(() => supportInFlight.delete(key))
+
+  supportInFlight.set(key, request)
+  return request
 }
 
 export function SupportView({ embedded = false }: { embedded?: boolean }) {
