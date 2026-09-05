@@ -4,12 +4,13 @@ import test from 'node:test'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('homepage render path is database-free and uses the edge runtime', () => {
+test('homepage render path stays database-free without exceeding Vercel Edge limits', () => {
   const page = read('src/app/page.tsx')
   const home = read('src/components/views/home-view.tsx')
   const api = read('src/app/api/home-marketplace/route.ts')
 
-  assert.match(page, /runtime = 'edge'/)
+  assert.match(page, /runtime = 'nodejs'/)
+  assert.doesNotMatch(page, /runtime = 'edge'/)
   assert.doesNotMatch(home, /@\/lib\/db/)
   assert.match(home, /HomeMarketplaceSections/)
   assert.match(api, /Vercel-CDN-Cache-Control/)

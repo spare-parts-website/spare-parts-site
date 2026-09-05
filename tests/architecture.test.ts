@@ -10,7 +10,7 @@ test('keeps homepage HTML database-free while serving bounded privacy-safe marke
   const page = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8')
   const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8')
 
-  assert.doesNotMatch(home, /^['"]use client['"]/)
+  assert.doesNotMatch(home, /^["']use client["']/)
   assert.doesNotMatch(home, /@\/lib\/db|db\./)
   assert.match(homeData, /db\.part\.findMany/)
   assert.match(homeData, /db\.store\.findMany/)
@@ -23,7 +23,8 @@ test('keeps homepage HTML database-free while serving bounded privacy-safe marke
   assert.match(home, /import Form from 'next\/form'/)
   assert.match(home, /<Form action="\/parts"/)
   assert.match(page, /<HomeView\s*\/>/)
-  assert.match(page, /export const runtime = 'edge'/)
+  assert.match(page, /export const runtime = 'nodejs'/)
+  assert.doesNotMatch(page, /export const runtime = 'edge'/)
   assert.doesNotMatch(layout, /متاجر موثوقة/)
 })
 
