@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
@@ -63,11 +63,10 @@ test('public marketplace details advertise shared caching while viewer overlays 
   assert.match(breadcrumbs, /BreadcrumbList/)
 })
 
-test('support inbox exposes admin filters and route loading feedback', () => {
+test('support inbox exposes admin filters without a route-wide loading takeover', () => {
   const view = read('src/components/views/support-view.tsx')
   const input = read('src/components/ui/input.tsx')
   const textarea = read('src/components/ui/textarea.tsx')
-  const loading = read('src/app/loading.tsx')
   assert.match(view, /كل الحالات/)
   assert.match(view, /كل التصنيفات/)
   assert.match(view, /ابحث برقم التذكرة/)
@@ -78,7 +77,7 @@ test('support inbox exposes admin filters and route loading feedback', () => {
   assert.doesNotMatch(view, /LifeBuoy/)
   assert.match(input, /dir="auto"/)
   assert.match(textarea, /dir="auto"/)
-  assert.match(loading, /جاري تحميل الصفحة/)
+  assert.equal(existsSync(new URL('../src/app/loading.tsx', import.meta.url)), false)
 })
 
 test('latest approved logo is wired to favicon, app chrome, and service worker', () => {
