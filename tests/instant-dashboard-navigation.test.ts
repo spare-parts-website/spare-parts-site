@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
-test('switches seller and admin dashboard tabs without a server route transition', () => {
+test('switches seller and admin dashboard tabs immediately without a server route transition', () => {
   const tabs = readFileSync(new URL('../src/components/ui/tabs.tsx', import.meta.url), 'utf8')
   const helper = readFileSync(new URL('../src/lib/instant-dashboard-navigation.ts', import.meta.url), 'utf8')
   const navigation = readFileSync(new URL('../src/lib/use-navigation.ts', import.meta.url), 'utf8')
@@ -10,18 +10,21 @@ test('switches seller and admin dashboard tabs without a server route transition
   const admin = readFileSync(new URL('../src/components/views/admin-dashboard-view.tsx', import.meta.url), 'utf8')
 
   assert.match(tabs, /currentDashboardArea/)
-  assert.match(tabs, /pushDashboardTab\(dashboardArea, value\)/)
+  assert.match(tabs, /flushSync\(\(\) => setDashboardValue\(nextValue\)\)/)
+  assert.match(tabs, /value=\{dashboardValue \?\? controlledValue\}/)
+  assert.match(tabs, /pushDashboardTab\(dashboardArea, nextValue\)/)
   assert.match(tabs, /pathname\.startsWith\("\/seller\/"\)/)
   assert.match(tabs, /pathname\.startsWith\("\/admin\/"\)/)
+  assert.match(tabs, /transition-none/)
   assert.match(helper, /window\.history\.pushState/)
   assert.match(helper, /encodeURIComponent\(tab\)/)
+  assert.doesNotMatch(helper, /scrollTo/)
   assert.match(seller, /pushDashboardTab\('seller', v\)/)
   assert.match(navigation, /dashboard && isInsideDashboard\(pathname, dashboard\.area\)/)
   assert.match(navigation, /router\.push\(path\)/)
 
-  // Admin can keep its existing router callback: the shared Tabs wrapper
-  // intercepts dashboard tab changes first, updates usePathname immediately,
-  // and intentionally does not call the router callback for dashboard tabs.
+  // Admin can keep its existing router callback because the shared Tabs wrapper
+  // handles dashboard changes synchronously and deliberately skips the callback.
   assert.match(admin, /router\.push\(`\/admin\/\$\{v\}`\)/)
 })
 
