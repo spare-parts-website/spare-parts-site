@@ -18,8 +18,8 @@ test('keeps high-frequency top-level routes warm in the client router cache', ()
   assert.match(config, /staleTimes:\s*\{[\s\S]*dynamic:\s*300[\s\S]*static:\s*300/)
 })
 
-test('runs Vercel functions next to the eu-west-1 Supabase database', () => {
+test('runs Vercel functions next to the eu-west-1 Supabase database with one Hobby-compatible region', () => {
   const config = JSON.parse(readFileSync(new URL('../vercel.json', import.meta.url), 'utf8'))
   assert.deepEqual(config.regions, ['dub1'])
-  assert.deepEqual(config.functionFailoverRegions, ['fra1'])
+  assert.equal(config.functionFailoverRegions, undefined)
 })
