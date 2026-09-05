@@ -1,0 +1,7 @@
+@media (max-width: 767px) {
+  body { background-attachment: scroll !important; }
+  .site-header { backdrop-filter: none !important; }
+  [data-slot="card"], .market-card { box-shadow: 0 2px 10px rgb(2 8 23 / 0.06) !important; }
+  .market-card:hover { transform: none; }
+  footer { content-visibility: auto; contain-intrinsic-size: auto 720px; }
+}
