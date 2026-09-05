@@ -1,5 +1,9 @@
 'use client'
 
+import Image from 'next/image'
+import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
+import { useEffect, useState } from 'react'
 import { useAppStore } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import {
@@ -28,9 +32,6 @@ import {
   UserPlus,
   LifeBuoy,
 } from 'lucide-react'
-import { useState, useEffect } from 'react'
-import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
 import {
   Sheet,
   SheetContent,
@@ -60,18 +61,6 @@ export function Header() {
   useEffect(() => {
     setSearchOpen(false)
   }, [pathname])
-
-  // Warm the small, high-frequency route shells after the header mounts. The
-  // heavier seller/admin bundles are prefetched only for users who can open
-  // them, keeping buyer navigation fast without loading privileged code.
-  useEffect(() => {
-    const routes = ['/', '/parts', '/stores', '/support']
-    if (user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') routes.push('/account/orders', '/account/profile')
-    if (user?.role === 'ADMIN') routes.push('/account/wishlist')
-    if (user?.role === 'SHOP_OWNER') routes.push('/seller/parts', '/seller/orders', '/seller/store')
-    if (user?.role === 'ADMIN') routes.push('/admin/users', '/admin/parts', '/admin/support')
-    routes.forEach((path) => router.prefetch(path))
-  }, [router, user?.role])
 
   const navItems = (
     <>
@@ -118,15 +107,18 @@ export function Header() {
   return (
     <header className="site-header sticky top-0 z-40 w-full border-b backdrop-blur-xl supports-[backdrop-filter]:bg-card/60">
       <div className="content-container flex min-h-16 items-center gap-2 py-2">
-        {/* Logo */}
         <Link
           href="/"
           aria-label="غيار ماركت - الرئيسية"
           className="group flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-primary/5"
         >
-          <img
+          <Image
             src="/ghyar-market-logo.png"
             alt=""
+            width={72}
+            height={44}
+            priority
+            sizes="72px"
             className="h-10 w-16 object-contain drop-shadow-sm transition group-hover:scale-105 sm:h-11 sm:w-[4.5rem]"
           />
           <span className="hidden text-lg font-extrabold tracking-tight text-foreground sm:inline">
@@ -134,19 +126,16 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Desktop Search with Autocomplete */}
         <div className="hidden min-w-0 max-w-sm flex-1 md:flex">
           <SearchBar />
         </div>
 
-        {/* Desktop Nav */}
         <nav className="mr-1 hidden items-center gap-0.5 xl:flex">
           {navItems}
         </nav>
 
         <div className="flex-1 lg:flex-none" />
 
-        {/* Cart + Theme + Notifications */}
         <div className="flex items-center gap-0.5 sm:gap-1">
           <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
             <SheetTrigger asChild>
@@ -179,7 +168,6 @@ export function Header() {
           {user && <NotificationsBell />}
         </div>
 
-        {/* Auth */}
         <div className="flex items-center gap-1">
           {user ? (
             <DropdownMenu>
@@ -288,7 +276,6 @@ export function Header() {
             </>
           )}
 
-          {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="size-10 rounded-xl xl:hidden">
