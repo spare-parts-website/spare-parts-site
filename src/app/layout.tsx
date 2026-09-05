@@ -6,7 +6,6 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
-import { NavigationWarmup } from "@/components/navigation-warmup";
 import { applicationOrigin } from "@/lib/application-url";
 
 const cairo = Cairo({
@@ -62,7 +61,6 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <NavigationWarmup />
           <AppShell>{children}</AppShell>
           <Toaster />
         </ThemeProvider>

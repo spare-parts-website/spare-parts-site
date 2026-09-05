@@ -3,11 +3,12 @@ import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
 test('prioritizes primary navigation over high-cardinality home detail prefetches', () => {
-  const home = readFileSync(new URL('../src/components/views/home-view.tsx', import.meta.url), 'utf8')
+  const homeData = readFileSync(new URL('../src/lib/home-marketplace-data.ts', import.meta.url), 'utf8')
+  const sections = readFileSync(new URL('../src/components/home-marketplace-sections.tsx', import.meta.url), 'utf8')
 
-  assert.match(home, /unstable_cache/)
-  assert.match(home, /\['home-marketplace-v1'\], \{ revalidate: 30 \}\)/)
-  assert.match(home, /<Link prefetch=\{false\} href=\{`\/parts\/\$\{part\.id\}`\}/)
-  assert.match(home, /<Link prefetch=\{false\} href=\{`\/stores\/\$\{store\.id\}`\}/)
-  assert.match(home, /<Link href=\{href\}>عرض الكل/)
+  assert.match(homeData, /unstable_cache/)
+  assert.match(homeData, /\['home-marketplace-v2'\], \{ revalidate: 60 \}\)/)
+  assert.match(sections, /<Link prefetch=\{false\} href=\{`\/parts\/\$\{part\.id\}`\}/)
+  assert.match(sections, /<Link prefetch=\{false\} href=\{`\/stores\/\$\{store\.id\}`\}/)
+  assert.match(sections, /<Link href=\{href\}>عرض الكل/)
 })

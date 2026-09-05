@@ -1,11 +1,7 @@
-import 'server-only'
-
 import Image from 'next/image'
 import Link from 'next/link'
 import Form from 'next/form'
-import { unstable_cache } from 'next/cache'
 import {
-  ArrowLeft,
   BadgeCheck,
   Banknote,
   CircleGauge,
@@ -14,108 +10,12 @@ import {
   Search,
   ShieldCheck,
   ShoppingCart,
-  Star,
   Store as StoreIcon,
 } from 'lucide-react'
-import { db } from '@/lib/db'
-import { isBlockedStoreName } from '@/lib/store-moderation'
-import { isDevelopmentReviewAuthor } from '@/lib/review-moderation'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
-import { FavoriteStoreButton } from '@/components/favorite-store-button'
-import { UserAvatar } from '@/components/user-avatar'
+import { HomeMarketplaceSections } from '@/components/home-marketplace-sections'
 
-interface Store {
-  id: string
-  name: string
-  description?: string | null
-  image?: string | null
-  verified: boolean
-  _count: { parts: number }
-  avgRating: number
-  reviewCount: number
-}
-
-interface Part {
-  id: string
-  name: string
-  price: number
-  stock: number
-  brand?: string | null
-  condition?: string | null
-  image?: string | null
-  store: { id: string; name: string; image?: string | null; verified: boolean }
-}
-
-const loadHomeMarketplace = unstable_cache(async (): Promise<{ parts: Part[]; stores: Store[]; failed: boolean }> => {
-  try {
-    const [recentParts, recentStores] = await Promise.all([
-      db.part.findMany({
-        where: { blocked: false },
-        select: {
-          id: true,
-          name: true,
-          price: true,
-          stock: true,
-          brand: true,
-          condition: true,
-          image: true,
-          store: { select: { id: true, name: true, image: true, verified: true } },
-        },
-        orderBy: { createdAt: 'desc' },
-        take: 16,
-      }),
-      db.store.findMany({
-        where: { parts: { some: { blocked: false } } },
-        select: {
-          id: true,
-          name: true,
-          description: true,
-          image: true,
-          verified: true,
-          _count: { select: { parts: { where: { blocked: false } } } },
-        },
-        orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }],
-        take: 12,
-      }),
-    ])
-
-    const parts = recentParts.filter((part) => !isBlockedStoreName(part.store.name)).slice(0, 8)
-    const visibleStores = recentStores.filter((store) => !isBlockedStoreName(store.name)).slice(0, 6)
-    const ratingRows = visibleStores.length
-      ? await db.storeReview.findMany({
-          where: { storeId: { in: visibleStores.map((store) => store.id) }, blocked: false },
-          select: { storeId: true, rating: true, user: { select: { name: true } } },
-        })
-      : []
-    const ratingByStore = new Map<string, { total: number; count: number }>()
-    for (const rating of ratingRows) {
-      if (isDevelopmentReviewAuthor(rating.user.name)) continue
-      const current = ratingByStore.get(rating.storeId) || { total: 0, count: 0 }
-      current.total += rating.rating
-      current.count += 1
-      ratingByStore.set(rating.storeId, current)
-    }
-    const stores = visibleStores.map((store) => {
-      const rating = ratingByStore.get(store.id)
-      return {
-        ...store,
-        avgRating: rating?.count ? rating.total / rating.count : 0,
-        reviewCount: rating?.count || 0,
-      }
-    })
-
-    return { parts, stores, failed: false }
-  } catch (error) {
-    console.error('Failed to render homepage marketplace data', error)
-    return { parts: [], stores: [], failed: true }
-  }
-}, ['home-marketplace-v1'], { revalidate: 30 })
-
-export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
-  const { parts, stores, failed } = await loadHomeMarketplace()
-
+export function HomeView({ isSeller = false }: { isSeller?: boolean }) {
   return (
     <div className="overflow-hidden pb-8">
       <section className="relative isolate min-h-[38rem] overflow-hidden bg-[#07111f] text-white sm:min-h-[42rem]">
@@ -161,21 +61,7 @@ export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
         </div>
       </section>
 
-      <section className="bg-slate-100/70 dark:bg-slate-950/35">
-        <div className="content-container section-space">
-          <SectionHeading eyebrow="وصل حديثاً" title="قطع تستحق المشاهدة" description="أحدث عروض المتاجر على غيار ماركت" href="/parts" />
-          {failed ? <LoadError /> : parts.length === 0 ? <EmptyState text="لا توجد قطع معروضة حالياً" /> : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">{parts.map((part) => <PartCard key={part.id} part={part} />)}</div>
-          )}
-        </div>
-      </section>
-
-      <section className="content-container section-space">
-        <SectionHeading eyebrow="البائع يصنع الفرق" title="متاجر قطع غيار على المنصة" description="قارن معلومات المتاجر وعلامة التوثيق والتقييمات عند توفرها" href="/stores" />
-        {failed ? <LoadError /> : stores.length === 0 ? <EmptyState text="لا توجد متاجر لديها قطع معروضة حالياً" /> : (
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{stores.map((store) => <StoreCard key={store.id} store={store} />)}</div>
-        )}
-      </section>
+      <HomeMarketplaceSections />
 
       <section className="content-container pb-20">
         <div className="relative overflow-hidden rounded-[2rem] border bg-card text-card-foreground shadow-xl shadow-slate-900/5 dark:shadow-black/20">
@@ -188,70 +74,12 @@ export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
 }
 
 function SellerCallout({ isSeller }: { isSeller: boolean }) {
-  const shortcuts = [{ href: '/seller/parts', icon: Package, title: 'إدارة المخزون' }, { href: '/seller/orders', icon: ShoppingCart, title: 'متابعة الطلبات' }, { href: '/seller/messages', icon: Headphones, title: 'رسائل العملاء' }, { href: '/seller/analytics', icon: CircleGauge, title: 'ملخص الأداء' }]
+  const shortcuts = [
+    { href: '/seller/parts', icon: Package, title: 'إدارة المخزون' },
+    { href: '/seller/orders', icon: ShoppingCart, title: 'متابعة الطلبات' },
+    { href: '/seller/messages', icon: Headphones, title: 'رسائل العملاء' },
+    { href: '/seller/analytics', icon: CircleGauge, title: 'ملخص الأداء' },
+  ]
+
   return <div className="relative grid lg:grid-cols-[1.15fr_.85fr]"><div className="border-b p-8 sm:p-12 lg:border-b-0 lg:border-l lg:p-16"><span className="eyebrow"><StoreIcon className="size-4" /> لأصحاب محلات قطع الغيار</span><h2 className="mt-4 text-3xl font-black sm:text-4xl">حوّل مخزونك إلى متجر يصل لعملاء أكثر.</h2><p className="mt-4 max-w-xl leading-8 text-muted-foreground">اعرض قطعك، استقبل الطلبات، وتابع رسائل العملاء من صفحة واحدة واضحة.</p><Button asChild size="lg" className="mt-7 rounded-xl px-7 shadow-lg shadow-primary/15"><Link href={isSeller ? '/seller/parts' : '/register'}>{isSeller ? 'فتح صفحة المحل' : 'ابدأ بيع قطعك'}</Link></Button></div><div className="grid grid-cols-2 gap-px bg-border">{shortcuts.map(({ href, icon: Icon, title }) => isSeller ? <Link key={href} href={href} className="flex min-h-40 flex-col justify-end bg-card/95 p-6 transition-colors hover:bg-primary/[.07] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary sm:p-7"><span className="grid size-12 place-items-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm"><Icon className="size-6" /></span><strong className="mt-5 text-base font-black sm:text-lg">{title}</strong></Link> : <div key={href} className="flex min-h-40 flex-col justify-end bg-card/95 p-6 sm:p-7"><span className="grid size-12 place-items-center rounded-2xl border border-primary/15 bg-primary/10 text-primary shadow-sm"><Icon className="size-6" /></span><strong className="mt-5 text-base font-black sm:text-lg">{title}</strong></div>)}</div></div>
-}
-
-function SectionHeading({ eyebrow, title, description, href }: { eyebrow: string; title: string; description: string; href: string }) {
-  return <div className="page-heading"><div><span className="eyebrow">{eyebrow}</span><h2 className="mt-2 text-3xl font-black sm:text-4xl">{title}</h2><p className="mt-2 text-muted-foreground">{description}</p></div><Button asChild variant="ghost"><Link href={href}>عرض الكل <ArrowLeft className="mr-1 size-4" /></Link></Button></div>
-}
-
-function LoadError() {
-  return <Card className="border-destructive/20"><CardContent className="flex flex-col items-center py-12 text-center"><h3 className="font-black">تعذر تحميل المحتوى</h3><p className="mt-2 text-sm text-muted-foreground">حاول تحديث الصفحة أو تصفح السوق مباشرة.</p><Button asChild variant="outline" className="mt-5"><Link href="/parts">تصفح قطع الغيار</Link></Button></CardContent></Card>
-}
-
-function EmptyState({ text }: { text: string }) {
-  return <Card><CardContent className="py-12 text-center text-muted-foreground">{text}</CardContent></Card>
-}
-
-function formatPrice(price: number) {
-  return `${new Intl.NumberFormat('ar-EG', { maximumFractionDigits: 2 }).format(price)} ج.م`
-}
-
-function RatingStars({ value }: { value: number }) {
-  return <div className="flex items-center gap-0.5" aria-label={`التقييم ${value.toFixed(1)} من 5`}>{[1, 2, 3, 4, 5].map((rating) => <Star key={rating} className={`size-3.5 ${rating <= Math.round(value) ? 'fill-amber-400 text-amber-400' : 'fill-muted text-muted'}`} />)}</div>
-}
-
-function PartCard({ part }: { part: Part }) {
-  return (
-    <Link prefetch={false} href={`/parts/${part.id}`} className="group overflow-hidden rounded-3xl border bg-card shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
-      <div className="relative aspect-[4/3] overflow-hidden bg-white dark:bg-slate-900">
-        {part.image ? <Image src={part.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="object-contain p-4 transition duration-300 group-hover:scale-105" /> : <Package className="absolute inset-0 m-auto size-14 text-muted-foreground/30" />}
-        <div className="absolute inset-x-3 top-3 flex justify-between gap-2">
-          {part.condition && <Badge className="bg-slate-950/80 text-white">{part.condition}</Badge>}
-          <Badge variant={part.stock > 0 ? 'secondary' : 'destructive'} className="mr-auto">{part.stock > 0 ? 'متوفر' : 'نفد'}</Badge>
-        </div>
-      </div>
-      <div className="p-5">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground"><UserAvatar name={part.store.name} src={part.store.image} className="size-7 text-[10px]" /><span className="min-w-0 truncate font-bold text-foreground">{part.store.name}</span>{part.store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="متجر موثق" />}</div>
-        <h3 className="mt-3 line-clamp-2 min-h-12 font-black leading-6 transition group-hover:text-primary">{part.name}</h3>
-        <div className="mt-4 flex items-end justify-between gap-3"><strong className="text-xl text-primary">{formatPrice(part.price)}</strong>{part.brand && <span className="text-xs text-muted-foreground">{part.brand}</span>}</div>
-      </div>
-    </Link>
-  )
-}
-
-function StoreCard({ store }: { store: Store }) {
-  return (
-    <div className="group relative overflow-hidden rounded-3xl border bg-card p-5 shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
-      <div className="absolute left-4 top-4 z-10"><FavoriteStoreButton storeId={store.id} /></div>
-      <Link prefetch={false} href={`/stores/${store.id}`} className="block">
-        <div className="flex items-center gap-4">
-          <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-primary">
-            {store.image ? <Image src={store.image} alt="" fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-8" />}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5"><h3 className="truncate text-lg font-black group-hover:text-primary">{store.name}</h3>{store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="متجر موثق" />}</div>
-            {store.reviewCount > 0 ? (
-              <div className="mt-2 flex items-center gap-2"><RatingStars value={store.avgRating} /><span className="text-xs text-muted-foreground">({store.reviewCount} تقييم)</span></div>
-            ) : (
-              <p className="mt-2 text-xs text-muted-foreground">لا توجد تقييمات بعد</p>
-            )}
-          </div>
-        </div>
-        <p className="mt-5 line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">{store.description || 'لم يضف المتجر وصفاً بعد.'}</p>
-        <div className="mt-5 flex items-center justify-between border-t pt-4 text-sm"><span className="flex items-center gap-1.5 text-muted-foreground"><Package className="size-4" /> {store._count.parts} قطعة</span><span className="font-bold text-primary">زيارة المتجر <ArrowLeft className="mr-1 inline size-4" /></span></div>
-      </Link>
-    </div>
-  )
 }

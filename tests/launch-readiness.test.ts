@@ -6,16 +6,18 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 
 test('public marketplace shows only sellers with active inventory and evidence-based trust states', () => {
   const home = read('src/components/views/home-view.tsx')
+  const homeData = read('src/lib/home-marketplace-data.ts')
+  const homeSections = read('src/components/home-marketplace-sections.tsx')
   const publicMarketplace = read('src/lib/public-marketplace.ts')
   const stores = read('src/components/views/stores-view.tsx')
 
-  assert.match(home, /where: \{ parts: \{ some: \{ blocked: false \} \} \}/)
-  assert.match(home, /orderBy: \[\{ verified: 'desc' \}, \{ createdAt: 'desc' \}\]/)
-  assert.match(home, /store\.reviewCount > 0/)
-  assert.match(home, /لا توجد تقييمات بعد/)
-  assert.match(home, /لم يضف المتجر وصفاً بعد/)
+  assert.match(homeData, /where: \{ parts: \{ some: \{ blocked: false \} \} \}/)
+  assert.match(homeData, /orderBy: \[\{ verified: 'desc' \}, \{ createdAt: 'desc' \}\]/)
+  assert.match(homeSections, /store\.reviewCount > 0/)
+  assert.match(homeSections, /لا توجد تقييمات بعد/)
+  assert.match(homeSections, /لم يضف المتجر وصفاً بعد/)
   assert.doesNotMatch(home, /دفع آمن عند الاستلام/)
-  assert.doesNotMatch(home, /متجر متخصص في بيع قطع غيار السيارات\./)
+  assert.doesNotMatch(homeSections, /متجر متخصص في بيع قطع غيار السيارات\./)
 
   assert.match(publicMarketplace, /const listableStoreWhere/)
   assert.match(publicMarketplace, /parts: \{ some: \{ blocked: false \} \}/)
