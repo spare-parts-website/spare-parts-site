@@ -14,7 +14,9 @@ const CONCURRENCY: Record<AIRole, number> = {
 }
 
 const AI_MODEL = 'gemini-3.5-flash-lite'
-export type AIProviderTarget = 'openrouter-primary' | 'google' | 'openrouter-text-pool-a' | 'openrouter-text-pool-b' | 'openrouter-vision-pool' | 'openrouter' | 'gateway'
+type ActiveAIProviderTarget = 'openrouter-primary' | 'google' | 'gateway-minimax-free' | 'openrouter-glm-free' | 'openrouter-gemma-free'
+type LegacyAIProviderTarget = 'openrouter-text-pool-a' | 'openrouter-text-pool-b' | 'openrouter-vision-pool' | 'openrouter' | 'gateway'
+export type AIProviderTarget = ActiveAIProviderTarget | LegacyAIProviderTarget
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
@@ -26,35 +28,36 @@ export function aiModel() {
 
 export function aiProviderTargets(options?: { hasImage?: boolean; privateContext?: boolean }): AIProviderTarget[] {
   const targets: AIProviderTarget[] = []
-  if (process.env.OPENROUTER_API_KEY && aiPaidPrimaryModel()) targets.push('openrouter-primary')
+  const hasImage = Boolean(options?.hasImage)
+  const privateContext = Boolean(options?.privateContext)
 
-  // Direct Gemini is the most reliable authenticated path in the current
-  // deployment. The previous release excluded it for every signed-in request,
-  // which left only ZDR-enforced routes that the project's current provider
-  // plans reject. Keep the user's role-safe tool boundaries server-side and
-  // let the configured Gemini API handle both text and image requests first.
+  // The paid OpenRouter primary remains an explicit opt-in through
+  // OPENROUTER_PRIMARY_MODEL. Do not send images to an arbitrary configured
+  // model because the environment variable does not prove multimodal support.
+  if (!hasImage && process.env.OPENROUTER_API_KEY && aiPaidPrimaryModel()) targets.push('openrouter-primary')
+
+  // Keep the existing direct Gemini route for text and vision. It is the only
+  // model path currently proven in production for signed-in image requests.
   if (process.env.GEMINI_API_KEY) targets.push('google')
 
-  if (process.env.OPENROUTER_API_KEY) {
-    // Signed-in requests must not be sent through the free model pools that are
-    // configured with mandatory ZDR in agent.ts: those pools currently return
-    // "No endpoints found matching your data policy". The generic OpenRouter
-    // route is the existing compatible fallback and does not expose raw user IDs.
-    if (options?.privateContext) {
-      targets.push('openrouter')
-      return targets
-    }
+  // Private account/order context must not silently spill into free endpoints
+  // whose ZDR/no-training guarantees are unknown or unavailable on this Vercel
+  // plan. The explicit paid OpenRouter primary enforces ZDR; direct Gemini keeps
+  // the deployment's existing privacy posture. Fail closed after those paths.
+  if (privateContext) return targets
 
-    if (options?.hasImage) targets.push('openrouter-vision-pool')
-    else {
-      targets.push('openrouter-text-pool-a')
-      targets.push('openrouter-text-pool-b')
-    }
-    targets.push('openrouter')
+  // Public/guest traffic can use the genuinely free Vercel route. agent.ts pins
+  // this target to GMICloud so Gateway cannot silently select a paid provider.
+  targets.push('gateway-minimax-free')
+
+  if (process.env.OPENROUTER_API_KEY) {
+    // Keep only two explicit :free OpenRouter backups. A 429/unavailable error
+    // falls through to the next target in route.ts; no opaque openrouter/free
+    // auto-router or cross-model pool remains.
+    if (!hasImage) targets.push('openrouter-glm-free')
+    targets.push('openrouter-gemma-free')
   }
 
-  // Vercel AI Gateway ZDR is unavailable on the current Hobby plan and was a
-  // guaranteed 403 fallback. Do not enqueue a provider path known to fail.
   return targets
 }
 

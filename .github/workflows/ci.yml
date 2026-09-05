@@ -50,6 +50,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Generate Prisma client for typecheck
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Diff check
+        run: |
+          git fetch origin main --depth=1
+          git diff --check origin/main HEAD
+
       - name: Prepare isolated checkout database
         run: npx prisma db push --skip-generate
 
