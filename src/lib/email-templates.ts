@@ -1,10 +1,5 @@
 export function escapeEmailHtml(value: string) {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;')
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
 }
 
 function shell(title: string, body: string, preview: string) {
@@ -16,25 +11,30 @@ function shell(title: string, body: string, preview: string) {
 export function notificationEmailHtml(input: { title: string; message: string; link?: string }) {
   const title = escapeEmailHtml(input.title)
   const message = escapeEmailHtml(input.message)
-  const action = input.link
-    ? `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-top:24px"><tr><td align="center"><a href="${escapeEmailHtml(input.link)}" style="display:inline-block;background-color:#00c768;border-radius:12px;padding-top:13px;padding-right:24px;padding-bottom:13px;padding-left:24px;color:#07111f;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;font-weight:900;text-decoration:none">عرض التفاصيل في غيار ماركت</a></td></tr></table>`
-    : ''
+  const action = input.link ? `<table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-top:24px"><tr><td align="center"><a href="${escapeEmailHtml(input.link)}" style="display:inline-block;background-color:#00c768;border-radius:12px;padding-top:13px;padding-right:24px;padding-bottom:13px;padding-left:24px;color:#07111f;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:22px;font-weight:900;text-decoration:none">عرض التفاصيل في غيار ماركت</a></td></tr></table>` : ''
   return shell(input.title, `<h1 style="margin-top:0;margin-right:0;margin-bottom:14px;margin-left:0;color:#0f172a;font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:32px;font-weight:800">${title}</h1><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:16px;line-height:30px">${message}</p>${action}<p style="margin-top:24px;margin-right:0;margin-bottom:0;margin-left:0;color:#94a3b8;font-family:Arial,Helvetica,sans-serif;font-size:12px;line-height:20px">يمكنك إدارة رسائل البريد من ملفك الشخصي في غيار ماركت.</p>`, input.message)
 }
 
-export function loginCodeEmailHtml(input: { name: string; code: string; purpose?: 'login' | 'register' }) {
+export function loginCodeEmailHtml(input: { name: string; code: string; purpose?: 'login' | 'register' | 'admin-bootstrap' }) {
   const name = escapeEmailHtml(input.name)
   const code = escapeEmailHtml(input.code)
-  const isRegister = input.purpose === 'register'
-  const title = isRegister ? 'رمز تأكيد البريد الإلكتروني' : 'رمز التحقق لتسجيل الدخول'
-  const intro = isRegister
-    ? 'استخدم الرمز التالي لتأكيد بريدك الإلكتروني وتفعيل حسابك في غيار ماركت:'
-    : 'استخدم الرمز التالي لإكمال تسجيل الدخول إلى حسابك:'
-  const preview = isRegister ? `رمز تأكيد بريدك الإلكتروني هو ${input.code}` : `رمز تسجيل الدخول الخاص بك هو ${input.code}`
-  const disclaimer = isRegister
-    ? 'ينتهي الرمز خلال 10 دقائق ويمكن استخدامه مرة واحدة فقط. إذا لم تنشئ حساباً في غيار ماركت، يمكنك تجاهل هذه الرسالة بأمان.'
-    : 'ينتهي الرمز خلال 10 دقائق ويمكن استخدامه مرة واحدة فقط. إذا لم تحاول تسجيل الدخول، تجاهل الرسالة.'
-  return shell(title, `<h1 style="margin-top:0;margin-right:0;margin-bottom:12px;margin-left:0;color:#0f172a;font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:32px;font-weight:800">مرحباً ${name}</h1><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:28px">${intro}</p><table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-top:24px;margin-bottom:24px"><tr><td dir="ltr" align="center" bgcolor="#eefbf6" style="background-color:#eefbf6;border-color:#9ee8cb;border-style:solid;border-width:1px;border-radius:14px;padding-top:18px;padding-right:10px;padding-bottom:18px;padding-left:10px;color:#07111f;font-family:Arial,Helvetica,sans-serif;font-size:38px;line-height:48px;font-weight:900;letter-spacing:12px">${code}</td></tr></table><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:26px">${disclaimer}</p>`, preview)
+  const purpose = input.purpose || 'login'
+  const title = purpose === 'register' ? 'رمز تأكيد البريد الإلكتروني' : purpose === 'admin-bootstrap' ? 'تأكيد أمان حساب المدير' : 'رمز التحقق لتسجيل الدخول'
+  const intro = purpose === 'register' ? 'استخدم الرمز التالي لتأكيد بريدك الإلكتروني وتفعيل حسابك في غيار ماركت:' : purpose === 'admin-bootstrap' ? 'استخدم الرمز التالي لتأكيد بريد المدير. بعد ذلك سيطلب منك إعداد تطبيق مصادقة لحماية لوحة الإدارة:' : 'استخدم الرمز التالي لإكمال تسجيل الدخول إلى حسابك:'
+  const preview = purpose === 'register' ? `رمز تأكيد بريدك الإلكتروني هو ${input.code}` : purpose === 'admin-bootstrap' ? `رمز تأكيد أمان المدير هو ${input.code}` : `رمز تسجيل الدخول الخاص بك هو ${input.code}`
+  const disclaimer = purpose === 'admin-bootstrap' ? 'ينتهي الرمز خلال 10 دقائق ويمكن استخدامه مرة واحدة فقط. إذا لم تحاول الدخول إلى حساب المدير فتجاهل الرسالة وتواصل مع الدعم.' : purpose === 'register' ? 'ينتهي الرمز خلال 10 دقائق ويمكن استخدامه مرة واحدة فقط. إذا لم تنشئ حساباً في غيار ماركت، يمكنك تجاهل هذه الرسالة بأمان.' : 'ينتهي الرمز خلال 10 دقائق ويمكن استخدامه مرة واحدة فقط. إذا لم تحاول تسجيل الدخول، تجاهل الرسالة.'
+  return shell(title, `<h1 style="margin-top:0;margin-right:0;margin-bottom:12px;margin-left:0;color:#0f172a;font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:32px;font-weight:800">مرحباً ${name}</h1><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:28px">${intro}</p><table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-top:24px;margin-bottom:24px"><tr><td dir="ltr" align="center" bgcolor="#eefbf6" style="background-color:#eefbf6;border-color:#9ee8cb;border-style:solid;border-width:1px;border-radius:14px;padding-top:18px;padding-right:10px;padding-bottom:18px;padding-left:10px;color:#07111f;font-family:Arial,Helvetica,sans-serif;font-size:38px;line-height:48px;font-weight:900;letter-spacing:10px">${code}</td></tr></table><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:26px">${disclaimer}</p>`, preview)
+}
+
+export function emailChangeCodeHtml(input: { name: string; code: string; targetEmail: string }) {
+  const name = escapeEmailHtml(input.name)
+  const code = escapeEmailHtml(input.code)
+  const target = escapeEmailHtml(input.targetEmail)
+  return shell('تأكيد البريد الإلكتروني الجديد', `<h1 style="margin-top:0;margin-right:0;margin-bottom:12px;margin-left:0;color:#0f172a;font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:32px;font-weight:800">مرحباً ${name}</h1><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:28px">تم طلب استخدام <strong dir="ltr">${target}</strong> كبريد تسجيل الدخول الجديد. أدخل الرمز التالي في غيار ماركت لتأكيد أنك تملك هذا البريد:</p><table width="100%" cellpadding="0" cellspacing="0" border="0" role="presentation" style="margin-top:24px;margin-bottom:24px"><tr><td dir="ltr" align="center" bgcolor="#eefbf6" style="background-color:#eefbf6;border-color:#9ee8cb;border-style:solid;border-width:1px;border-radius:14px;padding:18px 10px;color:#07111f;font-family:Arial,Helvetica,sans-serif;font-size:38px;line-height:48px;font-weight:900;letter-spacing:10px">${code}</td></tr></table><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:26px">ينتهي الرمز خلال 10 دقائق. لن يتغير بريد حسابك قبل إدخال الرمز بنجاح.</p>`, `رمز تأكيد البريد الجديد هو ${input.code}`)
+}
+
+export function accountSecurityEmailHtml(input: { name: string; title: string; message: string }) {
+  return shell(input.title, `<h1 style="margin-top:0;margin-right:0;margin-bottom:12px;margin-left:0;color:#0f172a;font-family:Arial,Helvetica,sans-serif;font-size:22px;line-height:32px;font-weight:800">${escapeEmailHtml(input.title)}</h1><p style="margin:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:28px">مرحباً ${escapeEmailHtml(input.name)}،</p><p style="margin-top:12px;margin-right:0;margin-bottom:0;margin-left:0;color:#475569;font-family:Arial,Helvetica,sans-serif;font-size:15px;line-height:28px">${escapeEmailHtml(input.message)}</p><p style="margin-top:20px;margin-right:0;margin-bottom:0;margin-left:0;color:#64748b;font-family:Arial,Helvetica,sans-serif;font-size:13px;line-height:24px">إذا لم تنفذ هذا التغيير، غيّر كلمة المرور وتواصل مع الدعم فوراً.</p>`, input.message)
 }
 
 export function passwordResetEmailHtml(input: { name: string; resetUrl: string }) {
