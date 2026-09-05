@@ -92,7 +92,7 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
           <p className="page-kicker">البائعون</p>
           <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">المتاجر</h1>
         <p className="text-muted-foreground mt-1">
-          {loading ? 'جاري التحميل...' : `${total} متجر لقطع الغيار على المنصة`}
+          {loading ? 'جاري التحميل...' : `${total} متجر لديه قطع معروضة`}
         </p>
         </div>
       </div>
@@ -126,7 +126,7 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
         <Card>
           <CardContent className="py-16 text-center text-muted-foreground">
             <StoreIcon className="size-12 mx-auto mb-3 opacity-50" />
-            <p>لا توجد متاجر مطابقة</p>
+            <p>لا توجد متاجر لديها قطع مطابقة حالياً</p>
           </CardContent>
         </Card>
       ) : (
@@ -144,17 +144,19 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
                       <CardTitle className="text-base line-clamp-1 group-hover:text-primary transition">{store.name}</CardTitle>
-                      {store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر معتمد" />}
+                      {store.verified && <ShieldCheck className="size-4 text-emerald-500 shrink-0" aria-label="متجر موثق" />}
                       <div className="mr-auto" onClick={(event) => event.stopPropagation()}>
                         <FavoriteStoreButton storeId={store.id} />
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 mt-1">
-                      <Stars value={store.avgRating} />
-                      <span className="text-xs text-muted-foreground">
-                        ({store.reviewCount} تقييم)
-                      </span>
-                    </div>
+                    {store.reviewCount > 0 ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <Stars value={store.avgRating} />
+                        <span className="text-xs text-muted-foreground">({store.reviewCount} تقييم)</span>
+                      </div>
+                    ) : (
+                      <p className="mt-1 text-xs text-muted-foreground">لا توجد تقييمات بعد</p>
+                    )}
                   </div>
                 </div>
               </CardHeader>
@@ -182,7 +184,7 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
                   <Package className="size-3 ml-1" />
                   {store._count.parts} قطعة غيار
                 </Badge>
-                <p className="text-xs text-muted-foreground">{store.completedOrderCount} طلباً مكتملًا</p>
+                {store.completedOrderCount > 0 && <p className="text-xs text-muted-foreground">{store.completedOrderCount} طلباً مكتملًا</p>}
                 {store.completionRate !== null && <Badge variant="outline" className="text-[10px]">نسبة الإكمال {store.completionRate}%</Badge>}
                 <Button variant="link" size="sm" className="h-auto p-0" onClick={(event) => { event.stopPropagation(); navigate({ name: 'store', storeId: store.id }) }}>
                   زيارة المتجر
