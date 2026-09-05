@@ -2,22 +2,28 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
-test('server-renders bounded homepage marketplace data without exposing owner identity', () => {
+test('keeps homepage HTML database-free while serving bounded privacy-safe marketplace data', () => {
   const home = readFileSync(new URL('../src/components/views/home-view.tsx', import.meta.url), 'utf8')
+  const homeData = readFileSync(new URL('../src/lib/home-marketplace-data.ts', import.meta.url), 'utf8')
+  const homeSections = readFileSync(new URL('../src/components/home-marketplace-sections.tsx', import.meta.url), 'utf8')
+  const homeApi = readFileSync(new URL('../src/app/api/home-marketplace/route.ts', import.meta.url), 'utf8')
   const page = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8')
   const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8')
 
   assert.doesNotMatch(home, /^['"]use client['"]/)
-  assert.match(home, /db\.part\.findMany/)
-  assert.match(home, /db\.store\.findMany/)
-  assert.match(home, /take: 16/)
-  assert.match(home, /take: 12/)
-  assert.doesNotMatch(home, /fetch\(['"]\/api\/(?:parts|stores)/)
-  assert.doesNotMatch(home, /owner:\s*\{\s*select/)
+  assert.doesNotMatch(home, /@\/lib\/db|db\./)
+  assert.match(homeData, /db\.part\.findMany/)
+  assert.match(homeData, /db\.store\.findMany/)
+  assert.match(homeData, /take: 16/)
+  assert.match(homeData, /take: 12/)
+  assert.doesNotMatch(homeData, /owner:\s*\{\s*select/)
+  assert.match(homeSections, /fetch\('\/api\/home-marketplace'/)
+  assert.match(homeApi, /Vercel-CDN-Cache-Control/)
+  assert.match(homeApi, /stale-while-revalidate=300/)
   assert.match(home, /import Form from 'next\/form'/)
   assert.match(home, /<Form action="\/parts"/)
   assert.match(page, /<HomeView\s*\/>/)
-  assert.match(page, /export const revalidate = 30/)
+  assert.match(page, /export const runtime = 'edge'/)
   assert.doesNotMatch(layout, /متاجر موثوقة/)
 })
 
