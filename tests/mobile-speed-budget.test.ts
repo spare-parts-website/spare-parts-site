@@ -28,10 +28,25 @@ test('defers background work until after initial loading', () => {
   const pwa = read('src/components/pwa-installer.tsx')
   const header = read('src/components/header.tsx')
   const mobileNav = read('src/components/mobile-bottom-nav.tsx')
+  const mobileCss = read('src/app/mobile-performance.css')
 
   assert.match(warmup, /document\.readyState === 'complete'/)
   assert.match(warmup, /requestIdleCallback/)
   assert.match(pwa, /requestIdleCallback/)
   assert.doesNotMatch(header, /routes\.forEach\(\(path\) => router\.prefetch\(path\)\)/)
   assert.doesNotMatch(mobileNav, /backdrop-blur/)
+  assert.match(mobileCss, /background-attachment:\s*scroll/)
+  assert.match(mobileCss, /content-visibility:\s*auto/)
+})
+
+test('caches the default public catalog payloads within their freshness window', () => {
+  const parts = read('src/app/parts/page.tsx')
+  const stores = read('src/app/stores/page.tsx')
+
+  assert.match(parts, /unstable_cache/)
+  assert.match(parts, /public-parts-default-v1/)
+  assert.match(parts, /revalidate:\s*30/)
+  assert.match(stores, /unstable_cache/)
+  assert.match(stores, /public-stores-default-v1/)
+  assert.match(stores, /revalidate:\s*30/)
 })
