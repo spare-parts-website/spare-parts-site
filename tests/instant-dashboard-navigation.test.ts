@@ -5,6 +5,7 @@ import test from 'node:test'
 test('switches seller and admin dashboard tabs without a server route transition', () => {
   const tabs = readFileSync(new URL('../src/components/ui/tabs.tsx', import.meta.url), 'utf8')
   const helper = readFileSync(new URL('../src/lib/instant-dashboard-navigation.ts', import.meta.url), 'utf8')
+  const navigation = readFileSync(new URL('../src/lib/use-navigation.ts', import.meta.url), 'utf8')
   const seller = readFileSync(new URL('../src/components/views/shop-dashboard-view.tsx', import.meta.url), 'utf8')
   const admin = readFileSync(new URL('../src/components/views/admin-dashboard-view.tsx', import.meta.url), 'utf8')
 
@@ -15,6 +16,8 @@ test('switches seller and admin dashboard tabs without a server route transition
   assert.match(helper, /window\.history\.pushState/)
   assert.match(helper, /encodeURIComponent\(tab\)/)
   assert.match(seller, /pushDashboardTab\('seller', v\)/)
+  assert.match(navigation, /dashboard && isInsideDashboard\(pathname, dashboard\.area\)/)
+  assert.match(navigation, /router\.push\(path\)/)
 
   // Admin can keep its existing router callback: the shared Tabs wrapper
   // intercepts dashboard tab changes first, updates usePathname immediately,
