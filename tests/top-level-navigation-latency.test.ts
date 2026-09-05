@@ -12,6 +12,7 @@ test('keeps high-frequency top-level routes warm in the client router cache', ()
   }
   assert.match(warmup, /router\.prefetch\(href, \{ onInvalidate: refresh \}\)/)
   assert.match(layout, /<NavigationWarmup \/>/)
+  assert.match(layout, /export const dynamic = 'force-dynamic'/)
   assert.match(config, /staleTimes:\s*\{[\s\S]*dynamic:\s*300[\s\S]*static:\s*300/)
 })
 
