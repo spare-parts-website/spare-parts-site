@@ -66,6 +66,7 @@ async function loadHomeMarketplace(): Promise<{ parts: Part[]; stores: Store[]; 
         take: 16,
       }),
       db.store.findMany({
+        where: { parts: { some: { blocked: false } } },
         select: {
           id: true,
           name: true,
@@ -74,7 +75,7 @@ async function loadHomeMarketplace(): Promise<{ parts: Part[]; stores: Store[]; 
           verified: true,
           _count: { select: { parts: { where: { blocked: false } } } },
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }],
         take: 12,
       }),
     ])
@@ -130,7 +131,7 @@ export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
               <span className="block text-primary">من متجر تعرف تفاصيله.</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-8 text-white/70 sm:text-lg">
-              ابحث وقارن واختر من متاجر متخصصة. معلومات واضحة، تقييمات حقيقية، ودفع آمن عند الاستلام.
+              ابحث وقارن واختر من متاجر متخصصة. معلومات واضحة، وتقييمات من المشترين عند توفرها، والدفع عند الاستلام.
             </p>
             <Form action="/parts" className="mt-8 rounded-2xl border border-white/15 bg-white p-2 shadow-2xl shadow-black/30 sm:flex">
               <label className="relative block min-w-0 flex-1">
@@ -169,8 +170,8 @@ export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
       </section>
 
       <section className="content-container section-space">
-        <SectionHeading eyebrow="البائع يصنع الفرق" title="متاجر قطع غيار على المنصة" description="قارن التقييمات وتحقق من علامة التوثيق قبل الاختيار" href="/stores" />
-        {failed ? <LoadError /> : stores.length === 0 ? <EmptyState text="لا توجد متاجر معروضة حالياً" /> : (
+        <SectionHeading eyebrow="البائع يصنع الفرق" title="متاجر قطع غيار على المنصة" description="قارن معلومات المتاجر وعلامة التوثيق والتقييمات عند توفرها" href="/stores" />
+        {failed ? <LoadError /> : stores.length === 0 ? <EmptyState text="لا توجد متاجر لديها قطع معروضة حالياً" /> : (
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">{stores.map((store) => <StoreCard key={store.id} store={store} />)}</div>
         )}
       </section>
@@ -238,9 +239,16 @@ function StoreCard({ store }: { store: Store }) {
           <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-primary">
             {store.image ? <Image src={store.image} alt="" fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-8" />}
           </div>
-          <div className="min-w-0"><div className="flex items-center gap-1.5"><h3 className="truncate text-lg font-black group-hover:text-primary">{store.name}</h3>{store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="متجر موثق" />}</div><div className="mt-2 flex items-center gap-2"><RatingStars value={store.avgRating} /><span className="text-xs text-muted-foreground">({store.reviewCount})</span></div></div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5"><h3 className="truncate text-lg font-black group-hover:text-primary">{store.name}</h3>{store.verified && <BadgeCheck className="size-4 shrink-0 text-primary" aria-label="متجر موثق" />}</div>
+            {store.reviewCount > 0 ? (
+              <div className="mt-2 flex items-center gap-2"><RatingStars value={store.avgRating} /><span className="text-xs text-muted-foreground">({store.reviewCount} تقييم)</span></div>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">لا توجد تقييمات بعد</p>
+            )}
+          </div>
         </div>
-        <p className="mt-5 line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">{store.description || 'متجر متخصص في بيع قطع غيار السيارات.'}</p>
+        <p className="mt-5 line-clamp-2 min-h-12 text-sm leading-6 text-muted-foreground">{store.description || 'لم يضف المتجر وصفاً بعد.'}</p>
         <div className="mt-5 flex items-center justify-between border-t pt-4 text-sm"><span className="flex items-center gap-1.5 text-muted-foreground"><Package className="size-4" /> {store._count.parts} قطعة</span><span className="font-bold text-primary">زيارة المتجر <ArrowLeft className="mr-1 inline size-4" /></span></div>
       </Link>
     </div>
