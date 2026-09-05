@@ -4,34 +4,39 @@ import test from 'node:test'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('hot anonymous pages can prerender instead of paying SSR cost per request', () => {
+test('hot anonymous HTML keeps nonce hydration safety while marketplace data stays cached', () => {
   const layout = read('src/app/layout.tsx')
-  const page = read('src/app/page.tsx')
-  const config = read('next.config.ts')
+  const homePage = read('src/app/page.tsx')
+  const partsPage = read('src/app/parts/page.tsx')
+  const storesPage = read('src/app/stores/page.tsx')
+  const publicMarketplace = read('src/lib/public-marketplace.ts')
+  const homeApi = read('src/app/api/home-marketplace/route.ts')
 
   assert.doesNotMatch(layout, /export const dynamic = 'force-dynamic'/)
-  assert.doesNotMatch(page, /export const dynamic = 'force-dynamic'/)
-  assert.match(config, /sri:\s*\{[\s\S]*algorithm: 'sha256'/)
-  assert.match(config, /source: '\/'/)
-  assert.match(config, /source: '\/parts'/)
-  assert.match(config, /source: '\/stores'/)
-  assert.match(config, /script-src 'self'/)
-  assert.doesNotMatch(config, /script-src 'self' 'unsafe-inline'/)
+  assert.match(homePage, /await connection\(\)/)
+  assert.match(partsPage, /await connection\(\)/)
+  assert.match(storesPage, /await connection\(\)/)
+
+  assert.match(publicMarketplace, /loadDefaultPublicPartsList = unstable_cache\([\s\S]*?\['public-parts-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
+  assert.match(publicMarketplace, /loadDefaultPublicStoresList = unstable_cache\([\s\S]*?\['public-stores-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
+  assert.match(homeApi, /s-maxage=120/)
+  assert.match(homeApi, /stale-while-revalidate=300/)
 })
 
-test('strict CSP stays nonce-based on dynamic pages while cacheable JSON avoids nonce work', () => {
+test('strict CSP stays nonce-based on HTML while cacheable JSON avoids nonce work', () => {
   const proxy = read('src/proxy.ts')
 
   assert.match(proxy, /script-src 'self' 'nonce-\$\{value\}'/)
   assert.match(proxy, /pathname\.startsWith\('\/api\/'\)/)
   assert.match(proxy, /browserMutationAllowed\(request\)/)
-  assert.match(proxy, /STATIC_PUBLIC_PATHS/)
+  assert.doesNotMatch(proxy, /STATIC_PUBLIC_PATHS/)
   assert.match(proxy, /api\/home-marketplace\$/)
   assert.match(proxy, /next-router-prefetch/)
   assert.match(proxy, /purpose.*prefetch/)
+  assert.doesNotMatch(proxy, /script-src[^\n]*unsafe-inline/)
 })
 
-test('theme bootstrap is external so static CSP does not need inline script exceptions', () => {
+test('theme bootstrap is external so nonce CSP does not need custom inline theme code', () => {
   const layout = read('src/app/layout.tsx')
   const theme = read('public/theme-init.js')
   const toggle = read('src/components/theme-toggle.tsx')

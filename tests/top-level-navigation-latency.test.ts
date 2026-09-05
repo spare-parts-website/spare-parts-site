@@ -5,12 +5,18 @@ import test from 'node:test'
 test('keeps high-frequency top-level routes warm without periodic duplicate traffic', () => {
   const header = readFileSync(new URL('../src/components/header.tsx', import.meta.url), 'utf8')
   const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8')
+  const homePage = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8')
+  const partsPage = readFileSync(new URL('../src/app/parts/page.tsx', import.meta.url), 'utf8')
+  const storesPage = readFileSync(new URL('../src/app/stores/page.tsx', import.meta.url), 'utf8')
   const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8')
 
   assert.match(header, /const routes = \['\/', '\/parts', '\/stores', '\/support'\]/)
   assert.match(header, /routes\.forEach\(\(path\) => router\.prefetch\(path\)\)/)
   assert.doesNotMatch(layout, /NavigationWarmup/)
   assert.doesNotMatch(layout, /export const dynamic = 'force-dynamic'/)
+  assert.match(homePage, /await connection\(\)/)
+  assert.match(partsPage, /await connection\(\)/)
+  assert.match(storesPage, /await connection\(\)/)
   assert.match(config, /sri:\s*\{\s*algorithm: 'sha256'/)
   assert.match(config, /staleTimes:\s*\{[\s\S]*dynamic:\s*300[\s\S]*static:\s*300/)
 })

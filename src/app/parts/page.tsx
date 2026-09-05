@@ -1,9 +1,8 @@
 import type { Metadata } from 'next'
+import { connection } from 'next/server'
 import { Suspense } from 'react'
 import { PartsView } from '@/components/views/parts-view'
 import { getPublicPartsList, type PublicPartsList } from '@/lib/public-marketplace'
-
-export const revalidate = 30
 
 export const metadata: Metadata = {
   title: 'قطع الغيار',
@@ -16,11 +15,16 @@ function PartsFallback() {
 }
 
 export default async function PartsPage() {
+  // This HTML must be request-rendered so Proxy can provide a nonce for Next's
+  // inline App Router scripts. The default marketplace query itself remains
+  // cached for 30 seconds in getPublicPartsList().
+  await connection()
+
   let initialData: PublicPartsList | null = null
   try {
     initialData = await getPublicPartsList({ sort: 'newest', page: 1 })
   } catch {
-    // The static shell can still load its public API payload after hydration.
+    // The shell can still load its public API payload after hydration.
   }
   return <Suspense fallback={<PartsFallback />}>
     <PartsView initialData={initialData} initialQuery={{ sort: 'newest', page: 1 }} />
