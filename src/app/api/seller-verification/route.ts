@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole } from '@/lib/auth'
+import { requireAdminStepUp, requireRole } from '@/lib/auth'
 import { createNotification } from '@/lib/notifications'
 import { audit } from '@/lib/audit'
 import { isPrivateImageOwnedBy } from '@/lib/private-image'
@@ -14,31 +14,60 @@ export async function GET(req: NextRequest) {
     if (scope === 'admin') return NextResponse.json({ requests: await db.sellerVerification.findMany({ include: { store: { include: { owner: { select: { name: true, email: true, phone: true } } } } }, orderBy: { submittedAt: 'desc' } }) })
     const store = await db.store.findUnique({ where: { ownerId: session.id }, include: { verification: true } })
     return NextResponse.json({ verification: store?.verification || null, status: store?.verificationStatus || 'UNVERIFIED' })
-  } catch (e: any) { return NextResponse.json({ error: e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN' ? 'غير مصرح' : 'تعذر تحميل التحقق' }, { status: e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN' ? 403 : 500 }) }
+  } catch (error) { const message = error instanceof Error ? error.message : ''; return NextResponse.json({ error: message === 'UNAUTHORIZED' || message === 'FORBIDDEN' ? 'غير مصرح' : 'تعذر تحميل التحقق' }, { status: message === 'UNAUTHORIZED' || message === 'FORBIDDEN' ? 403 : 500 }) }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireRole('SHOP_OWNER'); const { documentUrls, businessName } = await req.json(); const store = await db.store.findUnique({ where: { ownerId: session.id } })
+    const session = await requireRole('SHOP_OWNER')
+    const { documentUrls, businessName } = await req.json()
+    const store = await db.store.findUnique({ where: { ownerId: session.id } })
     if (!store) return NextResponse.json({ error: 'لا يوجد متجر' }, { status: 404 })
-    const urls = Array.isArray(documentUrls)
-      ? documentUrls.filter((url) => typeof url === 'string' && DOCUMENT_URL.test(url) && isPrivateImageOwnedBy(url, 'verification', session.id)).slice(0, 3)
-      : []
+    const urls = Array.isArray(documentUrls) ? documentUrls.filter((url): url is string => typeof url === 'string' && DOCUMENT_URL.test(url) && isPrivateImageOwnedBy(url, 'verification', session.id)).slice(0, 3) : []
     if (!urls.length) return NextResponse.json({ error: 'ارفع مستندًا واحدًا على الأقل' }, { status: 400 })
-    const verification = await db.sellerVerification.upsert({ where: { storeId: store.id }, create: { storeId: store.id, documentUrls: JSON.stringify(urls), businessName: typeof businessName === 'string' ? businessName.trim().slice(0, 160) || null : null }, update: { documentUrls: JSON.stringify(urls), businessName: typeof businessName === 'string' ? businessName.trim().slice(0, 160) || null : null, status: 'PENDING', adminNote: null, submittedAt: new Date(), reviewedAt: null } })
-    await db.store.update({ where: { id: store.id }, data: { verificationStatus: 'PENDING', verified: false, verifiedAt: null } })
+    const cleanBusinessName = typeof businessName === 'string' ? businessName.trim().slice(0, 160) || null : null
+    const verification = await db.$transaction(async (tx) => {
+      const request = await tx.sellerVerification.upsert({ where: { storeId: store.id }, create: { storeId: store.id, documentUrls: JSON.stringify(urls), businessName: cleanBusinessName }, update: { documentUrls: JSON.stringify(urls), businessName: cleanBusinessName, status: 'PENDING', adminNote: null, submittedAt: new Date(), reviewedAt: null } })
+      await tx.store.update({ where: { id: store.id }, data: { verificationStatus: 'PENDING', verified: false, verifiedAt: null } })
+      return request
+    })
     await audit({ actorId: session.id, action: 'SELLER_VERIFICATION_SUBMITTED', targetType: 'store', targetId: store.id })
     return NextResponse.json({ verification })
-  } catch (e: any) { return NextResponse.json({ error: e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN' ? 'غير مصرح' : 'تعذر إرسال الطلب' }, { status: e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN' ? 403 : 500 }) }
+  } catch (error) { const message = error instanceof Error ? error.message : ''; return NextResponse.json({ error: message === 'UNAUTHORIZED' || message === 'FORBIDDEN' ? 'غير مصرح' : 'تعذر إرسال الطلب' }, { status: message === 'UNAUTHORIZED' || message === 'FORBIDDEN' ? 403 : 500 }) }
 }
 
 export async function PUT(req: NextRequest) {
   try {
-    const admin = await requireRole('ADMIN'); const { id, status, adminNote } = await req.json()
-    if (!['APPROVED', 'REJECTED'].includes(status)) return NextResponse.json({ error: 'القرار غير صالح' }, { status: 400 })
-    const request = await db.sellerVerification.update({ where: { id }, data: { status, adminNote: typeof adminNote === 'string' ? adminNote.trim().slice(0, 1000) || null : null, reviewedAt: new Date() }, include: { store: true } })
-    await db.store.update({ where: { id: request.storeId }, data: { verificationStatus: status, verified: status === 'APPROVED', verifiedAt: status === 'APPROVED' ? new Date() : null } })
-    await Promise.allSettled([createNotification({ userId: request.store.ownerId, title: status === 'APPROVED' ? 'تم اعتماد متجرك' : 'يحتاج طلب الاعتماد إلى تعديل', message: adminNote || (status === 'APPROVED' ? 'أصبح متجرك معتمدًا على غيار ماركت.' : 'راجع بيانات التحقق وأعد الإرسال.'), type: 'VERIFICATION', link: 'shop-dashboard', dedupeKey: `seller-verification/${request.id}/${status}/${request.store.ownerId}` }), audit({ actorId: admin.id, action: `SELLER_VERIFICATION_${status}`, targetType: 'store', targetId: request.storeId })])
-    return NextResponse.json({ request })
-  } catch (e: any) { return NextResponse.json({ error: e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN' ? 'غير مصرح' : 'تعذر حفظ القرار' }, { status: e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN' ? 403 : 500 }) }
+    const admin = await requireAdminStepUp()
+    const { id, status, adminNote } = await req.json()
+    if (!id || !['APPROVED', 'REJECTED'].includes(status)) return NextResponse.json({ error: 'القرار غير صالح' }, { status: 400 })
+    const note = typeof adminNote === 'string' ? adminNote.trim().slice(0, 1000) || null : null
+    const now = new Date()
+    const result = await db.$transaction(async (tx) => {
+      await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${`seller-verification:${id}`}))`
+      const current = await tx.sellerVerification.findUnique({ where: { id }, include: { store: true } })
+      if (!current) throw new Error('NOT_FOUND')
+      const claimed = await tx.sellerVerification.updateMany({ where: { id, status: 'PENDING' }, data: { status, adminNote: note, reviewedAt: now } })
+      if (claimed.count !== 1) throw new Error('VERIFICATION_CHANGED')
+      const storeData = status === 'APPROVED'
+        ? { verified: true, verificationStatus: 'APPROVED', verifiedAt: now, verifiedStoreName: current.store.name, verifiedBusinessName: current.businessName || current.store.name, verifiedPhone: current.store.phone, verifiedAddress: current.store.address, verifiedImage: current.store.image, verifiedById: admin.id }
+        : { verified: false, verificationStatus: 'REJECTED', verifiedAt: null }
+      const store = await tx.store.update({ where: { id: current.storeId }, data: storeData })
+      const request = await tx.sellerVerification.findUniqueOrThrow({ where: { id } })
+      return { request, store }
+    })
+    await Promise.allSettled([
+      createNotification({ userId: result.store.ownerId, title: status === 'APPROVED' ? 'تم اعتماد متجرك' : 'يحتاج طلب الاعتماد إلى تعديل', message: note || (status === 'APPROVED' ? 'أصبح متجرك معتمدًا على غيار ماركت.' : 'راجع بيانات التحقق وأعد الإرسال.'), type: 'VERIFICATION', link: 'shop-dashboard', dedupeKey: `seller-verification/${result.request.id}/${status}/${result.store.ownerId}` }),
+      audit({ actorId: admin.id, action: `SELLER_VERIFICATION_${status}`, targetType: 'store', targetId: result.store.id, metadata: { requestId: id } }),
+    ])
+    return NextResponse.json({ request: result.request })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (message === 'STEP_UP_REQUIRED') return NextResponse.json({ error: 'يلزم تأكيد هوية المدير قبل اعتماد أو رفض المتجر.', stepUpUrl: '/admin/security' }, { status: 428 })
+    if (message === 'VERIFICATION_CHANGED') return NextResponse.json({ error: 'تم اتخاذ قرار بشأن هذا الطلب من جلسة أخرى. أعد تحميل الصفحة.' }, { status: 409 })
+    if (message === 'NOT_FOUND') return NextResponse.json({ error: 'طلب التحقق غير موجود' }, { status: 404 })
+    if (message === 'UNAUTHORIZED' || message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    console.error('Seller verification decision failed', error)
+    return NextResponse.json({ error: 'تعذر حفظ القرار' }, { status: 500 })
+  }
 }
