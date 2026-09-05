@@ -79,12 +79,13 @@ export function AppShell({
       requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
       cancelIdleCallback?: (handle: number) => void
     }
-    const handle = idleWindow.requestIdleCallback
-      ? idleWindow.requestIdleCallback(run, { timeout: 1800 })
+    const hasIdleCallback = typeof idleWindow.requestIdleCallback === 'function'
+    const handle = hasIdleCallback
+      ? idleWindow.requestIdleCallback!(run, { timeout: 1800 })
       : window.setTimeout(run, 900)
     return () => {
       cancelled = true
-      if (idleWindow.cancelIdleCallback && idleWindow.requestIdleCallback) idleWindow.cancelIdleCallback(handle)
+      if (hasIdleCallback && typeof idleWindow.cancelIdleCallback === 'function') idleWindow.cancelIdleCallback(handle)
       else window.clearTimeout(handle)
     }
   }, [user?.id, user?.role])
