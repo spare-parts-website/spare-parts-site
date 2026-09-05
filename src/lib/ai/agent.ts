@@ -82,12 +82,13 @@ ${ROLE_GUIDANCE[input.role]}
 }
 
 function providerModel(provider: AIProviderTarget) {
-  if (provider === 'gateway') return gateway(`google/${aiModel()}`)
+  if (provider === 'gateway-minimax-free') return gateway('minimax/minimax-m3')
   if (provider === 'google') {
     const apiKey = process.env.GEMINI_API_KEY
     if (!apiKey) throw new Error('AI_UNAVAILABLE')
     return createGoogle({ apiKey })(aiModel())
   }
+
   const apiKey = process.env.OPENROUTER_API_KEY
   if (!apiKey) throw new Error('AI_UNAVAILABLE')
   if (provider === 'openrouter-primary') {
@@ -95,21 +96,27 @@ function providerModel(provider: AIProviderTarget) {
     if (!model) throw new Error('AI_UNAVAILABLE')
     return createOpenRouter({ apiKey })(model)
   }
-  const models: Partial<Record<AIProviderTarget, string>> = {
-    'openrouter-text-pool-a': 'inclusionai/ling-3.0-flash-fin:free',
-    'openrouter-text-pool-b': 'nvidia/nemotron-3.5-lightning:free',
-    'openrouter-vision-pool': 'minimax/minimax-m3:free',
-    openrouter: 'openrouter/free',
-  }
-  return createOpenRouter({ apiKey })(models[provider] || 'openrouter/free')
+  if (provider === 'openrouter-glm-free') return createOpenRouter({ apiKey })('z-ai/glm-5.2:free')
+  if (provider === 'openrouter-gemma-free') return createOpenRouter({ apiKey })('google/gemma-4-31b-it:free')
+  throw new Error('AI_UNAVAILABLE')
 }
 
 function providerOptions(input: { provider: AIProviderTarget; user: SessionUser | null; plan: AIRequestPlan }): ProviderOptions | undefined {
   const user = providerUserId(input.user)
-  if (input.provider === 'gateway') return { gateway: { models: ['google/gemini-3-flash', 'alibaba/qwen3-vl-instruct'], user, tags: ['feature:ghyar-ai', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`], zeroDataRetention: true } }
+  if (input.provider === 'gateway-minimax-free') return {
+    gateway: {
+      // GMICloud is the currently advertised zero-price MiniMax M3 provider on
+      // Vercel AI Gateway. Restricting `only` prevents a free fallback target
+      // from silently crossing over to MiniMax/Fireworks/Nebius/Morph billing.
+      only: ['gmicloud'],
+      user,
+      tags: ['feature:ghyar-ai', 'cost:free', `intent:${input.plan.intent}`, `complexity:${input.plan.complexity}`],
+    },
+  }
   // Let the current Gemini model choose a compatible thinking configuration.
   // The former explicit zero-budget payload was rejected by the direct API.
   if (input.provider === 'google') return undefined
+
   const privacyPolicy = input.user ? { data_collection: 'deny' as const, zdr: true } : { data_collection: 'deny' as const }
   if (input.provider === 'openrouter-primary') return {
     openrouter: {
@@ -118,31 +125,20 @@ function providerOptions(input: { provider: AIProviderTarget; user: SessionUser 
       provider: { allow_fallbacks: false, require_parameters: true, sort: 'throughput', ...privacyPolicy },
     },
   }
-  if (input.provider === 'openrouter-text-pool-a') return {
+
+  // Each free target names one explicit :free model. Provider failover is
+  // allowed only inside that model's free endpoint set; there is no cross-model
+  // fallback array and no generic openrouter/free router.
+  if (input.provider === 'openrouter-glm-free') return {
     openrouter: {
-      models: [
-        'google/gemma-4-26b-a4b-it:free',
-        'z-ai/glm-5.2:free',
-        'minimax/minimax-m3:free',
-      ],
+      models: ['z-ai/glm-5.2:free'],
       user,
       provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput', ...privacyPolicy },
     },
   }
-  if (input.provider === 'openrouter-text-pool-b') return {
+  if (input.provider === 'openrouter-gemma-free') return {
     openrouter: {
-      models: [
-        'poolside/laguna-s-2.1:free',
-        'poolside/laguna-xs-2.1:free',
-        'google/gemma-4-31b-it:free',
-      ],
-      user,
-      provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput', ...privacyPolicy },
-    },
-  }
-  if (input.provider === 'openrouter-vision-pool') return {
-    openrouter: {
-      models: ['google/gemma-4-26b-a4b-it:free', 'google/gemma-4-31b-it:free'],
+      models: ['google/gemma-4-31b-it:free'],
       user,
       provider: { allow_fallbacks: true, require_parameters: true, sort: 'throughput', ...privacyPolicy },
     },
