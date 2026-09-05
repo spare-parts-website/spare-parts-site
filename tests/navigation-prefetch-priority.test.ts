@@ -7,7 +7,7 @@ test('prioritizes primary navigation over high-cardinality home detail prefetche
   const sections = readFileSync(new URL('../src/components/home-marketplace-sections.tsx', import.meta.url), 'utf8')
 
   assert.match(homeData, /unstable_cache/)
-  assert.match(homeData, /\['home-marketplace-v2'\], \{ revalidate: 60 \}\)/)
+  assert.match(homeData, /\['home-marketplace-v2'\], \{ revalidate: 120 \}\)/)
   assert.match(sections, /<Link prefetch=\{false\} href=\{`\/parts\/\$\{part\.id\}`\}/)
   assert.match(sections, /<Link prefetch=\{false\} href=\{`\/stores\/\$\{store\.id\}`\}/)
   assert.match(sections, /<Link href=\{href\}>عرض الكل/)
