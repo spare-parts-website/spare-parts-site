@@ -3,6 +3,7 @@ import 'server-only'
 import Image from 'next/image'
 import Link from 'next/link'
 import Form from 'next/form'
+import { unstable_cache } from 'next/cache'
 import {
   ArrowLeft,
   BadgeCheck,
@@ -47,7 +48,7 @@ interface Part {
   store: { id: string; name: string; image?: string | null; verified: boolean }
 }
 
-async function loadHomeMarketplace(): Promise<{ parts: Part[]; stores: Store[]; failed: boolean }> {
+const loadHomeMarketplace = unstable_cache(async (): Promise<{ parts: Part[]; stores: Store[]; failed: boolean }> => {
   try {
     const [recentParts, recentStores] = await Promise.all([
       db.part.findMany({
@@ -110,7 +111,7 @@ async function loadHomeMarketplace(): Promise<{ parts: Part[]; stores: Store[]; 
     console.error('Failed to render homepage marketplace data', error)
     return { parts: [], stores: [], failed: true }
   }
-}
+}, ['home-marketplace-v1'], { revalidate: 30 })
 
 export async function HomeView({ isSeller = false }: { isSeller?: boolean }) {
   const { parts, stores, failed } = await loadHomeMarketplace()
@@ -213,7 +214,7 @@ function RatingStars({ value }: { value: number }) {
 
 function PartCard({ part }: { part: Part }) {
   return (
-    <Link href={`/parts/${part.id}`} className="group overflow-hidden rounded-3xl border bg-card shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
+    <Link prefetch={false} href={`/parts/${part.id}`} className="group overflow-hidden rounded-3xl border bg-card shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
       <div className="relative aspect-[4/3] overflow-hidden bg-white dark:bg-slate-900">
         {part.image ? <Image src={part.image} alt="" fill sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw" className="object-contain p-4 transition duration-300 group-hover:scale-105" /> : <Package className="absolute inset-0 m-auto size-14 text-muted-foreground/30" />}
         <div className="absolute inset-x-3 top-3 flex justify-between gap-2">
@@ -234,7 +235,7 @@ function StoreCard({ store }: { store: Store }) {
   return (
     <div className="group relative overflow-hidden rounded-3xl border bg-card p-5 shadow-sm transition hover:-translate-y-1 hover:border-primary/40 hover:shadow-xl">
       <div className="absolute left-4 top-4 z-10"><FavoriteStoreButton storeId={store.id} /></div>
-      <Link href={`/stores/${store.id}`} className="block">
+      <Link prefetch={false} href={`/stores/${store.id}`} className="block">
         <div className="flex items-center gap-4">
           <div className="relative grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-muted text-primary">
             {store.image ? <Image src={store.image} alt="" fill sizes="80px" className="object-cover" /> : <StoreIcon className="size-8" />}
