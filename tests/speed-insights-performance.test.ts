@@ -29,6 +29,8 @@ test('prioritizes first paint over noncritical global shell work', () => {
   const header = read('src/components/header.tsx')
   const shell = read('src/components/app-shell.tsx')
   const pwa = read('src/components/pwa-installer.tsx')
+  const layout = read('src/app/layout.tsx')
+  const mobilePaint = read('src/app/mobile-performance.css')
 
   assert.match(warmup, /const CORE_ROUTES = \['\/', '\/parts', '\/stores', '\/support'\]/)
   assert.match(warmup, /requestIdleCallback/)
@@ -40,6 +42,9 @@ test('prioritizes first paint over noncritical global shell work', () => {
   assert.match(shell, /requestIdleCallback/)
   assert.match(pwa, /document\.readyState === 'complete'/)
   assert.match(pwa, /requestIdleCallback/)
+  assert.match(layout, /import "\.\/mobile-performance\.css"/)
+  assert.match(mobilePaint, /background-attachment: scroll/)
+  assert.match(mobilePaint, /backdrop-filter: none !important/)
 })
 
 test('splits common catch-all pages into dedicated route entrypoints', () => {
