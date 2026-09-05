@@ -61,18 +61,6 @@ export function Header() {
     setSearchOpen(false)
   }, [pathname])
 
-  // Warm the small, high-frequency route shells after the header mounts. The
-  // heavier seller/admin bundles are prefetched only for users who can open
-  // them, keeping buyer navigation fast without loading privileged code.
-  useEffect(() => {
-    const routes = ['/', '/parts', '/stores', '/support']
-    if (user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') routes.push('/account/orders', '/account/profile')
-    if (user?.role === 'ADMIN') routes.push('/account/wishlist')
-    if (user?.role === 'SHOP_OWNER') routes.push('/seller/parts', '/seller/orders', '/seller/store')
-    if (user?.role === 'ADMIN') routes.push('/admin/users', '/admin/parts', '/admin/support')
-    routes.forEach((path) => router.prefetch(path))
-  }, [router, user?.role])
-
   const navItems = (
     <>
       <Button asChild variant={pathname === '/' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
@@ -116,7 +104,7 @@ export function Header() {
   )
 
   return (
-    <header className="site-header sticky top-0 z-40 w-full border-b backdrop-blur-xl supports-[backdrop-filter]:bg-card/60">
+    <header className="site-header sticky top-0 z-40 w-full border-b bg-card/95 lg:bg-card/80 lg:backdrop-blur-md">
       <div className="content-container flex min-h-16 items-center gap-2 py-2">
         {/* Logo */}
         <Link
@@ -125,9 +113,12 @@ export function Header() {
           className="group flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-primary/5"
         >
           <img
-            src="/ghyar-market-logo.png"
+            src="/ghyar-market-logo.svg"
             alt=""
-            className="h-10 w-16 object-contain drop-shadow-sm transition group-hover:scale-105 sm:h-11 sm:w-[4.5rem]"
+            width={72}
+            height={44}
+            decoding="async"
+            className="h-10 w-16 object-contain transition group-hover:scale-105 sm:h-11 sm:w-[4.5rem]"
           />
           <span className="hidden text-lg font-extrabold tracking-tight text-foreground sm:inline">
             غيار ماركت
