@@ -7,7 +7,7 @@ const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.ur
 
 test('keeps critical paint assets off the request middleware path', () => {
   const proxy = read('src/proxy.ts')
-  for (const asset of ['ghyar-market-hero.webp', 'ghyar-market-logo.png', 'sw.js', 'manifest.webmanifest']) {
+  for (const asset of ['ghyar-market-hero.webp', 'ghyar-market-logo.png', 'ghyar-market-icon.png', 'sw.js', 'manifest.webmanifest']) {
     assert.match(proxy, new RegExp(asset.replace('.', '\\.')))
   }
   assert.match(proxy, /script-src 'self' 'nonce-\$\{value\}'/)
@@ -32,6 +32,9 @@ test('prioritizes first paint over noncritical global shell work', () => {
   const pwa = read('src/components/pwa-installer.tsx')
   const layout = read('src/app/layout.tsx')
   const mobilePaint = read('src/app/mobile-performance.css')
+  const mobileNav = read('src/components/mobile-bottom-nav.tsx')
+  const avatar = read('src/components/user-avatar.tsx')
+  const config = read('next.config.ts')
 
   assert.match(warmup, /const CORE_ROUTES = \['\/', '\/parts', '\/stores', '\/support'\]/)
   assert.match(warmup, /requestIdleCallback/)
@@ -44,8 +47,14 @@ test('prioritizes first paint over noncritical global shell work', () => {
   assert.match(pwa, /document\.readyState === 'complete'/)
   assert.match(pwa, /requestIdleCallback/)
   assert.match(layout, /import "\.\/mobile-performance\.css"/)
+  assert.match(layout, /icon: "\/ghyar-market-icon\.png"/)
   assert.match(mobilePaint, /background-attachment: scroll/)
   assert.match(mobilePaint, /backdrop-filter: none !important/)
+  assert.match(mobilePaint, /content-visibility: auto/)
+  assert.doesNotMatch(mobileNav, /backdrop-blur/)
+  assert.match(avatar, /loading="lazy"/)
+  assert.match(avatar, /decoding="async"/)
+  assert.match(config, /source: '\/favicon\.ico', destination: '\/ghyar-market-icon\.png'/)
 })
 
 test('splits common catch-all pages into dedicated route entrypoints', () => {
