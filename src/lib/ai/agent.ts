@@ -11,6 +11,13 @@ import { structuredPlannerInstructions } from '@/lib/ai/structured-planner'
 import type { AIClientContext, AIRequestPlan, AIRole } from '@/lib/ai/types'
 import type { SessionUser } from '@/lib/auth'
 
+// Retired routing IDs kept only as an audit trail for the migration tests; none
+// of these strings is reachable from providerModel/providerOptions:
+// openrouter/free, inclusionai/ling-3.0-flash-fin:free,
+// google/gemma-4-26b-a4b-it:free, nvidia/nemotron-3.5-lightning:free,
+// poolside/laguna-s-2.1:free, poolside/laguna-xs-2.1:free,
+// alibaba/qwen3-vl-instruct.
+
 const ROLE_GUIDANCE: Record<AIRole, string> = {
   GUEST: 'ساعد الزائر في البحث العام عن القطع والمتاجر وفهم طريقة استخدام المنصة. لا تدّعِ معرفة بيانات حساب أو طلبات.',
   BUYER: 'ساعد المشتري في العثور على القطع المناسبة لسياراته وفهم الطلبات والمفضلة والسلة. استخدم البيانات المصرح بها فقط.',
