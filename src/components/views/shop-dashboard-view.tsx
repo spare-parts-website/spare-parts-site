@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { useAppStore } from '@/lib/store'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -42,6 +42,8 @@ import { SellerVerificationCard } from '@/components/seller-verification-card'
 import { useToast } from '@/hooks/use-toast'
 import { subscribeAIDraft } from '@/lib/ai/draft-client'
 import { parseVehicleCompatibility, type CompatibilityInput } from '@/lib/vehicle-compatibility'
+import { pushDashboardTab } from '@/lib/instant-dashboard-navigation'
+import { loadSellerCore, readSellerCore, updateSellerCore, type SellerCoreTab } from '@/lib/seller-dashboard-cache'
 import {
   Dialog,
   DialogContent,
@@ -105,6 +107,12 @@ interface Order {
   buyer: { id: string; name: string; phone?: string | null }
 }
 
+type SellerCorePayload = {
+  store?: Store | null
+  parts?: Part[]
+  orders?: Order[]
+}
+
 const emptyPartForm = () => ({
   name: '', description: '', price: '', stock: '', category: '', brand: '', condition: '', images: [] as string[],
   carModels: '', compatibilities: [] as CompatibilityInput[], universal: false, fitmentNotes: '',
@@ -115,30 +123,11 @@ const emptyCompatibility = (): CompatibilityInput => ({
   make: '', model: '', generation: '', yearFrom: null, yearTo: null, engine: '', trim: '', notes: '',
 })
 
-type CachedDashboardData = {
-  fetchedAt: number
-  store?: Store | null
-  parts?: Part[]
-  orders?: Order[]
-}
-
-const DASHBOARD_CACHE_TTL = 30_000
-const dashboardCache = new Map<string, CachedDashboardData>()
-
-function dashboardCacheKey(userId: string, tab: string) {
-  return `${userId}:${tab}`
-}
-
-function readDashboardCache(userId: string, tab: string) {
-  return dashboardCache.get(dashboardCacheKey(userId, tab))
-}
-
-function writeDashboardCache(userId: string, tab: string, data: Omit<CachedDashboardData, 'fetchedAt'>) {
-  dashboardCache.set(dashboardCacheKey(userId, tab), { ...data, fetchedAt: Date.now() })
+function coreTab(value: string): SellerCoreTab | null {
+  return value === 'parts' || value === 'orders' || value === 'store' ? value : null
 }
 
 export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders' | 'store' | 'analytics' | 'coupons' | 'messages' }) {
-  const router = useRouter()
   const pathname = usePathname() || '/seller/parts'
   const user = useAppStore((state) => state.user)
   const { toast } = useToast()
@@ -166,7 +155,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
 
   useEffect(() => {
     return subscribeAIDraft('listing', (draft) => {
-      router.push('/seller/parts')
+      pushDashboardTab('seller', 'parts')
       setPartForm((current) => ({
         ...current,
         name: typeof draft.name === 'string' ? draft.name : current.name,
@@ -184,7 +173,19 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       }))
       requestAnimationFrame(() => partFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
     })
-  }, [router])
+  }, [])
+
+  const applyCorePayload = useCallback((nextTab: SellerCoreTab, data: SellerCorePayload) => {
+    if (nextTab === 'parts') {
+      setParts(data.parts || [])
+    } else if (nextTab === 'orders') {
+      setOrders(data.orders || [])
+    } else {
+      const myStore = data.store || null
+      setStore(myStore)
+      if (myStore) setStoreForm({ name: myStore.name || '', description: myStore.description || '', address: myStore.address || '', phone: myStore.phone || '', image: myStore.image || '' })
+    }
+  }, [])
 
   const loadTab = useCallback(async (nextTab: typeof tab, force = false) => {
     const requestId = ++requestVersion.current
@@ -193,51 +194,33 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       if (requestId === requestVersion.current) setLoading(false)
       return
     }
-    const cached = readDashboardCache(userId, nextTab)
-    const hasCachedData = nextTab === 'parts' ? Boolean(cached?.parts) : nextTab === 'orders' ? Boolean(cached?.orders) : nextTab === 'store' ? Boolean(cached && 'store' in cached) : false
-    if (cached) {
-      if (cached.parts) setParts(cached.parts)
-      if (cached.orders) setOrders(cached.orders)
-      if ('store' in cached) {
-        setStore(cached.store || null)
-        if (cached.store) setStoreForm({ name: cached.store.name || '', description: cached.store.description || '', address: cached.store.address || '', phone: cached.store.phone || '', image: cached.store.image || '' })
-      }
-    }
-    setLoadError(false)
-    setLoading(!hasCachedData && ['parts', 'orders', 'store'].includes(nextTab))
-    if (nextTab === 'analytics' || nextTab === 'coupons' || nextTab === 'messages') return
-    if (!force && hasCachedData && cached && Date.now() - cached.fetchedAt < DASHBOARD_CACHE_TTL) {
-      // Recent tab data is already visible; revalidation is deferred until the
-      // short cache window expires or a mutation explicitly forces a refresh.
+
+    const nextCoreTab = coreTab(nextTab)
+    if (!nextCoreTab) {
+      setLoadError(false)
       setLoading(false)
       return
     }
+
+    const cached = readSellerCore(userId, nextCoreTab)?.data as SellerCorePayload | undefined
+    if (cached) {
+      applyCorePayload(nextCoreTab, cached)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
+    setLoadError(false)
+
     try {
-      const endpoint = nextTab === 'parts' ? '/api/parts?scope=mine' : nextTab === 'orders' ? '/api/orders?scope=shop' : '/api/shop/store'
-      const response = await fetch(endpoint, { cache: 'no-store' })
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'SHOP_TAB_LOAD_FAILED')
+      const data = await loadSellerCore(userId, nextCoreTab, force) as SellerCorePayload
       if (requestId !== requestVersion.current) return
-      if (nextTab === 'parts') {
-        const nextParts = data.parts || []
-        setParts(nextParts)
-        writeDashboardCache(userId, nextTab, { parts: nextParts })
-      } else if (nextTab === 'orders') {
-        const nextOrders = data.orders || []
-        setOrders(nextOrders)
-        writeDashboardCache(userId, nextTab, { orders: nextOrders })
-      } else {
-        const myStore = data.store || null
-        setStore(myStore)
-        if (myStore) setStoreForm({ name: myStore.name || '', description: myStore.description || '', address: myStore.address || '', phone: myStore.phone || '', image: myStore.image || '' })
-        writeDashboardCache(userId, nextTab, { store: myStore })
-      }
+      applyCorePayload(nextCoreTab, data)
     } catch {
       if (requestId === requestVersion.current) setLoadError(true)
     } finally {
       if (requestId === requestVersion.current) setLoading(false)
     }
-  }, [tab, user?.id])
+  }, [applyCorePayload, user?.id])
 
   useEffect(() => {
     if (user?.role !== 'SHOP_OWNER') {
@@ -247,6 +230,12 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
     }
     void loadTab(tab)
   }, [loadTab, tab, user?.role])
+
+  useEffect(() => {
+    if (user?.role !== 'SHOP_OWNER' || !user.id) return
+    const cachedStore = readSellerCore(user.id, 'store')?.data as SellerCorePayload | undefined
+    if (cachedStore && 'store' in cachedStore) applyCorePayload('store', cachedStore)
+  }, [applyCorePayload, user?.id, user?.role])
 
   const loadAllParts = () => loadTab('parts', true)
   const loadOrders = () => loadTab('orders', true)
@@ -357,6 +346,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
       }
       toast({ title: 'تم الحفظ', description: 'تم تحديث بيانات المتجر' })
       setStore(data.store)
+      if (user?.id) updateSellerCore(user.id, 'store', { store: data.store })
     } finally {
       setSubmitting(false)
     }
@@ -391,7 +381,7 @@ export function ShopDashboardView({ tab: initialTab }: { tab?: 'parts' | 'orders
         </div>
       )}
 
-      <Tabs value={tab} onValueChange={(v) => router.push(`/seller/${v}`)}>
+      <Tabs value={tab} onValueChange={(v) => pushDashboardTab('seller', v)}>
         <TabsList className="grid w-full max-w-4xl grid-cols-2 rounded-2xl bg-muted/70 p-1 sm:grid-cols-6">
           <TabsTrigger value="parts" className="gap-1.5 text-[11px] sm:text-sm">
             <Package className="size-4" />

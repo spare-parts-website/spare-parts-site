@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { MessageSquare, Package, User } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
+import { useAppStore } from '@/lib/store'
 
 interface Thread {
   partId: string
@@ -17,34 +18,71 @@ interface Thread {
   unreadCount: number
 }
 
+const MESSAGE_CACHE_TTL = 15_000
+const messageCache = new Map<string, { fetchedAt: number; threads: Thread[] }>()
+const messageInFlight = new Map<string, Promise<Thread[]>>()
+
+export async function warmSellerMessages(userId: string, force = false) {
+  const cached = messageCache.get(userId)
+  if (!force && cached && Date.now() - cached.fetchedAt < MESSAGE_CACHE_TTL) return cached.threads
+  const pending = messageInFlight.get(userId)
+  if (!force && pending) return pending
+
+  const request = fetch('/api/chat?scope=shop', { cache: 'no-store' })
+    .then(async (response) => {
+      const data = await response.json()
+      if (!response.ok || data.error) throw new Error(data.error || 'SHOP_MESSAGES_LOAD_FAILED')
+      const threads = (data.threads || []) as Thread[]
+      messageCache.set(userId, { fetchedAt: Date.now(), threads })
+      return threads
+    })
+    .finally(() => messageInFlight.delete(userId))
+
+  messageInFlight.set(userId, request)
+  return request
+}
+
 export function ShopMessagesView() {
   const navigate = useAppNavigation()
   const { toast } = useToast()
-  const [threads, setThreads] = useState<Thread[]>([])
-  const [loading, setLoading] = useState(true)
+  const userId = useAppStore((state) => state.user?.id)
+  const cached = userId ? messageCache.get(userId)?.threads || [] : []
+  const hasCached = Boolean(userId && messageCache.has(userId))
+  const [threads, setThreads] = useState<Thread[]>(cached)
+  const [loading, setLoading] = useState(!hasCached)
 
-  const load = () => {
-    setLoading(true)
-    fetch('/api/chat?scope=shop', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => {
-        if (data.error) {
-          toast({ title: 'تعذر تحميل الرسائل', description: data.error, variant: 'destructive' })
-          return
-        }
-        setThreads(data.threads || [])
+  const load = (force = false) => {
+    if (!userId) {
+      setThreads([])
+      setLoading(false)
+      return Promise.resolve([] as Thread[])
+    }
+    const current = messageCache.get(userId)?.threads
+    if (current) {
+      setThreads(current)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
+    return warmSellerMessages(userId, force)
+      .then((next) => {
+        setThreads(next)
+        return next
       })
-      .catch(() => toast({ title: 'تعذر تحميل الرسائل', description: 'تحقق من اتصالك ثم حاول مرة أخرى', variant: 'destructive' }))
+      .catch((error) => {
+        toast({ title: 'تعذر تحميل الرسائل', description: error instanceof Error ? error.message : 'تحقق من اتصالك ثم حاول مرة أخرى', variant: 'destructive' })
+        return [] as Thread[]
+      })
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    load()
+    void load()
     const interval = setInterval(() => {
-      if (document.visibilityState === 'visible') load()
+      if (document.visibilityState === 'visible') void load(true)
     }, 15000)
     return () => clearInterval(interval)
-  }, [])
+  }, [userId])
 
   return (
     <div className="space-y-4">

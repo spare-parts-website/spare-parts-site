@@ -59,6 +59,37 @@ export function AppShell({
     window.scrollTo({ top: 0 })
   }, [pathname])
 
+  // Once the account shell is idle, quietly warm the role-specific dashboard
+  // data. This keeps low-end devices responsive during first paint while making
+  // later dashboard menu changes render from memory instead of a loading state.
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    const run = () => {
+      if (cancelled) return
+      void import('@/lib/dashboard-warmup')
+        .then((module) => user.role === 'SHOP_OWNER'
+          ? module.warmSellerDashboard(user.id)
+          : user.role === 'ADMIN'
+            ? module.warmAdminDashboard(user.id)
+            : undefined)
+        .catch(() => {})
+    }
+    const idleWindow = window as typeof window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+    const hasIdleCallback = typeof idleWindow.requestIdleCallback === 'function'
+    const handle = hasIdleCallback
+      ? idleWindow.requestIdleCallback!(run, { timeout: 1800 })
+      : window.setTimeout(run, 900)
+    return () => {
+      cancelled = true
+      if (hasIdleCallback && typeof idleWindow.cancelIdleCallback === 'function') idleWindow.cancelIdleCallback(handle)
+      else window.clearTimeout(handle)
+    }
+  }, [user?.id, user?.role])
+
   useEffect(() => {
     try {
       const storedCart = window.localStorage.getItem(CART_STORAGE_KEY)

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 import { TrendingUp, Package, DollarSign, Star, ShoppingBag } from 'lucide-react'
 import { formatPrice } from '@/components/common'
+import { useAppStore } from '@/lib/store'
 
 interface Analytics {
   stats: {
@@ -30,16 +31,55 @@ const STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'ملغى',
 }
 
+const ANALYTICS_CACHE_TTL = 30_000
+const analyticsCache = new Map<string, { fetchedAt: number; data: Analytics }>()
+const analyticsInFlight = new Map<string, Promise<Analytics>>()
+
+export async function warmSellerAnalytics(userId: string, force = false) {
+  const cached = analyticsCache.get(userId)
+  if (!force && cached && Date.now() - cached.fetchedAt < ANALYTICS_CACHE_TTL) return cached.data
+  const pending = analyticsInFlight.get(userId)
+  if (!force && pending) return pending
+
+  const request = fetch('/api/shop/analytics', { cache: 'no-store' })
+    .then(async (response) => {
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'SHOP_ANALYTICS_LOAD_FAILED')
+      analyticsCache.set(userId, { fetchedAt: Date.now(), data })
+      return data as Analytics
+    })
+    .finally(() => analyticsInFlight.delete(userId))
+
+  analyticsInFlight.set(userId, request)
+  return request
+}
+
 export function AnalyticsView() {
-  const [data, setData] = useState<Analytics | null>(null)
-  const [loading, setLoading] = useState(true)
+  const userId = useAppStore((state) => state.user?.id)
+  const cached = userId ? analyticsCache.get(userId)?.data || null : null
+  const [data, setData] = useState<Analytics | null>(cached)
+  const [loading, setLoading] = useState(!cached)
 
   useEffect(() => {
-    fetch('/api/shop/analytics', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .finally(() => setLoading(false))
-  }, [])
+    if (!userId) {
+      setData(null)
+      setLoading(false)
+      return
+    }
+    const current = analyticsCache.get(userId)?.data
+    if (current) {
+      setData(current)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
+    let active = true
+    warmSellerAnalytics(userId)
+      .then((next) => { if (active) setData(next) })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [userId])
 
   if (loading) {
     return (

@@ -131,11 +131,17 @@ test('keeps the shared shell persistent and navigation URL-driven', () => {
 
 test('loads seller tabs independently and scopes support cache by user and filters', () => {
   const seller = readFileSync(new URL('../src/components/views/shop-dashboard-view.tsx', import.meta.url), 'utf8')
+  const sellerCache = readFileSync(new URL('../src/lib/seller-dashboard-cache.ts', import.meta.url), 'utf8')
+  const warmup = readFileSync(new URL('../src/lib/dashboard-warmup.ts', import.meta.url), 'utf8')
   const support = readFileSync(new URL('../src/components/views/support-view.tsx', import.meta.url), 'utf8')
 
-  assert.match(seller, /nextTab === 'parts' \? '\/api\/parts\?scope=mine'/)
-  assert.match(seller, /nextTab === 'orders' \? '\/api\/orders\?scope=shop'/)
-  assert.match(seller, /nextTab === 'analytics' \|\| nextTab === 'coupons' \|\| nextTab === 'messages'/)
+  assert.match(sellerCache, /tab === 'parts' \? '\/api\/parts\?scope=mine'/)
+  assert.match(sellerCache, /tab === 'orders' \? '\/api\/orders\?scope=shop'/)
+  assert.match(sellerCache, /'\/api\/shop\/store'/)
+  assert.match(warmup, /warmSellerAnalytics/)
+  assert.match(warmup, /warmSellerCoupons/)
+  assert.match(warmup, /warmSellerMessages/)
+  assert.match(seller, /loadSellerCore/)
   assert.doesNotMatch(seller, /Promise\.all\(\[\s*fetch\('\/api\/shop\/store'/)
   assert.match(support, /supportCacheKey\(user\.id, user\.role, statusFilter, categoryFilter, ticketSearch\)/)
   assert.match(support, /SUPPORT_CACHE_TTL/)
