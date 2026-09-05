@@ -75,9 +75,10 @@ function hotp(secret: string, counter: bigint) {
 export function verifyTotpCode(secret: string, code: string, lastCounter: bigint | null = null, now = Date.now()) {
   if (!/^\d{6}$/.test(code)) return null
   const current = BigInt(Math.floor(now / 1000 / TOTP_PERIOD_SECONDS))
-  for (const delta of [-1n, 0n, 1n]) {
+  const deltas = [BigInt(-1), BigInt(0), BigInt(1)]
+  for (const delta of deltas) {
     const counter = current + delta
-    if (counter < 0n || (lastCounter !== null && counter <= lastCounter)) continue
+    if (counter < BigInt(0) || (lastCounter !== null && counter <= lastCounter)) continue
     if (equalCode(hotp(secret, counter), code)) return counter
   }
   return null
