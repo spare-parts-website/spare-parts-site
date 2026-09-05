@@ -1,28 +1,5 @@
 import type { NextConfig } from "next";
 
-const publicStaticCsp = [
-  "default-src 'self'",
-  // Next 16 SRI keeps these prerendered pages compatible with a strict static
-  // policy without requiring a unique nonce (and therefore SSR) per request.
-  "script-src 'self'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob: https://*.supabase.co",
-  "font-src 'self'",
-  "connect-src 'self' https://*.supabase.co",
-  "frame-src 'none'",
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "upgrade-insecure-requests",
-  "report-to csp-endpoint",
-].join('; ')
-
-const staticPublicSecurityHeaders = [
-  { key: 'Content-Security-Policy', value: publicStaticCsp },
-  { key: 'Reporting-Endpoints', value: 'csp-endpoint="/api/csp-report"' },
-]
-
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   compress: true,
@@ -39,8 +16,9 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
-    // SRI is the strict-CSP path that still permits static generation. Dynamic
-    // and private routes keep their request nonce in src/proxy.ts.
+    // Keep integrity metadata on supported external build assets as defense in
+    // depth. HTML requests still use nonce CSP because App Router also emits
+    // inline bootstrap/Flight scripts that SRI alone cannot authorize.
     sri: {
       algorithm: 'sha256',
     },
@@ -54,11 +32,6 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
-      // These exact anonymous routes are safe to prerender and CDN-serve. Their
-      // CSP is build-stable, unlike the per-request nonce used elsewhere.
-      { source: '/', headers: staticPublicSecurityHeaders },
-      { source: '/parts', headers: staticPublicSecurityHeaders },
-      { source: '/stores', headers: staticPublicSecurityHeaders },
       {
         source: '/(.*)',
         headers: [

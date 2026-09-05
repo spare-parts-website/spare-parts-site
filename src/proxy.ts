@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from 'next/server'
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,100}$/
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const WEBHOOK_PATH = '/api/webhooks/resend'
-const STATIC_PUBLIC_PATHS = new Set(['/', '/parts', '/stores'])
 
 function configuredOrigin(request: NextRequest) {
   const configured = process.env.APP_URL?.trim()
@@ -73,12 +72,6 @@ function browserMutationAllowed(request: NextRequest) {
 
 export function proxy(request: NextRequest) {
   const pathname = request.nextUrl.pathname
-
-  // Belt-and-suspenders guard: these paths are also excluded by the matcher.
-  // They carry no request-specific HTML and use a build-time strict CSP, so
-  // touching them here would reintroduce needless per-request edge work.
-  if (STATIC_PUBLIC_PATHS.has(pathname)) return NextResponse.next()
-
   const id = requestId(request)
 
   // JSON APIs do not execute scripts, so generating a fresh CSP nonce for every
@@ -110,10 +103,11 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      // The three hottest anonymous pages are prerendered/CDN-served. The
-      // homepage marketplace JSON is a GET-only cacheable route. Static files
-      // also do not need Proxy. Everything else keeps the existing protections.
-      source: '/((?!$|parts$|stores$|api/home-marketplace$|_next/static|_next/image|.*\\.[^/]+$).*)',
+      // Every HTML request keeps request-scoped nonce CSP so Next's inline App
+      // Router bootstrap/Flight scripts can hydrate without unsafe-inline.
+      // The cacheable homepage JSON endpoint and static assets stay outside
+      // Proxy so they can remain CDN-first and avoid per-request nonce work.
+      source: '/((?!api/home-marketplace$|_next/static|_next/image|.*\\.[^/]+$).*)',
       // Next recommends skipping Link/router prefetch probes in CSP Proxy so a
       // navigation warmup cannot multiply server work under traffic spikes.
       missing: [

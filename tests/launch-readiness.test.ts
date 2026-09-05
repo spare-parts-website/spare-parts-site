@@ -62,21 +62,28 @@ test('Supabase Data API roles are explicitly denied application table access', (
   assert.doesNotMatch(migration, /\bDROP\b|\bTRUNCATE\b|\bDELETE\b/i)
 })
 
-test('strict CSP remains enabled while anonymous hot paths can prerender', () => {
+test('strict CSP remains nonce-based on all HTML while cacheable JSON avoids nonce work', () => {
   const layout = read('src/app/layout.tsx')
+  const homePage = read('src/app/page.tsx')
+  const partsPage = read('src/app/parts/page.tsx')
+  const storesPage = read('src/app/stores/page.tsx')
   const proxy = read('src/proxy.ts')
   const config = read('next.config.ts')
 
   assert.doesNotMatch(layout, /export const dynamic = 'force-dynamic'/)
+  assert.match(homePage, /await connection\(\)/)
+  assert.match(partsPage, /await connection\(\)/)
+  assert.match(storesPage, /await connection\(\)/)
+
   assert.match(proxy, /script-src 'self' 'nonce-\$\{value\}'/)
-  assert.match(proxy, /STATIC_PUBLIC_PATHS = new Set\(\['\/', '\/parts', '\/stores'\]\)/)
+  assert.match(proxy, /pathname\.startsWith\('\/api\/'\)/)
+  assert.match(proxy, /api\/home-marketplace\$/)
   assert.match(proxy, /frame-ancestors 'none'/)
+  assert.doesNotMatch(proxy, /STATIC_PUBLIC_PATHS/)
   assert.doesNotMatch(proxy, /script-src[^\n]*unsafe-inline/)
 
   assert.match(config, /sri:\s*\{\s*algorithm: 'sha256'/)
-  assert.match(config, /"script-src 'self'"/)
-  assert.match(config, /source: '\/'/)
-  assert.match(config, /source: '\/parts'/)
-  assert.match(config, /source: '\/stores'/)
-  assert.doesNotMatch(config, /script-src[^\n]*unsafe-inline/)
+  assert.doesNotMatch(config, /publicStaticCsp/)
+  assert.doesNotMatch(config, /Content-Security-Policy/)
+  assert.match(config, /X-Frame-Options/)
 })

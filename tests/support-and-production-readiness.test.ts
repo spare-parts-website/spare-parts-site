@@ -40,6 +40,7 @@ test('public marketplace details advertise shared caching while viewer overlays 
   const partPage = read('src/app/parts/[id]/page.tsx')
   const storesPage = read('src/app/stores/page.tsx')
   const storePage = read('src/app/stores/[id]/page.tsx')
+  const publicMarketplace = read('src/lib/public-marketplace.ts')
   const parts = read('src/app/api/parts/route.ts')
   const stores = read('src/app/api/stores/route.ts')
   const support = read('src/app/api/support/tickets/route.ts')
@@ -50,8 +51,16 @@ test('public marketplace details advertise shared caching while viewer overlays 
   assert.match(page, /unstable_noStore\(\)/)
   assert.match(parts, /viewerRequested \? 'private, no-store, max-age=0' : 'public, s-maxage=30/)
   assert.match(stores, /viewerRequested \? 'private, no-store, max-age=0' : 'public, s-maxage=30/)
-  for (const publicPage of [partsPage, partPage, storesPage, storePage]) {
-    assert.match(publicPage, /export const revalidate = 30/)
+
+  // The hot list HTML waits for a request so Next can apply the CSP nonce, but
+  // the shared default marketplace data remains cached for 30 seconds.
+  assert.match(partsPage, /await connection\(\)/)
+  assert.match(storesPage, /await connection\(\)/)
+  assert.match(publicMarketplace, /loadDefaultPublicPartsList = unstable_cache\([\s\S]*?\['public-parts-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
+  assert.match(publicMarketplace, /loadDefaultPublicStoresList = unstable_cache\([\s\S]*?\['public-stores-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
+
+  for (const publicDetailPage of [partPage, storePage]) {
+    assert.match(publicDetailPage, /export const revalidate = 30/)
   }
   // Public detail pages read the request-scoped CSP nonce, so they must stay
   // dynamic; cacheable anonymous API responses still provide the data cache.

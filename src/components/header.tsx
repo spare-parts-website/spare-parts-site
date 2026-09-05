@@ -268,22 +268,14 @@ export function Header() {
             </DropdownMenu>
           ) : (
             <>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => router.push('/login')}
-                className="hidden sm:inline-flex"
-              >
-                دخول
+              <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
+                <Link href="/login">دخول</Link>
               </Button>
-              <Button
-                size="sm"
-                onClick={() => router.push('/register')}
-                className="size-10 p-0 sm:h-9 sm:w-auto sm:px-3"
-                aria-label="إنشاء حساب جديد"
-              >
-                <UserPlus className="size-4 sm:hidden" />
-                <span className="hidden sm:inline">حساب جديد</span>
+              <Button asChild size="sm" className="size-10 p-0 sm:h-9 sm:w-auto sm:px-3">
+                <Link href="/register" aria-label="إنشاء حساب جديد">
+                  <UserPlus className="size-4 sm:hidden" />
+                  <span className="hidden sm:inline">حساب جديد</span>
+                </Link>
               </Button>
             </>
           )}
@@ -307,8 +299,8 @@ export function Header() {
               </div>
               {!user && (
                 <div className="flex flex-col gap-2 mt-auto">
-                  <Button variant="outline" onClick={() => { router.push('/login'); setMobileOpen(false) }}>
-                    تسجيل الدخول
+                  <Button asChild variant="outline">
+                    <Link href="/login" onClick={() => setMobileOpen(false)}>تسجيل الدخول</Link>
                   </Button>
                 </div>
               )}
