@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import { unstable_cache } from 'next/cache'
 import { PartsView } from '@/components/views/parts-view'
 import { getPublicPartsList, type PublicPartsList } from '@/lib/public-marketplace'
 
@@ -11,6 +12,12 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://ghyarmarket-eg.com/parts' },
 }
 
+const loadDefaultParts = unstable_cache(
+  () => getPublicPartsList({ sort: 'newest', page: 1 }),
+  ['public-parts-default-v1'],
+  { revalidate: 30 },
+)
+
 function PartsFallback() {
   return <div className="content-container grid min-h-[55vh] place-items-center py-16"><p className="text-sm text-muted-foreground">جاري تحميل قطع الغيار...</p></div>
 }
@@ -18,7 +25,7 @@ function PartsFallback() {
 export default async function PartsPage() {
   let initialData: PublicPartsList | null = null
   try {
-    initialData = await getPublicPartsList({ sort: 'newest', page: 1 })
+    initialData = await loadDefaultParts()
   } catch {
     // The static shell can still load its public API payload after hydration.
   }

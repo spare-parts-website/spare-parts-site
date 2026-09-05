@@ -30,7 +30,7 @@ export function Footer() {
       </div>
       <div className="content-container grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.1fr]">
         <div>
-          <Link href="/" className="inline-flex items-center gap-3"><span className="grid h-14 w-20 place-items-center rounded-2xl bg-white px-1"><img src="/ghyar-market-logo.png" alt="غيار ماركت" className="h-12 w-full object-contain" /></span><div><strong className="block text-xl font-black">غيار ماركت</strong><span className="text-xs text-primary">قطعك أقرب مما تتخيل</span></div></Link>
+          <Link href="/" className="inline-flex items-center gap-3"><span className="grid h-14 w-20 place-items-center rounded-2xl bg-white px-1"><img src="/ghyar-market-logo.svg" alt="غيار ماركت" width={48} height={48} loading="lazy" decoding="async" className="h-12 w-full object-contain" /></span><div><strong className="block text-xl font-black">غيار ماركت</strong><span className="text-xs text-primary">قطعك أقرب مما تتخيل</span></div></Link>
           <p className="mt-5 max-w-sm text-sm leading-7 text-white/55">سوق متخصص يربط أصحاب السيارات بمتاجر قطع الغيار، بمعلومات واضحة وتجربة شراء تناسب السوق المصري.</p>
           <div className="mt-5 flex items-center gap-2 text-sm text-white/60"><MapPin className="size-4 text-primary" /> نخدم عملاء ومتاجر داخل مصر</div>
         </div>

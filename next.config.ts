@@ -37,6 +37,14 @@ const nextConfig: NextConfig = {
         headers: [{ key: 'Cache-Control', value: 'public, s-maxage=30, stale-while-revalidate=120' }],
       },
       {
+        source: '/ghyar-market-logo.svg',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800' }],
+      },
+      {
+        source: '/ghyar-market-hero.webp',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800' }],
+      },
+      {
         source: '/(.*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },
@@ -50,7 +58,7 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      { source: '/favicon.ico', destination: '/ghyar-market-logo.png' },
+      { source: '/favicon.ico', destination: '/ghyar-market-logo.svg' },
       { source: '/ghyar-market-hero.png', destination: '/ghyar-market-hero.webp' },
       { source: '/profile-avatars/classic-car.png', destination: '/profile-avatars/classic-car.webp' },
       { source: '/profile-avatars/electric-car.png', destination: '/profile-avatars/electric-car.webp' },

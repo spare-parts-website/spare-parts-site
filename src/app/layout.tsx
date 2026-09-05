@@ -3,6 +3,7 @@ import { Cairo } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
+import "./mobile-performance.css";
 import { Toaster } from "@/components/ui/toaster";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppShell } from "@/components/app-shell";
@@ -27,7 +28,7 @@ export const metadata: Metadata = {
   description: "ابحث وقارن واطلب قطع غيار السيارات من متاجر متخصصة في مصر، مع معلومات واضحة وعلامة للمتاجر الموثقة وتقييمات المشترين عند توفرها والدفع عند الاستلام.",
   keywords: ["غيار ماركت", "قطع غيار", "سيارات", "متاجر", "ميكانيكا"],
   icons: {
-    icon: "/ghyar-market-logo.png",
+    icon: "/ghyar-market-logo.svg",
     apple: "/ghyar-market-icon.png",
   },
   openGraph: {
