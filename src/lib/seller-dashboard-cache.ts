@@ -7,7 +7,7 @@ type SellerCacheEntry = {
 
 const SELLER_CACHE_TTL = 30_000
 const sellerCache = new Map<string, SellerCacheEntry>()
-const sellerInFlight = new Map<string, Promise<Record<string, unknown>>>()
+const inFlight = new Map<string, Promise<Record<string, unknown>>>()
 
 function key(userId: string, tab: SellerCoreTab) {
   return `${userId}:${tab}`
@@ -25,7 +25,7 @@ export async function loadSellerCore(userId: string, tab: SellerCoreTab, force =
   const cacheKey = key(userId, tab)
   const cached = sellerCache.get(cacheKey)
   if (!force && cached && Date.now() - cached.fetchedAt < SELLER_CACHE_TTL) return cached.data
-  const pending = sellerInFlight.get(cacheKey)
+  const pending = inFlight.get(cacheKey)
   if (!force && pending) return pending
 
   const request = fetch(endpoint(tab), { cache: 'no-store' })
@@ -35,9 +35,9 @@ export async function loadSellerCore(userId: string, tab: SellerCoreTab, force =
       sellerCache.set(cacheKey, { fetchedAt: Date.now(), data })
       return data as Record<string, unknown>
     })
-    .finally(() => sellerInFlight.delete(cacheKey))
+    .finally(() => inFlight.delete(cacheKey))
 
-  sellerInFlight.set(cacheKey, request)
+  inFlight.set(cacheKey, request)
   return request
 }
 
