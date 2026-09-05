@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "regions": ["dub1"],
-  "functionFailoverRegions": ["fra1"],
   "crons": [
     {
       "path": "/api/ai/cleanup",
