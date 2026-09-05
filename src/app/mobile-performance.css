@@ -22,10 +22,17 @@
 
   .market-card {
     transition: border-color 120ms ease;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 380px;
   }
 
   .market-card:hover {
     transform: none;
     box-shadow: 0 4px 14px color-mix(in oklab, var(--foreground) 4%, transparent);
+  }
+
+  footer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 720px;
   }
 }
