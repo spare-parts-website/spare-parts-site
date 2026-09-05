@@ -1,10 +1,11 @@
 import { HomeView } from '@/components/views/home-view'
 
-// Anonymous marketplace data may be regenerated independently of auth state.
-// Keep the window short so inventory changes appear without embedding cookies
-// or user identity in the shared HTML cache.
-export const revalidate = 30
+// The homepage HTML no longer waits on Postgres. Marketplace cards are loaded
+// through a small CDN-cached public payload, so this request can use the global
+// Edge runtime while the database-facing API stays pinned beside Supabase.
+export const runtime = 'edge'
+export const dynamic = 'force-dynamic'
 
-export default async function HomePage() {
+export default function HomePage() {
   return <HomeView />
 }
