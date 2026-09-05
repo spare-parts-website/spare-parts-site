@@ -1,5 +1,28 @@
 import type { NextConfig } from "next";
 
+const publicStaticCsp = [
+  "default-src 'self'",
+  // Next 16 SRI keeps these prerendered pages compatible with a strict static
+  // policy without requiring a unique nonce (and therefore SSR) per request.
+  "script-src 'self'",
+  "style-src 'self' 'unsafe-inline'",
+  "img-src 'self' data: blob: https://*.supabase.co",
+  "font-src 'self'",
+  "connect-src 'self' https://*.supabase.co",
+  "frame-src 'none'",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "upgrade-insecure-requests",
+  "report-to csp-endpoint",
+].join('; ')
+
+const staticPublicSecurityHeaders = [
+  { key: 'Content-Security-Policy', value: publicStaticCsp },
+  { key: 'Reporting-Endpoints', value: 'csp-endpoint="/api/csp-report"' },
+]
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   compress: true,
@@ -16,11 +39,14 @@ const nextConfig: NextConfig = {
     ],
   },
   experimental: {
+    // SRI is the strict-CSP path that still permits static generation. Dynamic
+    // and private routes keep their request nonce in src/proxy.ts.
+    sri: {
+      algorithm: 'sha256',
+    },
     optimizePackageImports: ['lucide-react', 'date-fns', 'recharts'],
-    // Top-level pages are dynamic because the root layout carries a per-request
-    // CSP nonce. Keep already-rendered/prefetched page segments in the client
-    // router cache so revisiting Home/Parts/Stores/Support does not trigger a
-    // fresh server round-trip on every click.
+    // Keep already-rendered/prefetched segments in the client router cache so
+    // revisiting common pages does not create avoidable RSC round trips.
     staleTimes: {
       dynamic: 300,
       static: 300,
@@ -28,14 +54,11 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     return [
-      {
-        source: '/parts/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, s-maxage=30, stale-while-revalidate=120' }],
-      },
-      {
-        source: '/stores/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, s-maxage=30, stale-while-revalidate=120' }],
-      },
+      // These exact anonymous routes are safe to prerender and CDN-serve. Their
+      // CSP is build-stable, unlike the per-request nonce used elsewhere.
+      { source: '/', headers: staticPublicSecurityHeaders },
+      { source: '/parts', headers: staticPublicSecurityHeaders },
+      { source: '/stores', headers: staticPublicSecurityHeaders },
       {
         source: '/(.*)',
         headers: [

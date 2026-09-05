@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,100}$/
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const WEBHOOK_PATH = '/api/webhooks/resend'
+const STATIC_PUBLIC_PATHS = new Set(['/', '/parts', '/stores'])
 
 function configuredOrigin(request: NextRequest) {
   const configured = process.env.APP_URL?.trim()
@@ -44,8 +45,13 @@ function contentSecurityPolicy(value: string, request: NextRequest) {
   ].filter(Boolean).join('; ')
 }
 
-function applySecurityHeaders(response: NextResponse, value: string, id: string, request: NextRequest) {
+function applyRequestId(response: NextResponse, id: string) {
   response.headers.set('x-request-id', id)
+  return response
+}
+
+function applyNonceSecurityHeaders(response: NextResponse, value: string, id: string, request: NextRequest) {
+  applyRequestId(response, id)
   response.headers.set('Content-Security-Policy', contentSecurityPolicy(value, request))
   response.headers.set('Reporting-Endpoints', 'csp-endpoint="/api/csp-report"')
   return response
@@ -66,7 +72,27 @@ function browserMutationAllowed(request: NextRequest) {
 }
 
 export function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname
+
+  // Belt-and-suspenders guard: these paths are also excluded by the matcher.
+  // They carry no request-specific HTML and use a build-time strict CSP, so
+  // touching them here would reintroduce needless per-request edge work.
+  if (STATIC_PUBLIC_PATHS.has(pathname)) return NextResponse.next()
+
   const id = requestId(request)
+
+  // JSON APIs do not execute scripts, so generating a fresh CSP nonce for every
+  // API read only adds work and makes cache behavior harder to reason about.
+  // Keep the request-id and mutation-origin guard, but leave CSP to HTML pages.
+  if (pathname.startsWith('/api/')) {
+    if (!browserMutationAllowed(request)) {
+      return applyRequestId(NextResponse.json({ error: 'طلب غير صالح' }, { status: 403 }), id)
+    }
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-request-id', id)
+    return applyRequestId(NextResponse.next({ request: { headers: requestHeaders } }), id)
+  }
+
   const value = nonce()
   const policy = contentSecurityPolicy(value, request)
   const requestHeaders = new Headers(request.headers)
@@ -77,17 +103,23 @@ export function proxy(request: NextRequest) {
   // the browser while this request header makes the rendered markup match.
   requestHeaders.set('Content-Security-Policy', policy)
 
-  if (!browserMutationAllowed(request)) {
-    const response = NextResponse.json({ error: 'طلب غير صالح' }, { status: 403 })
-    return applySecurityHeaders(response, value, id, request)
-  }
-
   const response = NextResponse.next({ request: { headers: requestHeaders } })
-  return applySecurityHeaders(response, value, id, request)
+  return applyNonceSecurityHeaders(response, value, id, request)
 }
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    {
+      // The three hottest anonymous pages are prerendered/CDN-served. The
+      // homepage marketplace JSON is a GET-only cacheable route. Static files
+      // also do not need Proxy. Everything else keeps the existing protections.
+      source: '/((?!$|parts$|stores$|api/home-marketplace$|_next/static|_next/image|.*\\.[^/]+$).*)',
+      // Next recommends skipping Link/router prefetch probes in CSP Proxy so a
+      // navigation warmup cannot multiply server work under traffic spikes.
+      missing: [
+        { type: 'header', key: 'next-router-prefetch' },
+        { type: 'header', key: 'purpose', value: 'prefetch' },
+      ],
+    },
   ],
 }
