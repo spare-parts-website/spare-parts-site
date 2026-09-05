@@ -5,7 +5,7 @@ import { getSession } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createGhyarAgent } from '@/lib/ai/agent'
 import { appendAIMessage, getOrCreateConversation, loadConversationMessages, purgeExpiredAIData } from '@/lib/ai/history'
-import { acquireAIDedupLease, acquireAIConcurrency, aiModel, aiProviderTargets, aiQuota, aiRequestFingerprint, releaseAIConcurrency, type AIProviderTarget } from '@/lib/ai/runtime'
+import { acquireAIDedupLease, acquireAIConcurrency, aiModel, aiPaidPrimaryModel, aiProviderTargets, aiQuota, aiRequestFingerprint, releaseAIConcurrency, type AIProviderTarget } from '@/lib/ai/runtime'
 import { planAIRequest } from '@/lib/ai/planner'
 import { compactConversationContext, materializePrivateImages, sanitizeIncomingUserMessage, storedMessageToUIMessage, textFromMessage, type GhyarAIMessage } from '@/lib/ai/messages'
 import { AI_ENTITY_KINDS, type AIClientContext, type AIRole, type AIToolCard, type AISelectedEntity } from '@/lib/ai/types'
@@ -226,12 +226,23 @@ function safeClientContext(value: unknown): AIClientContext {
 function errorMessage(error: unknown) { return error instanceof Error ? error.message : String(error || 'UnknownError') }
 type AIProviderAttempt = { provider: AIProviderTarget; model: string; status: 'success' | 'failed' | 'skipped'; durationMs: number; stepCount: number; error?: string }
 function providerModelName(provider: AIProviderTarget) {
-  const openRouterModels: Partial<Record<AIProviderTarget, string>> = { 'openrouter-text-pool-a': 'openrouter/free-tool-pool-a', 'openrouter-text-pool-b': 'openrouter/free-tool-pool-b', 'openrouter-vision-pool': 'openrouter/free-vision-pool', openrouter: 'openrouter/free' }
-  return openRouterModels[provider] || (provider === 'gateway' ? `google/${aiModel()}` : aiModel())
+  const models: Partial<Record<AIProviderTarget, string>> = {
+    'openrouter-primary': aiPaidPrimaryModel() || 'openrouter-primary',
+    google: aiModel(),
+    'gateway-minimax-free': 'minimax/minimax-m3@gmicloud',
+    'openrouter-glm-free': 'z-ai/glm-5.2:free',
+    'openrouter-gemma-free': 'google/gemma-4-31b-it:free',
+    'openrouter-text-pool-a': 'legacy/openrouter-text-pool-a',
+    'openrouter-text-pool-b': 'legacy/openrouter-text-pool-b',
+    'openrouter-vision-pool': 'legacy/openrouter-vision-pool',
+    openrouter: 'legacy/openrouter-free-router',
+    gateway: 'legacy/vercel-gateway',
+  }
+  return models[provider] || 'unknown-ai-provider'
 }
 function attemptTimeout(_complexity: 'quick' | 'standard' | 'heavy', hasImage: boolean, provider?: AIProviderTarget) {
-  if (provider === 'gateway') return 5_000
   if (provider === 'google') return hasImage ? 12_000 : 10_000
+  if (provider === 'gateway-minimax-free') return hasImage ? 12_000 : 9_000
   return hasImage ? 12_000 : 9_000
 }
 function remainingAIProviderBudget(startedAt: number) {
