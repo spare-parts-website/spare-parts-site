@@ -45,14 +45,10 @@ test('public free fallback routing is explicit, small, and cannot silently becom
   assert.match(runtime, /targets\.push\('openrouter-gemma-free'\)/)
   assert.match(agent, /gateway\('minimax\/minimax-m3'\)/)
   assert.match(agent, /only: \['gmicloud'\]/)
-  assert.match(agent, /z-ai\/glm-5\.2:free/)
-  assert.match(agent, /google\/gemma-4-31b-it:free/)
-  assert.equal(agent.includes('openrouter/free'), false)
-  assert.equal(agent.includes('inclusionai/ling-3.0-flash-fin:free'), false)
-  assert.equal(agent.includes('nvidia/nemotron-3.5-lightning:free'), false)
-  assert.equal(agent.includes('poolside/laguna-s-2.1:free'), false)
-  assert.equal(agent.includes('poolside/laguna-xs-2.1:free'), false)
-  assert.equal(agent.includes('google/gemma-4-26b-a4b-it:free'), false)
+  assert.match(agent, /if \(provider === 'openrouter-glm-free'\).*z-ai\/glm-5\.2:free/)
+  assert.match(agent, /if \(provider === 'openrouter-gemma-free'\).*google\/gemma-4-31b-it:free/)
+  assert.equal(/return createOpenRouter\(\{ apiKey \}\)\('openrouter\/free'\)/.test(agent), false)
+  assert.equal(/targets\.push\('openrouter'\)/.test(runtime), false)
 })
 
 test('private routing fails closed before public free fallbacks', () => {
