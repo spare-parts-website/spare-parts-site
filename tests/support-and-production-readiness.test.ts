@@ -4,20 +4,22 @@ import test from 'node:test'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('support tickets enforce private ownership and failure-safe email delivery', () => {
+test('support tickets enforce private ownership and failure-safe admin notification delivery', () => {
   const listRoute = read('src/app/api/support/tickets/route.ts')
   const detailRoute = read('src/app/api/support/tickets/[id]/route.ts')
-  const email = read('src/lib/support-email.ts')
+  const notifications = read('src/lib/notifications.ts')
   const migration = read('prisma/support-tickets.sql')
   assert.match(listRoute, /userId: session\.id/)
   assert.match(listRoute, /Promise\.allSettled\(admins\.map/)
-  assert.match(listRoute, /SUPPORT_EMAIL_FAILED/)
+  assert.match(listRoute, /createNotification/)
+  assert.doesNotMatch(listRoute, /sendSupportTicketEmail|SUPPORT_EMAIL_(?:SENT|SKIPPED|FAILED)/)
   assert.match(listRoute, /filters\.status/)
   assert.match(listRoute, /filters\.category/)
   assert.match(detailRoute, /loadTicket\(id, session\.id, session\.role === 'ADMIN'\)/)
   assert.match(detailRoute, /session\.role !== 'ADMIN'/)
-  assert.match(email, /SUPPORT_EMAIL/)
-  assert.match(email, /idempotencyKey: `support-ticket\//)
+  assert.match(notifications, /shouldSendNonessentialEmail/)
+  assert.match(notifications, /idempotencyKey: `notification\//)
+  assert.match(notifications, /recordEmailDeliveryAttempt/)
   assert.match(migration, /enable row level security/i)
 })
 
