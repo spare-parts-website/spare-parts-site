@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from 'next/script';
 import { Cairo } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -46,14 +47,12 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
-      <head>
-        {/* External, same-origin theme bootstrap keeps strict static CSP viable
-            without next-themes injecting an inline script into every page. */}
-        <script src="/theme-init.js" />
-      </head>
       <body
         className={`${cairo.variable} font-cairo antialiased bg-background text-foreground`}
       >
+        {/* Same-origin external bootstrap avoids next-themes' inline script while
+            beforeInteractive applies the saved theme before app hydration. */}
+        <Script src="/theme-init.js" strategy="beforeInteractive" />
         <AppShell>{children}</AppShell>
         <Toaster />
         <Analytics />

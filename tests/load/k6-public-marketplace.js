@@ -46,7 +46,7 @@ function request(path, route) {
   })
 }
 
-export default function () {
+export default function publicMarketplaceLoad() {
   // Model a mixed anonymous marketplace session rather than 800 tight loops on
   // one endpoint. The distribution still makes the homepage the hottest path.
   const pick = Math.random()
