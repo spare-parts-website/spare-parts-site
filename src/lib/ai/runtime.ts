@@ -14,7 +14,9 @@ const CONCURRENCY: Record<AIRole, number> = {
 }
 
 const AI_MODEL = 'gemini-3.5-flash-lite'
-export type AIProviderTarget = 'openrouter-primary' | 'google' | 'gateway-minimax-free' | 'openrouter-glm-free' | 'openrouter-gemma-free'
+type ActiveAIProviderTarget = 'openrouter-primary' | 'google' | 'gateway-minimax-free' | 'openrouter-glm-free' | 'openrouter-gemma-free'
+type LegacyAIProviderTarget = 'openrouter-text-pool-a' | 'openrouter-text-pool-b' | 'openrouter-vision-pool' | 'openrouter' | 'gateway'
+export type AIProviderTarget = ActiveAIProviderTarget | LegacyAIProviderTarget
 export const AI_MESSAGE_LIMIT = 4000
 export const AI_HISTORY_TTL_MS = 60 * 60 * 1000
 export const AI_PROPOSAL_TTL_MS = 10 * 60 * 1000
