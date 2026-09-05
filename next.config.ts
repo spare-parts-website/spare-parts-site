@@ -1,9 +1,5 @@
 import type { NextConfig } from "next";
 
-const configuredPrimaryModel = process.env.OPENROUTER_PRIMARY_MODEL?.trim() || ''
-const safePrimaryModel = /^[A-Za-z0-9._/:~-]{3,160}$/.test(configuredPrimaryModel) && !/:free$/i.test(configuredPrimaryModel) ? configuredPrimaryModel : null
-console.info(`[preview-ai-config] primaryModel=${safePrimaryModel || 'unset'}`)
-
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   compress: true,
