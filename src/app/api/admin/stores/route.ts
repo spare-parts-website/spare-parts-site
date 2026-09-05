@@ -1,116 +1,83 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { requireRole } from '@/lib/auth'
+import { requireAdminStepUp, requireRole } from '@/lib/auth'
 import { deleteStoreWithDependencies } from '@/lib/admin-deletion'
 import { deleteUploadedFiles } from '@/lib/storage'
 import { audit } from '@/lib/audit'
+import { parseStoreProfileInput, storeIdentityChanged, storeProfileErrorMessage } from '@/lib/store-profile'
+import { isStoreModerationStatus } from '@/lib/store-moderation'
 
 export async function GET() {
   try {
     await requireRole('ADMIN')
-    const stores = await db.store.findMany({
-      include: {
-        owner: { select: { id: true, name: true, email: true, phone: true } },
-        _count: { select: { parts: true, orders: true, reviews: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-
-    const storesWithRating = await Promise.all(stores.map(async (store) => {
-      const reviews = await db.storeReview.findMany({ where: { storeId: store.id }, select: { rating: true } })
-      const avgRating = reviews.length
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
-        : 0
-      return { ...store, avgRating }
-    }))
-
+    const stores = await db.store.findMany({ include: { owner: { select: { id: true, name: true, email: true, phone: true } }, _count: { select: { parts: true, orders: true, reviews: true } } }, orderBy: { createdAt: 'desc' } })
+    const storesWithRating = await Promise.all(stores.map(async (store) => { const reviews = await db.storeReview.findMany({ where: { storeId: store.id }, select: { rating: true } }); return { ...store, avgRating: reviews.length ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length : 0 } }))
     return NextResponse.json({ stores: storesWithRating })
-  } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-    }
-    console.error(e)
-    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
-  }
+  } catch (error) { const message = error instanceof Error ? error.message : ''; if (message === 'UNAUTHORIZED' || message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 }); console.error(error); return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 }) }
 }
 
 export async function DELETE(req: NextRequest) {
   try {
-    const session = await requireRole('ADMIN')
+    const session = await requireAdminStepUp()
     const id = new URL(req.url).searchParams.get('id')
     if (!id) return NextResponse.json({ error: 'معرف المتجر مطلوب' }, { status: 400 })
-
     const store = await db.store.findUnique({ where: { id }, select: { id: true, ownerId: true, image: true, parts: { select: { image: true, images: { select: { url: true } } } } } })
     if (!store) return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
-    if (store.ownerId === session.id) {
-      return NextResponse.json({ error: 'لا يمكنك حذف متجرك من حساب المدير الحالي' }, { status: 400 })
-    }
-
-    await db.$transaction(async (tx) => {
-      await deleteStoreWithDependencies(tx, id)
-      await tx.user.updateMany({ where: { id: store.ownerId, role: 'SHOP_OWNER' }, data: { role: 'BUYER' } })
-    })
-    await deleteUploadedFiles([
-      store.image,
-      ...store.parts.flatMap((part) => [part.image, ...part.images.map((image) => image.url)]),
-    ])
+    await db.$transaction(async (tx) => { await deleteStoreWithDependencies(tx, id); await tx.user.updateMany({ where: { id: store.ownerId, role: 'SHOP_OWNER' }, data: { role: 'BUYER', sessionVersion: { increment: 1 } } }) })
+    await deleteUploadedFiles([store.image, ...store.parts.flatMap((part) => [part.image, ...part.images.map((image) => image.url)])])
     await audit({ actorId: session.id, action: 'ADMIN_STORE_DELETED', targetType: 'store', targetId: id, metadata: { sellerId: store.ownerId } })
-
     return NextResponse.json({ ok: true })
-  } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-    }
-    if (e.message === 'STORE_HAS_ORDERS') {
-      return NextResponse.json({ error: 'لا يمكن حذف متجر لديه طلبات. احفظ سجل الطلبات أولاً.' }, { status: 409 })
-    }
-    console.error(e)
-    return NextResponse.json({ error: 'تعذر حذف المتجر' }, { status: 500 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (message === 'STEP_UP_REQUIRED') return NextResponse.json({ error: 'يلزم تأكيد هوية المدير قبل حذف متجر.', stepUpUrl: '/admin/security' }, { status: 428 })
+    if (message === 'UNAUTHORIZED' || message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    if (message === 'STORE_HAS_ORDERS') return NextResponse.json({ error: 'لا يمكن حذف متجر لديه طلبات. احفظ سجل الطلبات أولاً.' }, { status: 409 })
+    console.error(error); return NextResponse.json({ error: 'تعذر حذف المتجر' }, { status: 500 })
   }
 }
 
 export async function PUT(req: NextRequest) {
   try {
-    const session = await requireRole('ADMIN')
-    const body = await req.json()
+    const session = await requireAdminStepUp()
+    const body = await req.json() as Record<string, unknown>
     const id = typeof body.id === 'string' ? body.id : ''
     if (!id) return NextResponse.json({ error: 'معرف المتجر مطلوب' }, { status: 400 })
-    const current = await db.store.findUnique({ where: { id } })
+    const current = await db.store.findUnique({ where: { id }, include: { verification: true } })
     if (!current) return NextResponse.json({ error: 'المتجر غير موجود' }, { status: 404 })
-
-    const name = body.name === undefined ? current.name : typeof body.name === 'string' ? body.name.trim() : ''
-    const description = body.description === undefined ? current.description : typeof body.description === 'string' ? body.description.trim() || null : null
-    const address = body.address === undefined ? current.address : typeof body.address === 'string' ? body.address.trim() || null : null
-    const phone = body.phone === undefined ? current.phone : typeof body.phone === 'string' ? body.phone.trim() || null : null
-    const image = body.image === undefined ? current.image : body.image === null || body.image === '' ? null : typeof body.image === 'string' && body.image.trim().startsWith('https://') ? body.image.trim() : undefined
-    const verified = body.verified === undefined ? current.verified : body.verified
-    if (name.length < 2 || name.length > 120) return NextResponse.json({ error: 'اسم المتجر يجب أن يكون بين حرفين و120 حرفاً' }, { status: 400 })
-    if (description && description.length > 2000) return NextResponse.json({ error: 'وصف المتجر طويل جداً' }, { status: 400 })
-    if (address && address.length > 300) return NextResponse.json({ error: 'عنوان المتجر طويل جداً' }, { status: 400 })
-    if (phone && phone.length > 40) return NextResponse.json({ error: 'رقم الهاتف طويل جداً' }, { status: 400 })
-    if (image === undefined) return NextResponse.json({ error: 'صورة المتجر غير صالحة' }, { status: 400 })
-    if (typeof verified !== 'boolean') return NextResponse.json({ error: 'حالة توثيق المتجر غير صالحة' }, { status: 400 })
-    const verificationChanged = body.verified !== undefined && verified !== current.verified
-
+    let profile
+    try { profile = parseStoreProfileInput(current, body) } catch (error) { return NextResponse.json({ error: storeProfileErrorMessage(error) }, { status: 400 }) }
+    const identityChanged = storeIdentityChanged(current, profile)
+    const requestedModeration = body.moderationStatus === undefined ? current.moderationStatus : body.moderationStatus
+    if (!isStoreModerationStatus(requestedModeration)) return NextResponse.json({ error: 'حالة الإشراف على المتجر غير صالحة' }, { status: 400 })
+    const moderationReason = body.moderationReason === undefined ? current.moderationReason : typeof body.moderationReason === 'string' ? body.moderationReason.trim().slice(0, 1000) || null : null
+    if (requestedModeration === 'BLOCKED' && !moderationReason) return NextResponse.json({ error: 'سبب حظر المتجر مطلوب' }, { status: 400 })
+    if (body.verified !== undefined && typeof body.verified !== 'boolean') return NextResponse.json({ error: 'حالة التوثيق غير صالحة' }, { status: 400 })
+    if (body.verified === true && current.verificationStatus !== 'APPROVED' && current.verification?.status !== 'APPROVED') return NextResponse.json({ error: 'اعتماد متجر جديد يجب أن يتم من طلبات التحقق والمستندات.' }, { status: 409 })
+    const moderationChanged = requestedModeration !== current.moderationStatus
+    const manuallyUnverified = body.verified === false && current.verified
+    const keepVerified = requestedModeration === 'ACTIVE' && !manuallyUnverified && (current.verified || body.verified === true)
+    const now = new Date()
     const store = await db.store.update({
       where: { id },
       data: {
-        name,
-        description,
-        address,
-        phone,
-        image,
-        verified,
-        verificationStatus: verificationChanged ? (verified ? 'APPROVED' : 'UNVERIFIED') : current.verificationStatus,
-        verifiedAt: verificationChanged ? (verified ? new Date() : null) : current.verifiedAt,
+        ...profile,
+        moderationStatus: requestedModeration,
+        moderationReason: requestedModeration === 'ACTIVE' ? null : moderationReason,
+        moderatedAt: moderationChanged ? now : current.moderatedAt,
+        moderatedById: moderationChanged ? session.id : current.moderatedById,
+        verified: requestedModeration === 'BLOCKED' ? false : keepVerified,
+        verificationStatus: requestedModeration === 'BLOCKED' ? 'SUSPENDED' : manuallyUnverified ? 'UNVERIFIED' : current.verificationStatus,
+        verifiedAt: requestedModeration === 'BLOCKED' || manuallyUnverified ? null : keepVerified ? (current.verifiedAt || now) : current.verifiedAt,
+        ...(keepVerified && identityChanged ? { verifiedStoreName: profile.name, verifiedBusinessName: current.verifiedBusinessName || profile.name, verifiedPhone: profile.phone, verifiedAddress: profile.address, verifiedImage: profile.image, verifiedById: session.id } : {}),
       },
     })
-    if (image !== current.image) await deleteUploadedFiles([current.image])
-    await audit({ actorId: session.id, action: 'ADMIN_STORE_UPDATED', targetType: 'store', targetId: id, metadata: { sellerId: current.ownerId, verificationChanged } })
+    if (profile.image !== current.image) await deleteUploadedFiles([current.image])
+    await audit({ actorId: session.id, action: 'ADMIN_STORE_UPDATED', targetType: 'store', targetId: id, metadata: { sellerId: current.ownerId, identityChanged, moderationFrom: current.moderationStatus, moderationTo: requestedModeration, verificationChanged: current.verified !== store.verified } })
     return NextResponse.json({ store })
-  } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
-    console.error(e)
-    return NextResponse.json({ error: 'تعذر تحديث حالة المتجر' }, { status: 500 })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (message === 'STEP_UP_REQUIRED') return NextResponse.json({ error: 'يلزم تأكيد هوية المدير قبل تعديل متجر.', stepUpUrl: '/admin/security' }, { status: 428 })
+    if (message === 'UNAUTHORIZED' || message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    console.error(error); return NextResponse.json({ error: 'تعذر تحديث المتجر' }, { status: 500 })
   }
 }
