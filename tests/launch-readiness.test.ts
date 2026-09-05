@@ -11,7 +11,8 @@ test('public marketplace shows only sellers with active inventory and evidence-b
   const publicMarketplace = read('src/lib/public-marketplace.ts')
   const stores = read('src/components/views/stores-view.tsx')
 
-  assert.match(homeData, /where: \{ parts: \{ some: \{ blocked: false \} \} \}/)
+  assert.match(homeData, /where: \{ moderationStatus: 'ACTIVE', parts: \{ some: \{ blocked: false \} \} \}/)
+  assert.match(homeData, /store: \{ moderationStatus: 'ACTIVE' \}/)
   assert.match(homeData, /orderBy: \[\{ verified: 'desc' \}, \{ createdAt: 'desc' \}\]/)
   assert.match(homeSections, /store\.reviewCount > 0/)
   assert.match(homeSections, /لا توجد تقييمات بعد/)
@@ -19,6 +20,7 @@ test('public marketplace shows only sellers with active inventory and evidence-b
   assert.doesNotMatch(home, /دفع آمن عند الاستلام/)
   assert.doesNotMatch(homeSections, /متجر متخصص في بيع قطع غيار السيارات\./)
 
+  assert.match(publicMarketplace, /const visibleStoreWhere: Prisma\.StoreWhereInput = \{ moderationStatus: 'ACTIVE' \}/)
   assert.match(publicMarketplace, /const listableStoreWhere/)
   assert.match(publicMarketplace, /parts: \{ some: \{ blocked: false \} \}/)
   assert.match(publicMarketplace, /\.\.\.listableStoreWhere/)
