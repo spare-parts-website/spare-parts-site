@@ -47,14 +47,14 @@ test('prioritizes first paint over noncritical global shell work', () => {
   assert.match(pwa, /document\.readyState === 'complete'/)
   assert.match(pwa, /requestIdleCallback/)
   assert.match(layout, /import "\.\/mobile-performance\.css"/)
-  assert.match(layout, /icon: "\/ghyar-market-icon\.png"/)
   assert.match(mobilePaint, /background-attachment: scroll/)
   assert.match(mobilePaint, /backdrop-filter: none !important/)
   assert.match(mobilePaint, /content-visibility: auto/)
   assert.doesNotMatch(mobileNav, /backdrop-blur/)
   assert.match(avatar, /loading="lazy"/)
   assert.match(avatar, /decoding="async"/)
-  assert.match(config, /source: '\/favicon\.ico', destination: '\/ghyar-market-icon\.png'/)
+  assert.match(config, /source: '\/ghyar-market-logo\.png'/)
+  assert.match(config, /source: '\/ghyar-market-hero\.webp'/)
 })
 
 test('splits common catch-all pages into dedicated route entrypoints', () => {
