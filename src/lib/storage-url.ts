@@ -1,16 +1,17 @@
 import 'server-only'
 
 const FALLBACK_SUPABASE_URL = 'https://sufrsfrrrzhhdluolxdf.supabase.co'
+const EXPECTED_SUPABASE_ORIGIN = 'https://sufrsfrrrzhhdluolxdf.supabase.co'
 const SAFE_OBJECT_NAME = /^[A-Za-z0-9._-]+$/
 
 export function supabaseOrigin() {
   const raw = (process.env.SUPABASE_URL || FALLBACK_SUPABASE_URL).trim()
   try {
     const url = new URL(raw)
-    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash) throw new Error('invalid')
+    if (url.protocol !== 'https:' || url.username || url.password || url.search || url.hash || url.origin !== EXPECTED_SUPABASE_ORIGIN) throw new Error('invalid')
     return url.origin
   } catch {
-    if (process.env.NODE_ENV === 'production') throw new Error('SUPABASE_URL must be a valid HTTPS origin')
+    if (process.env.NODE_ENV === 'production') throw new Error('SUPABASE_URL must match the configured Ghyar Market Supabase HTTPS origin')
     return FALLBACK_SUPABASE_URL
   }
 }

@@ -1,5 +1,7 @@
 import type { NextConfig } from "next";
 
+const SUPABASE_HOSTNAME = 'sufrsfrrrzhhdluolxdf.supabase.co'
+
 const nextConfig: NextConfig = {
   reactStrictMode: false,
   compress: true,
@@ -10,7 +12,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '*.supabase.co',
+        hostname: SUPABASE_HOSTNAME,
         pathname: '/storage/v1/object/public/**',
       },
     ],

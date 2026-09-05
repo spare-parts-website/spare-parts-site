@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 const REQUEST_ID = /^[A-Za-z0-9._:-]{1,100}$/
 const MUTATING_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE'])
 const WEBHOOK_PATH = '/api/webhooks/resend'
+const SUPABASE_ORIGIN = 'https://sufrsfrrrzhhdluolxdf.supabase.co'
 
 function configuredOrigin(request: NextRequest) {
   const configured = process.env.APP_URL?.trim()
@@ -31,16 +32,16 @@ function contentSecurityPolicy(value: string, request: NextRequest) {
     // progress indicators. Keep those attributes explicit while removing the
     // broad script unsafe-inline exception that allowed arbitrary execution.
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob: https://*.supabase.co",
+    `img-src 'self' data: blob: ${SUPABASE_ORIGIN}`,
     "font-src 'self'",
-    "connect-src 'self' https://*.supabase.co",
+    `connect-src 'self' ${SUPABASE_ORIGIN}`,
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
     "frame-ancestors 'none'",
     'upgrade-insecure-requests',
-    request.nextUrl.pathname.startsWith('/api/') ? 'report-to csp-endpoint' : '',
+    'report-to csp-endpoint',
   ].filter(Boolean).join('; ')
 }
 
