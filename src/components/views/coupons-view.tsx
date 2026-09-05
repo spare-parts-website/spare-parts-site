@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { Ticket, Plus, Trash2, Copy, Check } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { subscribeAIDraft } from '@/lib/ai/draft-client'
+import { useAppStore } from '@/lib/store'
 
 interface Coupon {
   id: string
@@ -22,29 +23,71 @@ interface Coupon {
   createdAt: string
 }
 
+const COUPON_CACHE_TTL = 30_000
+const couponCache = new Map<string, { fetchedAt: number; coupons: Coupon[] }>()
+const couponInFlight = new Map<string, Promise<Coupon[]>>()
+
+export async function warmSellerCoupons(userId: string, force = false) {
+  const cached = couponCache.get(userId)
+  if (!force && cached && Date.now() - cached.fetchedAt < COUPON_CACHE_TTL) return cached.coupons
+  const pending = couponInFlight.get(userId)
+  if (!force && pending) return pending
+
+  const request = fetch('/api/coupons', { cache: 'no-store' })
+    .then(async (response) => {
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'SHOP_COUPONS_LOAD_FAILED')
+      const coupons = (data.coupons || []) as Coupon[]
+      couponCache.set(userId, { fetchedAt: Date.now(), coupons })
+      return coupons
+    })
+    .finally(() => couponInFlight.delete(userId))
+
+  couponInFlight.set(userId, request)
+  return request
+}
+
 export function CouponsView() {
   const { toast } = useToast()
-  const [coupons, setCoupons] = useState<Coupon[]>([])
-  const [loading, setLoading] = useState(true)
+  const userId = useAppStore((state) => state.user?.id)
+  const cached = userId ? couponCache.get(userId)?.coupons || [] : []
+  const hasCached = Boolean(userId && couponCache.has(userId))
+  const [coupons, setCoupons] = useState<Coupon[]>(cached)
+  const [loading, setLoading] = useState(!hasCached)
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState({ code: '', discountPercent: '', maxUses: '100', expiresAt: '' })
   const [submitting, setSubmitting] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
 
-  const load = () => {
-    fetch('/api/coupons', { cache: 'no-store' })
-      .then((r) => r.json())
-      .then((data) => setCoupons(data.coupons || []))
+  const load = (force = false) => {
+    if (!userId) {
+      setCoupons([])
+      setLoading(false)
+      return Promise.resolve([] as Coupon[])
+    }
+    const current = couponCache.get(userId)?.coupons
+    if (current) {
+      setCoupons(current)
+      setLoading(false)
+    } else {
+      setLoading(true)
+    }
+    return warmSellerCoupons(userId, force)
+      .then((next) => {
+        setCoupons(next)
+        return next
+      })
+      .catch(() => [] as Coupon[])
       .finally(() => setLoading(false))
   }
 
   useEffect(() => {
-    load()
+    void load()
     return subscribeAIDraft('coupon', (draft) => {
       setForm((current) => ({ ...current, code: typeof draft.code === 'string' ? draft.code.toUpperCase() : current.code, discountPercent: draft.discountPercent === undefined ? current.discountPercent : String(draft.discountPercent), maxUses: draft.maxUses === undefined ? current.maxUses : String(draft.maxUses), expiresAt: typeof draft.expiresAt === 'string' ? draft.expiresAt : current.expiresAt }))
       setShowForm(true)
     })
-  }, [])
+  }, [userId])
 
   const handleCreate = async () => {
     if (!form.code || !form.discountPercent) {
@@ -66,7 +109,7 @@ export function CouponsView() {
       toast({ title: 'تم إنشاء الكوبون', description: `كود: ${form.code.toUpperCase()}` })
       setForm({ code: '', discountPercent: '', maxUses: '100', expiresAt: '' })
       setShowForm(false)
-      load()
+      void load(true)
     } finally {
       setSubmitting(false)
     }
@@ -75,7 +118,11 @@ export function CouponsView() {
   const handleDelete = async (id: string) => {
     if (!confirm('هل تريد حذف هذا الكوبون؟')) return
     await fetch(`/api/coupons?id=${id}`, { method: 'DELETE' })
-    setCoupons((prev) => prev.filter((c) => c.id !== id))
+    setCoupons((prev) => {
+      const next = prev.filter((c) => c.id !== id)
+      if (userId) couponCache.set(userId, { fetchedAt: Date.now(), coupons: next })
+      return next
+    })
     toast({ title: 'تم الحذف' })
   }
 
