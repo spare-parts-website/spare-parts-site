@@ -1,0 +1,30 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { db } from '@/lib/db'
+import { createSession, requireRole } from '@/lib/auth'
+import { verifyAndConsumeAdminMfa } from '@/lib/admin-mfa'
+import { audit } from '@/lib/audit'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
+
+export async function POST(req: NextRequest) {
+  try {
+    const session = await requireRole('ADMIN')
+    const limit = await rateLimit(`admin-step-up:${session.id}:${requestAddress(req)}`, 10, 15 * 60 * 1000)
+    if (!limit.allowed) return NextResponse.json({ error: 'محاولات كثيرة. حاول لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
+    const body = await req.json()
+    const code = typeof body.code === 'string' ? body.code.trim() : ''
+    if (!code) return NextResponse.json({ error: 'رمز المصادقة مطلوب' }, { status: 400 })
+    let result
+    try { result = await verifyAndConsumeAdminMfa(session.id, code) } catch (error) {
+      if (error instanceof Error && error.message === 'INVALID_MFA_CODE') return NextResponse.json({ error: 'رمز المصادقة غير صحيح' }, { status: 400 })
+      throw error
+    }
+    const user = await db.user.findUniqueOrThrow({ where: { id: session.id } })
+    await createSession({ id: user.id, name: user.name, email: user.email, role: 'ADMIN', phone: user.phone, avatar: user.avatar, emailNotifications: user.emailNotifications, emailDeliveryStatus: user.emailDeliveryStatus, emailDeliveryReason: user.emailDeliveryReason, emailDeliveryAt: user.emailDeliveryAt, sessionVersion: user.sessionVersion, mfaVerifiedAt: Date.now() })
+    await audit({ actorId: user.id, action: 'ADMIN_STEP_UP_VERIFIED', targetType: 'user', targetId: user.id, metadata: { method: result.method } })
+    return NextResponse.json({ ok: true, validForSeconds: 900, remainingRecoveryCodes: 'remainingRecoveryCodes' in result ? result.remainingRecoveryCodes : undefined })
+  } catch (error) {
+    if (error instanceof Error && (error.message === 'UNAUTHORIZED' || error.message === 'FORBIDDEN')) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    console.error('Admin step-up failed', error)
+    return NextResponse.json({ error: 'تعذر تأكيد هوية المدير' }, { status: 500 })
+  }
+}

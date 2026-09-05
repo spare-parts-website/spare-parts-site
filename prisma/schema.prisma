@@ -12,22 +12,29 @@ datasource db {
 }
 
 model User {
-  id                 String   @id @default(cuid())
-  name               String
-  email              String   @unique
-  password           String
-  role               String   @default("BUYER") // BUYER, ADMIN, SHOP_OWNER
-  phone              String?
-  avatar             String?
-  emailNotifications Boolean  @default(true)
-  emailDeliveryStatus String  @default("ACTIVE")
-  emailDeliveryReason String?
-  emailDeliveryAt     DateTime?
-  sessionVersion     Int      @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                      String   @id @default(cuid())
+  name                    String
+  email                   String   @unique
+  password                String
+  role                    String   @default("BUYER") // BUYER, ADMIN, SHOP_OWNER
+  phone                   String?
+  avatar                  String?
+  emailVerifiedAt         DateTime?
+  emailNotifications      Boolean  @default(true)
+  emailDeliveryStatus     String   @default("ACTIVE")
+  emailDeliveryReason     String?
+  emailDeliveryAt         DateTime?
+  sessionVersion          Int      @default(0)
+  adminMfaSecret          String?
+  adminMfaEnabledAt       DateTime?
+  adminMfaRecoveryCodes   String?
+  adminMfaLastCounter     BigInt?
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
 
   store                   Store?
+  storesVerified          Store[]              @relation("StoreVerifier")
+  storesModerated         Store[]              @relation("StoreModerator")
   orders                  Order[]
   productReviews          ProductReview[]
   storeReviews            StoreReview[]
@@ -35,22 +42,24 @@ model User {
   wishlist                Wishlist[]
   storeWishlist           StoreWishlist[]
   userCars                UserCar[]
-  sentMessages            ChatMessage[]       @relation("ChatMessageSender")
-  receivedMessages        ChatMessage[]       @relation("ChatMessageReceiver")
-  sentProductMessages     ProductMessage[]    @relation("ProductMessageSender")
-  receivedProductMessages ProductMessage[]    @relation("ProductMessageReceiver")
-  reportsGiven            Report[]            @relation("ReportReporter")
-  reportsReviewed         Report[]            @relation("ReportReviewer")
+  sentMessages            ChatMessage[]        @relation("ChatMessageSender")
+  receivedMessages        ChatMessage[]        @relation("ChatMessageReceiver")
+  sentProductMessages     ProductMessage[]     @relation("ProductMessageSender")
+  receivedProductMessages ProductMessage[]     @relation("ProductMessageReceiver")
+  reportsGiven            Report[]             @relation("ReportReporter")
+  reportsReviewed         Report[]             @relation("ReportReviewer")
   loginVerifications      LoginVerification[]
   passwordResets          PasswordReset[]
-  disputes                Dispute[]           @relation("DisputeBuyer")
-  disputesReviewed        Dispute[]           @relation("DisputeReviewer")
+  disputes                Dispute[]            @relation("DisputeBuyer")
+  disputesReviewed        Dispute[]            @relation("DisputeReviewer")
   auditLogs               AuditLog[]
   aiConversations         AIConversation[]
   aiActionProposals       AIActionProposal[]
-  supportTickets          SupportTicket[]    @relation("SupportTicketRequester")
-  supportMessages         SupportMessage[]   @relation("SupportMessageAuthor")
+  supportTickets          SupportTicket[]      @relation("SupportTicketRequester")
+  supportMessages         SupportMessage[]     @relation("SupportMessageAuthor")
   emailDeliveryAttempts   EmailDeliveryAttempt[] @relation("EmailDeliveryRecipient")
+  adminMfaChallenges      AdminMfaChallenge[]
+  emailChangeRequest      EmailChangeRequest?
 
   @@index([emailDeliveryStatus])
 }
@@ -74,6 +83,7 @@ model LoginVerification {
   id         String    @id
   userId     String
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose    String    @default("LOGIN")
   codeHash   String
   attempts   Int       @default(0)
   expiresAt  DateTime
@@ -82,29 +92,75 @@ model LoginVerification {
 
   @@index([userId, createdAt])
   @@index([expiresAt])
+  @@index([userId, purpose, expiresAt])
+}
+
+model AdminMfaChallenge {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  purpose         String
+  secretEncrypted String?
+  attempts        Int       @default(0)
+  expiresAt       DateTime
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+
+  @@index([userId, purpose, expiresAt])
+  @@index([expiresAt])
+}
+
+model EmailChangeRequest {
+  id          String   @id @default(cuid())
+  userId      String   @unique
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  targetEmail String   @unique
+  codeHash    String
+  attempts    Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([expiresAt])
 }
 
 model Store {
-  id                 String              @id @default(cuid())
-  name               String
-  description        String?
-  address            String?
-  phone              String?
-  image              String?
-  verified           Boolean             @default(false)
-  verificationStatus String              @default("UNVERIFIED")
-  verifiedAt         DateTime?
-  ownerId            String              @unique
-  owner              User                @relation(fields: [ownerId], references: [id])
-  parts              Part[]
-  orders             Order[]
-  reviews            StoreReview[]
-  coupons            Coupon[]
-  wishlist           StoreWishlist[]
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  verification       SellerVerification?
-  disputes           Dispute[]
+  id                   String              @id @default(cuid())
+  name                 String
+  description          String?
+  address              String?
+  phone                String?
+  image                String?
+  verified             Boolean             @default(false)
+  verificationStatus   String              @default("UNVERIFIED")
+  verifiedAt           DateTime?
+  verifiedStoreName    String?
+  verifiedBusinessName String?
+  verifiedPhone        String?
+  verifiedAddress      String?
+  verifiedImage        String?
+  verifiedById         String?
+  verifiedBy           User?               @relation("StoreVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  moderationStatus     String              @default("ACTIVE")
+  moderationReason     String?
+  moderatedAt          DateTime?
+  moderatedById        String?
+  moderatedBy          User?               @relation("StoreModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
+  ownerId              String              @unique
+  owner                User                @relation(fields: [ownerId], references: [id])
+  parts                Part[]
+  orders               Order[]
+  reviews              StoreReview[]
+  coupons              Coupon[]
+  wishlist             StoreWishlist[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  verification         SellerVerification?
+  disputes             Dispute[]
+
+  @@index([moderationStatus, createdAt])
+  @@index([verificationStatus, createdAt])
+  @@index([verifiedById])
+  @@index([moderatedById])
 }
 
 model Part {
@@ -122,7 +178,7 @@ model Part {
   universal       Boolean                @default(false)
   fitmentNotes    String?
   image           String?
-  // Car compatibility - stored as JSON string: e.g. '["Toyota Camry 2018-2023", "Honda Accord 2019-2022"]'
+  // Car compatibility - stored as JSON string for legacy compatibility.
   carModels       String?
   storeId         String
   store           Store                  @relation(fields: [storeId], references: [id])
@@ -147,18 +203,18 @@ model Part {
 }
 
 model VehicleCompatibility {
-  id        String   @id @default(cuid())
-  partId    String
-  part      Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
-  make      String
-  model     String
+  id         String   @id @default(cuid())
+  partId     String
+  part       Part     @relation(fields: [partId], references: [id], onDelete: Cascade)
+  make       String
+  model      String
   generation String?
   engine     String?
   trim       String?
   notes      String?
-  yearFrom  Int?
-  yearTo    Int?
-  createdAt DateTime @default(now())
+  yearFrom   Int?
+  yearTo     Int?
+  createdAt  DateTime @default(now())
 
   @@index([make, model, yearFrom, yearTo])
   @@index([make, model, generation, engine])
@@ -235,7 +291,6 @@ model AIRequestLease {
   @@index([expiresAt])
 }
 
-// Multiple images for a part
 model PartImage {
   id        String   @id @default(cuid())
   partId    String
@@ -257,8 +312,8 @@ model Order {
   buyer               User            @relation(fields: [buyerId], references: [id])
   quantity            Int             @default(1)
   totalPrice          Float
-  status              String          @default("PENDING") // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
-  paymentStatus       String          @default("UNPAID") // UNPAID, PAID, REFUNDED
+  status              String          @default("PENDING")
+  paymentStatus       String          @default("UNPAID")
   paymentMethod       String?
   deliveryAddress     String
   governorate         String?
@@ -299,12 +354,11 @@ model OrderItem {
   @@index([partId])
 }
 
-// Order status timeline (track each status change)
 model OrderTimeline {
   id        String   @id @default(cuid())
   orderId   String
   order     Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  status    String // PENDING, APPROVED, REJECTED, PAID, DELIVERED, RETURNED
+  status    String
   note      String?
   createdAt DateTime @default(now())
 
@@ -326,6 +380,7 @@ model ProductReview {
   blocked         Boolean  @default(false)
   createdAt       DateTime @default(now())
 
+  @@unique([userId, partId])
   @@index([partId, createdAt])
   @@index([userId])
 }
@@ -341,6 +396,7 @@ model StoreReview {
   blocked   Boolean  @default(false)
   createdAt DateTime @default(now())
 
+  @@unique([userId, storeId])
   @@index([storeId, createdAt])
   @@index([userId])
 }
@@ -351,7 +407,7 @@ model Notification {
   user          User                  @relation(fields: [userId], references: [id])
   title         String
   message       String
-  type          String // ORDER_STATUS, NEW_ORDER, PAYMENT, REVIEW, SYSTEM, CHAT
+  type          String
   read          Boolean               @default(false)
   link          String?
   dedupeKey     String?               @unique
@@ -362,21 +418,21 @@ model Notification {
 }
 
 model EmailDeliveryAttempt {
-  id             String       @id @default(cuid())
-  notificationId String?      @unique
-  notification   Notification? @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  notificationId  String?       @unique
+  notification    Notification? @relation(fields: [notificationId], references: [id], onDelete: Cascade)
   recipientUserId String?
-  recipientUser   User?        @relation("EmailDeliveryRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
-  providerId     String?
-  recipientEmail String?
-  deliveryKey    String       @unique
-  category       String       @default("NOTIFICATION")
-  status         String
-  error          String?
-  lastEventId    String?
-  lastEventAt    DateTime?
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  recipientUser   User?         @relation("EmailDeliveryRecipient", fields: [recipientUserId], references: [id], onDelete: SetNull)
+  providerId      String?
+  recipientEmail  String?
+  deliveryKey     String        @unique
+  category        String        @default("NOTIFICATION")
+  status          String
+  error           String?
+  lastEventId     String?
+  lastEventAt     DateTime?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
 
   @@index([status, createdAt])
   @@index([providerId])
@@ -384,7 +440,6 @@ model EmailDeliveryAttempt {
   @@index([category, createdAt])
 }
 
-// Wishlist - users save favorite parts
 model Wishlist {
   id        String   @id @default(cuid())
   userId    String
@@ -396,8 +451,6 @@ model Wishlist {
   @@unique([userId, partId])
 }
 
-// Users save favorite stores. The legacy Wishlist model above is retained only
-// for existing database compatibility and is no longer used by the application.
 model StoreWishlist {
   id        String   @id @default(cuid())
   userId    String
@@ -410,20 +463,19 @@ model StoreWishlist {
   @@index([storeId])
 }
 
-// User's saved cars (car profiles)
 model UserCar {
-  id        String   @id @default(cuid())
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  brand     String // Toyota, Honda, etc.
-  model     String // Camry, Civic, etc.
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  brand      String
+  model      String
   generation String?
-  year      Int?
-  engine    String?
-  trim      String?
-  isPrimary Boolean  @default(false)
-  nickname  String? // "سيارة العمل", "سيارة العائلة"
-  createdAt DateTime @default(now())
+  year       Int?
+  engine     String?
+  trim       String?
+  isPrimary  Boolean  @default(false)
+  nickname   String?
+  createdAt  DateTime @default(now())
 
   @@index([userId, createdAt])
 }
@@ -481,17 +533,17 @@ model AuditLog {
 }
 
 model SupportTicket {
-  id         String           @id @default(cuid())
-  userId     String
-  user       User             @relation("SupportTicketRequester", fields: [userId], references: [id], onDelete: Cascade)
-  orderId    String?
-  order      Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
-  category   String           @default("GENERAL")
-  subject    String
-  status     String           @default("OPEN")
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
-  messages   SupportMessage[]
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation("SupportTicketRequester", fields: [userId], references: [id], onDelete: Cascade)
+  orderId   String?
+  order     Order?           @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  category  String           @default("GENERAL")
+  subject   String
+  status    String           @default("OPEN")
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  messages  SupportMessage[]
 
   @@index([userId, updatedAt])
   @@index([status, updatedAt])
@@ -499,26 +551,25 @@ model SupportTicket {
 }
 
 model SupportMessage {
-  id         String         @id @default(cuid())
+  id         String        @id @default(cuid())
   ticketId   String
   ticket     SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   authorId   String?
-  author     User?          @relation("SupportMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  author     User?         @relation("SupportMessageAuthor", fields: [authorId], references: [id], onDelete: SetNull)
   authorRole String
   body       String
-  createdAt  DateTime       @default(now())
+  createdAt  DateTime      @default(now())
 
   @@index([ticketId, createdAt])
   @@index([authorId, createdAt])
 }
 
-// Discount coupons
 model Coupon {
   id              String    @id @default(cuid())
   code            String    @unique
   storeId         String
   store           Store     @relation(fields: [storeId], references: [id])
-  discountPercent Float // e.g. 10 = 10% off
+  discountPercent Float
   maxUses         Int       @default(100)
   usedCount       Int       @default(0)
   active          Boolean   @default(true)
@@ -528,7 +579,6 @@ model Coupon {
   @@index([storeId, active])
 }
 
-// Chat messages between buyer and store owner
 model ChatMessage {
   id         String   @id @default(cuid())
   orderId    String
@@ -547,7 +597,6 @@ model ChatMessage {
   @@index([orderId, createdAt])
 }
 
-// Messages about a product before an order exists
 model ProductMessage {
   id         String   @id @default(cuid())
   partId     String
@@ -570,11 +619,11 @@ model Report {
   id           String   @id @default(cuid())
   reporterId   String
   reporter     User     @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
-  targetType   String // part, store, user
+  targetType   String
   targetId     String
   reason       String
   details      String?
-  status       String   @default("OPEN") // OPEN, REVIEWED, DISMISSED, BLOCKED
+  status       String   @default("OPEN")
   reviewedById String?
   reviewedBy   User?    @relation("ReportReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   createdAt    DateTime @default(now())
