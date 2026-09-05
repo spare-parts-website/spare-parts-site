@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
 test('switches seller and admin dashboard tabs without a server route transition', () => {
@@ -44,4 +44,8 @@ test('warms private dashboard data and reuses short-lived user-scoped caches', (
   assert.match(coupons, /couponCache/)
   assert.match(messages, /messageCache/)
   assert.match(support, /warmSupportTickets/)
+})
+
+test('keeps the current page visible instead of showing a route-wide loading screen', () => {
+  assert.equal(existsSync(new URL('../src/app/loading.tsx', import.meta.url)), false)
 })
