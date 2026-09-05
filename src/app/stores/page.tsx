@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
 import { StoresView } from '@/components/views/stores-view'
-import { getPublicStoresList, type PublicStoresList } from '@/lib/public-marketplace'
+import { getCachedPublicStoresLanding } from '@/lib/public-marketplace-cache'
+import type { PublicStoresList } from '@/lib/public-marketplace'
 
 export const revalidate = 30
 
@@ -18,7 +19,7 @@ function StoresFallback() {
 export default async function StoresPage() {
   let initialData: PublicStoresList | null = null
   try {
-    initialData = await getPublicStoresList('', 1)
+    initialData = await getCachedPublicStoresLanding()
   } catch {
     // The static shell can still load its public API payload after hydration.
   }

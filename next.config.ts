@@ -37,6 +37,18 @@ const nextConfig: NextConfig = {
         headers: [{ key: 'Cache-Control', value: 'public, s-maxage=30, stale-while-revalidate=120' }],
       },
       {
+        source: '/ghyar-market-logo.png',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800' }],
+      },
+      {
+        source: '/ghyar-market-icon.png',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800' }],
+      },
+      {
+        source: '/ghyar-market-hero.webp',
+        headers: [{ key: 'Cache-Control', value: 'public, max-age=86400, s-maxage=31536000, stale-while-revalidate=604800' }],
+      },
+      {
         source: '/(.*)',
         headers: [
           { key: 'X-Content-Type-Options', value: 'nosniff' },

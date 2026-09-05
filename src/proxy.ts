@@ -88,6 +88,9 @@ export function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!_next/static|_next/image|favicon.ico).*)',
+    // CSP/CSRF middleware is required for HTML and API requests, not immutable
+    // public assets. Keeping images, the PWA files and crawler files off the
+    // middleware path removes an extra edge hop from critical paint resources.
+    '/((?!_next/static|_next/image|favicon.ico|ghyar-market-hero.webp|ghyar-market-logo.png|ghyar-market-logo.jpg|ghyar-market-logo.svg|ghyar-market-icon.png|profile-avatars/|uploads/|sw.js|manifest.webmanifest|sitemap.xml|robots.txt).*)',
   ],
 }

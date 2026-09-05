@@ -20,7 +20,7 @@ export function MobileBottomNav() {
   ]
 
   return (
-    <nav aria-label="التنقل السريع" className="safe-area-bottom fixed inset-x-0 bottom-0 z-40 border-t bg-card/95 px-2 pt-2 shadow-[0_-8px_24px_rgba(2,8,23,.08)] backdrop-blur-xl lg:hidden">
+    <nav aria-label="التنقل السريع" className="safe-area-bottom fixed inset-x-0 bottom-0 z-40 border-t bg-card px-2 pt-2 shadow-[0_-6px_18px_rgba(2,8,23,.06)] lg:hidden">
       <div className="mx-auto grid max-w-lg grid-cols-5">
         {items.slice(0, 2).map((item) => <NavItem key={item.label} {...item} />)}
         <button type="button" onClick={() => setCartOpen(true)} className="relative -mt-6 flex flex-col items-center gap-1 text-xs font-bold">

@@ -1,0 +1,38 @@
+@media (max-width: 767px) {
+  /* Fixed backgrounds and backdrop filters force expensive repaints while
+     scrolling on low-end mobile GPUs. The mobile presentation remains visually
+     equivalent while using compositing-friendly surfaces. */
+  body {
+    background-attachment: scroll;
+    text-rendering: auto;
+  }
+
+  .site-header {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+    background: var(--background) !important;
+    box-shadow: 0 2px 10px color-mix(in oklab, var(--foreground) 4%, transparent);
+  }
+
+  [data-slot="card"],
+  .surface-panel,
+  .market-card {
+    box-shadow: 0 4px 14px color-mix(in oklab, var(--foreground) 4%, transparent);
+  }
+
+  .market-card {
+    transition: border-color 120ms ease;
+    content-visibility: auto;
+    contain-intrinsic-size: auto 380px;
+  }
+
+  .market-card:hover {
+    transform: none;
+    box-shadow: 0 4px 14px color-mix(in oklab, var(--foreground) 4%, transparent);
+  }
+
+  footer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 720px;
+  }
+}

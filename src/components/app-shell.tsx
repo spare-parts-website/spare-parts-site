@@ -1,5 +1,6 @@
 'use client'
 
+import dynamic from 'next/dynamic'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
@@ -7,11 +8,15 @@ import { LockKeyhole, ShieldX } from 'lucide-react'
 import { AIAssistantLoader } from '@/components/ai-assistant-loader'
 import { Header } from '@/components/header'
 import { Footer } from '@/components/footer'
-import { CartDrawer } from '@/components/cart-drawer'
 import { MobileBottomNav } from '@/components/mobile-bottom-nav'
 import { useAppStore, type AuthUser, type CartItem } from '@/lib/store'
 import { Button } from '@/components/ui/button'
 import { PwaInstaller } from '@/components/pwa-installer'
+
+const LazyCartDrawer = dynamic(
+  () => import('@/components/cart-drawer').then((module) => module.CartDrawer),
+  { ssr: false },
+)
 
 const CART_STORAGE_KEY = 'ghyar-market-cart-v1'
 const CART_UPDATED_KEY = 'ghyar-market-cart-updated-v1'
@@ -37,6 +42,7 @@ export function AppShell({
 }) {
   const pathname = usePathname()
   const user = useAppStore((state) => state.user)
+  const cartOpen = useAppStore((state) => state.cartOpen)
   const setUser = useAppStore((state) => state.setUser)
   const hydratedCart = useRef(false)
   const reminderSent = useRef(false)
@@ -129,20 +135,32 @@ export function AppShell({
     }
 
     let active = true
-    fetch('/api/wishlist', { cache: 'no-store' })
-      .then((response) => (response.ok ? response.json() : { items: [] }))
-      .then((data: { items?: Array<{ store: { id: string } }> }) => {
-        if (active) {
-          useAppStore.getState().setFavoriteStores((data.items || []).map((item) => item.store.id))
-        }
-      })
-      .catch(() => {
-        if (active) useAppStore.getState().setFavoriteStores([])
-      })
+    const loadWishlist = () => {
+      if (!active) return
+      fetch('/api/wishlist', { cache: 'no-store' })
+        .then((response) => (response.ok ? response.json() : { items: [] }))
+        .then((data: { items?: Array<{ store: { id: string } }> }) => {
+          if (active) useAppStore.getState().setFavoriteStores((data.items || []).map((item) => item.store.id))
+        })
+        .catch(() => {
+          if (active) useAppStore.getState().setFavoriteStores([])
+        })
+    }
+    const idleWindow = window as typeof window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
+      cancelIdleCallback?: (handle: number) => void
+    }
+    const usesIdleCallback = typeof idleWindow.requestIdleCallback === 'function'
+    const handle = usesIdleCallback
+      ? idleWindow.requestIdleCallback!(loadWishlist, { timeout: 2200 })
+      : window.setTimeout(loadWishlist, 1400)
+
     return () => {
       active = false
+      if (usesIdleCallback && typeof idleWindow.cancelIdleCallback === 'function') idleWindow.cancelIdleCallback(handle)
+      else window.clearTimeout(handle)
     }
-  }, [user])
+  }, [user?.id])
 
   const requiredRoles = rolesForPath(pathname)
   const protectedContent = requiredRoles !== null
@@ -155,7 +173,7 @@ export function AppShell({
         {protectedContent && !authResolved ? <ProtectedLoading /> : canAccess ? children : user ? <ForbiddenState /> : <SignInState />}
       </main>
       <Footer />
-      <CartDrawer />
+      {cartOpen ? <LazyCartDrawer /> : null}
       <MobileBottomNav />
       <PwaInstaller />
       <AIAssistantLoader user={user} pathname={pathname} />
