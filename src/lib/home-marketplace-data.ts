@@ -92,7 +92,7 @@ const loadHomeMarketplaceCached = unstable_cache(async (): Promise<HomeMarketpla
   })
 
   return { parts, stores }
-}, ['home-marketplace-v2'], { revalidate: 60 })
+}, ['home-marketplace-v2'], { revalidate: 120 })
 
 export async function loadHomeMarketplaceData() {
   return loadHomeMarketplaceCached()

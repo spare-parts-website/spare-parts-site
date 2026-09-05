@@ -13,7 +13,7 @@ import {
   Store as StoreIcon,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { HomeMarketplaceSections } from '@/components/home-marketplace-sections'
+import { HomeMarketplaceSectionsLoader } from '@/components/home-marketplace-sections-loader'
 
 export function HomeView({ isSeller = false }: { isSeller?: boolean }) {
   return (
@@ -61,7 +61,7 @@ export function HomeView({ isSeller = false }: { isSeller?: boolean }) {
         </div>
       </section>
 
-      <HomeMarketplaceSections />
+      <HomeMarketplaceSectionsLoader />
 
       <section className="content-container pb-20">
         <div className="relative overflow-hidden rounded-[2rem] border bg-card text-card-foreground shadow-xl shadow-slate-900/5 dark:shadow-black/20">

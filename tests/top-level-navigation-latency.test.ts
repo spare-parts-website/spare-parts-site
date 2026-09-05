@@ -10,7 +10,8 @@ test('keeps high-frequency top-level routes warm without periodic duplicate traf
   assert.match(header, /const routes = \['\/', '\/parts', '\/stores', '\/support'\]/)
   assert.match(header, /routes\.forEach\(\(path\) => router\.prefetch\(path\)\)/)
   assert.doesNotMatch(layout, /NavigationWarmup/)
-  assert.match(layout, /export const dynamic = 'force-dynamic'/)
+  assert.doesNotMatch(layout, /export const dynamic = 'force-dynamic'/)
+  assert.match(config, /sri:\s*\{\s*algorithm: 'sha256'/)
   assert.match(config, /staleTimes:\s*\{[\s\S]*dynamic:\s*300[\s\S]*static:\s*300/)
 })
 

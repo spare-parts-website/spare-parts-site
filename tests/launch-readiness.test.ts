@@ -62,12 +62,21 @@ test('Supabase Data API roles are explicitly denied application table access', (
   assert.doesNotMatch(migration, /\bDROP\b|\bTRUNCATE\b|\bDELETE\b/i)
 })
 
-test('nonce-based CSP security remains enabled instead of being weakened for static rendering', () => {
+test('strict CSP remains enabled while anonymous hot paths can prerender', () => {
   const layout = read('src/app/layout.tsx')
   const proxy = read('src/proxy.ts')
+  const config = read('next.config.ts')
 
-  assert.match(layout, /export const dynamic = 'force-dynamic'/)
+  assert.doesNotMatch(layout, /export const dynamic = 'force-dynamic'/)
   assert.match(proxy, /script-src 'self' 'nonce-\$\{value\}'/)
+  assert.match(proxy, /STATIC_PUBLIC_PATHS = new Set\(\['\/', '\/parts', '\/stores'\]\)/)
   assert.match(proxy, /frame-ancestors 'none'/)
   assert.doesNotMatch(proxy, /script-src[^\n]*unsafe-inline/)
+
+  assert.match(config, /sri:\s*\{\s*algorithm: 'sha256'/)
+  assert.match(config, /"script-src 'self'"/)
+  assert.match(config, /source: '\/'/)
+  assert.match(config, /source: '\/parts'/)
+  assert.match(config, /source: '\/stores'/)
+  assert.doesNotMatch(config, /script-src[^\n]*unsafe-inline/)
 })
