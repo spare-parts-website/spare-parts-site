@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type { Prisma } from '@prisma/client'
+import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { detectMarketplaceBrandHint, findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
 import { BLOCKED_STORE_NAMES, isBlockedStoreName } from '@/lib/store-moderation'
@@ -75,8 +76,6 @@ const visibleStoreWhere: Prisma.StoreWhereInput = {
 
 const listableStoreWhere: Prisma.StoreWhereInput = {
   ...visibleStoreWhere,
-  // An empty seller profile is not useful to buyers. Keep it private from the
-  // public directory until the seller has at least one active listing.
   parts: { some: { blocked: false } },
 }
 
@@ -88,7 +87,34 @@ function publicPage(value: number | undefined) {
   return Number.isInteger(value) && Number(value) > 0 ? Math.min(Number(value), 10_000) : 1
 }
 
-export async function getPublicPartsList(query: PublicPartsQuery): Promise<PublicPartsList> {
+const loadPublicPartFacets = unstable_cache(async () => {
+  const facetBase: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
+  const [categories, brands, conditions] = await Promise.all([
+    db.part.findMany({ where: { ...facetBase, category: { not: null } }, distinct: ['category'], select: { category: true }, take: 100 }),
+    db.part.findMany({ where: { ...facetBase, brand: { not: null } }, distinct: ['brand'], select: { brand: true }, take: 100 }),
+    db.part.findMany({ where: { ...facetBase, condition: { not: null } }, distinct: ['condition'], select: { condition: true }, orderBy: { condition: 'asc' }, take: 100 }),
+  ])
+  return {
+    categories: categories.map((item) => item.category).filter((item): item is string => Boolean(item)),
+    brands: brands.map((item) => item.brand).filter((item): item is string => Boolean(item)),
+    conditions: conditions.map((item) => item.condition).filter((item): item is string => Boolean(item)),
+  }
+}, ['public-part-facets-v1'], { revalidate: 300 })
+
+function isDefaultPartsQuery(query: PublicPartsQuery) {
+  return publicPage(query.page) === 1 &&
+    !clean(query.search) &&
+    !clean(query.category, 120) &&
+    !clean(query.brand, 120) &&
+    !clean(query.condition, 120) &&
+    !clean(query.storeId, 100) &&
+    !clean(query.carModel, 160) &&
+    !query.minPrice &&
+    !query.maxPrice &&
+    (clean(query.sort, 30) || 'newest') === 'newest'
+}
+
+async function buildPublicPartsList(query: PublicPartsQuery): Promise<PublicPartsList> {
   const page = publicPage(query.page)
   const pageSize = 24
   const search = clean(query.search)
@@ -176,14 +202,11 @@ export async function getPublicPartsList(query: PublicPartsQuery): Promise<Publi
     store: { select: { id: true, name: true, image: true, verified: true } },
   } satisfies Prisma.PartSelect
 
-  const facetBase: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
   const rankSearchResults = Boolean(search && fuzzyPartIds.length && page <= 20)
-  const [rawRecords, total, categories, brands, conditions] = await Promise.all([
-    db.part.findMany({ where, select: publicPartSelect, orderBy, skip: rankSearchResults ? 0 : (page - 1) * pageSize, take: rankSearchResults ? 500 : pageSize }),
+  const [rawRecords, total, facets] = await Promise.all([
+    db.part.findMany({ where, select: publicPartSelect, orderBy, skip: rankSearchResults ? 0 : (page - 1) * pageSize, take: rankSearchResults ? 300 : pageSize }),
     db.part.count({ where }),
-    db.part.findMany({ where: { ...facetBase, category: { not: null } }, distinct: ['category'], select: { category: true }, take: 100 }),
-    db.part.findMany({ where: { ...facetBase, brand: { not: null } }, distinct: ['brand'], select: { brand: true }, take: 100 }),
-    db.part.findMany({ where: { ...facetBase, condition: { not: null } }, distinct: ['condition'], select: { condition: true }, orderBy: { condition: 'asc' }, take: 100 }),
+    loadPublicPartFacets(),
   ])
   const rankById = new Map(fuzzyPartIds.map((id, index) => [id, index]))
   const records = rankSearchResults
@@ -196,13 +219,23 @@ export async function getPublicPartsList(query: PublicPartsQuery): Promise<Publi
   return {
     parts: records.filter((part) => !isBlockedStoreName(part.store.name)),
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
-    categories: categories.map((item) => item.category).filter((item): item is string => Boolean(item)),
-    brands: brands.map((item) => item.brand).filter((item): item is string => Boolean(item)),
-    conditions: conditions.map((item) => item.condition).filter((item): item is string => Boolean(item)),
+    categories: facets.categories,
+    brands: facets.brands,
+    conditions: facets.conditions,
   }
 }
 
-export async function getPublicStoresList(searchValue = '', pageValue = 1): Promise<PublicStoresList> {
+const loadDefaultPublicPartsList = unstable_cache(
+  () => buildPublicPartsList({ sort: 'newest', page: 1 }),
+  ['public-parts-default-v1'],
+  { revalidate: 30 },
+)
+
+export async function getPublicPartsList(query: PublicPartsQuery): Promise<PublicPartsList> {
+  return isDefaultPartsQuery(query) ? loadDefaultPublicPartsList() : buildPublicPartsList(query)
+}
+
+async function buildPublicStoresList(searchValue = '', pageValue = 1): Promise<PublicStoresList> {
   const search = clean(searchValue)
   const page = publicPage(pageValue)
   const pageSize = 18
@@ -268,6 +301,18 @@ export async function getPublicStoresList(searchValue = '', pageValue = 1): Prom
     }),
     pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) },
   }
+}
+
+const loadDefaultPublicStoresList = unstable_cache(
+  () => buildPublicStoresList('', 1),
+  ['public-stores-default-v1'],
+  { revalidate: 30 },
+)
+
+export async function getPublicStoresList(searchValue = '', pageValue = 1): Promise<PublicStoresList> {
+  return !clean(searchValue) && publicPage(pageValue) === 1
+    ? loadDefaultPublicStoresList()
+    : buildPublicStoresList(searchValue, pageValue)
 }
 
 export type PublicPart = {
