@@ -11,5 +11,4 @@ export function pushDashboardTab(area: DashboardArea, tab: string) {
   const nextPath = `/${area}/${encodeURIComponent(tab)}`
   if (window.location.pathname === nextPath && !window.location.search && !window.location.hash) return
   window.history.pushState(null, '', nextPath)
-  window.scrollTo({ top: 0 })
 }

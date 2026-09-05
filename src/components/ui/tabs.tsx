@@ -1,6 +1,7 @@
 "use client"
 
 import * as React from "react"
+import { flushSync } from "react-dom"
 import * as TabsPrimitive from "@radix-ui/react-tabs"
 
 import { cn } from "@/lib/utils"
@@ -22,24 +23,38 @@ function currentDashboardArea(value: string): DashboardArea | null {
 function Tabs({
   className,
   onValueChange,
+  value: controlledValue,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Root>) {
-  const handleValueChange = React.useCallback((value: string) => {
-    const dashboardArea = currentDashboardArea(value)
+  // The URL remains the source of truth for reloads and Back/Forward, but a
+  // dashboard click must not wait for Next/usePathname to propagate that URL.
+  // This temporary value lets Radix switch the active trigger + panel in the
+  // same event before we touch the History API.
+  const [dashboardValue, setDashboardValue] = React.useState<string | null>(null)
+
+  React.useEffect(() => {
+    if (dashboardValue !== null && controlledValue === dashboardValue) {
+      setDashboardValue(null)
+    }
+  }, [controlledValue, dashboardValue])
+
+  const handleValueChange = React.useCallback((nextValue: string) => {
+    const dashboardArea = currentDashboardArea(nextValue)
     if (dashboardArea) {
-      // Seller/admin tabs already live inside one persistent client dashboard.
-      // Update the URL through Next's patched History API and let usePathname
-      // switch the controlled tab immediately without starting a server route.
-      pushDashboardTab(dashboardArea, value)
+      // React normally batches state until the event handler exits. Commit the
+      // visible tab first so Next's patched pushState can never delay feedback.
+      flushSync(() => setDashboardValue(nextValue))
+      pushDashboardTab(dashboardArea, nextValue)
       return
     }
-    onValueChange?.(value)
+    onValueChange?.(nextValue)
   }, [onValueChange])
 
   return (
     <TabsPrimitive.Root
       data-slot="tabs"
       className={cn("flex flex-col gap-2", className)}
+      value={dashboardValue ?? controlledValue}
       onValueChange={handleValueChange}
       {...props}
     />
@@ -70,7 +85,7 @@ function TabsTrigger({
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
       className={cn(
-        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+        "data-[state=active]:bg-background dark:data-[state=active]:text-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:outline-ring dark:data-[state=active]:border-input dark:data-[state=active]:bg-input/30 text-foreground dark:text-muted-foreground inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap transition-none focus-visible:ring-[3px] focus-visible:outline-1 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:shadow-sm [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         className
       )}
       {...props}
