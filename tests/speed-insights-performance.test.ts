@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import test from 'node:test'
 
+// Keep the mobile critical-path improvements from regressing as the marketplace evolves.
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
 test('keeps critical paint assets off the request middleware path', () => {
