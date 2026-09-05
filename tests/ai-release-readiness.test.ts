@@ -39,12 +39,44 @@ test('bounds server provider fallback work below the existing client timeout', (
   assert.ok(44_000 < 50_000)
 })
 
-test('authenticated provider routing avoids known ZDR-incompatible fallbacks', () => {
+test('public free fallback routing is explicit, small, and cannot silently become paid', () => {
+  assert.match(runtime, /targets\.push\('gateway-minimax-free'\)/)
+  assert.match(runtime, /targets\.push\('openrouter-glm-free'\)/)
+  assert.match(runtime, /targets\.push\('openrouter-gemma-free'\)/)
+  assert.match(agent, /gateway\('minimax\/minimax-m3'\)/)
+  assert.match(agent, /only: \['gmicloud'\]/)
+  assert.match(agent, /z-ai\/glm-5\.2:free/)
+  assert.match(agent, /google\/gemma-4-31b-it:free/)
+  assert.equal(agent.includes('openrouter/free'), false)
+  assert.equal(agent.includes('inclusionai/ling-3.0-flash-fin:free'), false)
+  assert.equal(agent.includes('nvidia/nemotron-3.5-lightning:free'), false)
+  assert.equal(agent.includes('poolside/laguna-s-2.1:free'), false)
+  assert.equal(agent.includes('poolside/laguna-xs-2.1:free'), false)
+  assert.equal(agent.includes('google/gemma-4-26b-a4b-it:free'), false)
+})
+
+test('private routing fails closed before public free fallbacks', () => {
   assert.match(route, /privateContext: Boolean\(user\)/)
   assert.match(runtime, /if \(process\.env\.GEMINI_API_KEY\) targets\.push\('google'\)/)
-  assert.match(runtime, /if \(options\?\.privateContext\) \{[\s\S]*targets\.push\('openrouter'\)[\s\S]*return targets/)
-  assert.equal(/targets\.push\('gateway'\)/.test(runtime), false)
+  const privateReturn = runtime.indexOf('if (privateContext) return targets')
+  const freeGateway = runtime.indexOf("targets.push('gateway-minimax-free')")
+  assert.ok(privateReturn >= 0 && freeGateway > privateReturn)
+  assert.equal(/privateContext[\s\S]{0,300}targets\.push\('openrouter'\)/.test(runtime), false)
   assert.match(agent, /data_collection: 'deny'/)
+})
+
+test('never forwards a raw internal user id to model providers', () => {
   assert.match(agent, /providerUserId/)
-  assert.equal(/user: input\.user\?\.id/.test(agent), false)
+  assert.match(agent, /ghyar_\$\{createHash\('sha256'\)/)
+  assert.equal(/user:\s*input\.user\?\.id/.test(agent), false)
+  assert.equal(/user:\s*input\.user\.id/.test(agent), false)
+})
+
+test('429 and unavailable providers fail over instead of becoming user-visible provider errors', () => {
+  assert.match(route, /429\|rate\.\?limit\|resource\.\?exhausted/)
+  assert.match(route, /return 'rate_limited'/)
+  assert.match(route, /recordProviderFailure\(provider, errorCategory\)/)
+  assert.match(route, /for \(const \[index, provider\] of aiProviderTargets/)
+  assert.equal(route.includes('OpenRouter is unavailable'), false)
+  assert.equal(route.includes('Gemini is unavailable'), false)
 })
