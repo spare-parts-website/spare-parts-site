@@ -12,8 +12,8 @@ export function NavigationWarmup() {
   const role = useAppStore((state) => state.user?.role)
 
   useEffect(() => {
-    const warmCore = () => CORE_ROUTES.forEach((href) => router.prefetch(href))
-    warmCore()
+    const warm = () => CORE_ROUTES.forEach((href) => router.prefetch(href))
+    warm()
 
     // Keep the visible, low-cardinality main navigation hot immediately. Role
     // dashboards are lower priority and are warmed only after the browser is
@@ -44,7 +44,7 @@ export function NavigationWarmup() {
         : window.setTimeout(warmRoleRoutes, 1800)
       : 0
 
-    const interval = window.setInterval(warmCore, WARM_REFRESH_MS)
+    const interval = window.setInterval(warm, WARM_REFRESH_MS)
     return () => {
       cancelled = true
       window.clearInterval(interval)
