@@ -4,7 +4,6 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
-import { sendSupportTicketEmail } from '@/lib/support-email'
 
 const CATEGORIES = new Set(['GENERAL', 'ORDER', 'ACCOUNT', 'SELLER', 'PAYMENT', 'REPORT', 'RETURN_REFUND', 'TECHNICAL', 'OTHER'])
 const STATUSES = new Set(['OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER', 'WAITING_FOR_SUPPORT', 'RESOLVED', 'CLOSED'])
@@ -98,16 +97,19 @@ export async function POST(req: NextRequest) {
     })
     await audit({ actorId: session.id, action: 'SUPPORT_TICKET_CREATED', targetType: 'support_ticket', targetId: ticket.id, metadata: { category } })
 
+    // Admin notifications are the single delivery path for new tickets. They
+    // create the in-site notification first and independently send email only
+    // when that admin has notifications enabled and is not bounce-suppressed.
+    // This avoids a second SUPPORT_EMAIL copy drifting to a stale address.
     const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
-    await Promise.allSettled(admins.map((admin) => createNotification({ userId: admin.id, title: 'تذكرة دعم جديدة', message: `${subject} — ${category}`, type: 'SUPPORT', link: `/admin/support?ticket=${encodeURIComponent(ticket.id)}`, dedupeKey: `support-ticket/${ticket.id}/${admin.id}` })))
-
-    try {
-      const delivery = await sendSupportTicketEmail({ ticketId: ticket.id, category, subject, message, userName: session.name, userEmail: session.email })
-      await audit({ actorId: null, action: delivery.sent ? 'SUPPORT_EMAIL_SENT' : 'SUPPORT_EMAIL_SKIPPED', targetType: 'support_ticket', targetId: ticket.id, metadata: { reason: delivery.sent ? 'provider_accepted' : delivery.reason, providerId: delivery.sent ? delivery.providerId : undefined } })
-    } catch (error) {
-      await audit({ actorId: null, action: 'SUPPORT_EMAIL_FAILED', targetType: 'support_ticket', targetId: ticket.id, metadata: { error: error instanceof Error ? error.message.slice(0, 300) : 'unknown' } })
-      console.error('Support email failed', error)
-    }
+    await Promise.allSettled(admins.map((admin) => createNotification({
+      userId: admin.id,
+      title: 'تذكرة دعم جديدة',
+      message: `${subject} — ${category}`,
+      type: 'SUPPORT',
+      link: `/admin/support?ticket=${encodeURIComponent(ticket.id)}`,
+      dedupeKey: `support-ticket/${ticket.id}/${admin.id}`,
+    })))
 
     return NextResponse.json({ ticket: ticketPayload(ticket, false) }, { status: 201, headers: PRIVATE_HEADERS })
   } catch (error) {

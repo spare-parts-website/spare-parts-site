@@ -73,6 +73,13 @@ const visibleStoreWhere: Prisma.StoreWhereInput = {
   NOT: BLOCKED_STORE_NAMES.map((name) => ({ name: { equals: name, mode: 'insensitive' as const } })),
 }
 
+const listableStoreWhere: Prisma.StoreWhereInput = {
+  ...visibleStoreWhere,
+  // An empty seller profile is not useful to buyers. Keep it private from the
+  // public directory until the seller has at least one active listing.
+  parts: { some: { blocked: false } },
+}
+
 function clean(value: string | undefined, max = 160) {
   return (value || '').trim().slice(0, max)
 }
@@ -201,7 +208,7 @@ export async function getPublicStoresList(searchValue = '', pageValue = 1): Prom
   const pageSize = 18
   const fuzzyStoreIds = search ? await findTypoTolerantStoreIds(search) : []
   const where: Prisma.StoreWhereInput = {
-    ...visibleStoreWhere,
+    ...listableStoreWhere,
     ...(search ? { OR: [
       { name: { contains: search, mode: 'insensitive' } },
       { description: { contains: search, mode: 'insensitive' } },
@@ -216,7 +223,7 @@ export async function getPublicStoresList(searchValue = '', pageValue = 1): Prom
         id: true, name: true, description: true, address: true, phone: true, image: true, verified: true,
         _count: { select: { parts: { where: { blocked: false } }, orders: { where: { status: 'DELIVERED' } } } },
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
