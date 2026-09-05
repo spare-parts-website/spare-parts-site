@@ -10,7 +10,9 @@ test('keeps high-frequency top-level routes warm in the client router cache', ()
   for (const route of ['/', '/parts', '/stores', '/support']) {
     assert.match(warmup, new RegExp(route.replace('/', '\\/')))
   }
-  assert.match(warmup, /router\.prefetch\(href, \{ onInvalidate: refresh \}\)/)
+  assert.match(warmup, /router\.prefetch\(href\)/)
+  assert.match(warmup, /const WARM_REFRESH_MS = 4 \* 60 \* 1000/)
+  assert.match(warmup, /window\.setInterval\(warm, WARM_REFRESH_MS\)/)
   assert.match(layout, /<NavigationWarmup \/>/)
   assert.match(layout, /export const dynamic = 'force-dynamic'/)
   assert.match(config, /staleTimes:\s*\{[\s\S]*dynamic:\s*300[\s\S]*static:\s*300/)
