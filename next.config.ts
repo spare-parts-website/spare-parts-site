@@ -17,6 +17,14 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     optimizePackageImports: ['lucide-react', 'date-fns', 'recharts'],
+    // Top-level pages are dynamic because the root layout carries a per-request
+    // CSP nonce. Keep already-rendered/prefetched page segments in the client
+    // router cache so revisiting Home/Parts/Stores/Support does not trigger a
+    // fresh server round-trip on every click.
+    staleTimes: {
+      dynamic: 300,
+      static: 300,
+    },
   },
   async headers() {
     return [
