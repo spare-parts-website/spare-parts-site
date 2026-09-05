@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import { unstable_cache } from 'next/cache'
 import { StoresView } from '@/components/views/stores-view'
 import { getPublicStoresList, type PublicStoresList } from '@/lib/public-marketplace'
 
@@ -11,6 +12,12 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://ghyarmarket-eg.com/stores' },
 }
 
+const loadDefaultStores = unstable_cache(
+  () => getPublicStoresList('', 1),
+  ['public-stores-default-v1'],
+  { revalidate: 30 },
+)
+
 function StoresFallback() {
   return <div className="content-container grid min-h-[55vh] place-items-center py-16"><p className="text-sm text-muted-foreground">جاري تحميل المتاجر...</p></div>
 }
@@ -18,7 +25,7 @@ function StoresFallback() {
 export default async function StoresPage() {
   let initialData: PublicStoresList | null = null
   try {
-    initialData = await getPublicStoresList('', 1)
+    initialData = await loadDefaultStores()
   } catch {
     // The static shell can still load its public API payload after hydration.
   }
