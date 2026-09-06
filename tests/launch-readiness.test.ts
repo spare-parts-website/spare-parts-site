@@ -33,7 +33,6 @@ test('public marketplace shows only sellers with active inventory and evidence-b
 
 test('consumer-facing legal copy is Egypt-focused and no longer contains development disclaimers', () => {
   const legal = read('src/components/views/legal-view.tsx')
-
   assert.match(legal, /14 يوماً/)
   assert.match(legal, /30 يوماً/)
   assert.match(legal, /جهاز حماية المستهلك المصري/)
@@ -42,20 +41,23 @@ test('consumer-facing legal copy is Egypt-focused and no longer contains develop
   assert.doesNotMatch(legal, /هذه المعلومات عامة وليست استشارة قانونية/)
 })
 
-test('support ticket creation has one admin notification delivery path', () => {
+test('support ticket creation has one durable admin notification delivery path', () => {
   const route = read('src/app/api/support/tickets/route.ts')
   const notifications = read('src/lib/notifications.ts')
+  const outbox = read('src/lib/email-outbox.ts')
 
   assert.match(route, /createNotification/)
   assert.match(route, /dedupeKey: `support-ticket\/\$\{ticket\.id\}\/\$\{admin\.id\}`/)
   assert.doesNotMatch(route, /sendSupportTicketEmail/)
   assert.match(notifications, /shouldSendNonessentialEmail\(recipient\.emailDeliveryStatus\)/)
-  assert.match(notifications, /recordEmailDeliveryAttempt/)
+  assert.match(notifications, /queueEmailOutbox/)
+  assert.doesNotMatch(notifications, /resend\.emails\.send/)
+  assert.match(outbox, /recordEmailDeliveryAttempt/)
+  assert.match(outbox, /status: 'PENDING'/)
 })
 
 test('Supabase Data API roles are explicitly denied application table access', () => {
   const migration = read('prisma/data-api-lockdown.sql')
-
   assert.match(migration, /ENABLE ROW LEVEL SECURITY/i)
   assert.match(migration, /REVOKE ALL PRIVILEGES ON TABLE/i)
   assert.match(migration, /FROM anon, authenticated/i)
@@ -76,14 +78,12 @@ test('strict CSP remains nonce-based on all HTML while cacheable JSON avoids non
   assert.match(homePage, /await connection\(\)/)
   assert.match(partsPage, /await connection\(\)/)
   assert.match(storesPage, /await connection\(\)/)
-
   assert.match(proxy, /script-src 'self' 'nonce-\$\{value\}'/)
   assert.match(proxy, /pathname\.startsWith\('\/api\/'\)/)
   assert.match(proxy, /api\/home-marketplace\$/)
   assert.match(proxy, /frame-ancestors 'none'/)
   assert.doesNotMatch(proxy, /STATIC_PUBLIC_PATHS/)
   assert.doesNotMatch(proxy, /script-src[^\n]*unsafe-inline/)
-
   assert.match(config, /sri:\s*\{\s*algorithm: 'sha256'/)
   assert.doesNotMatch(config, /publicStaticCsp/)
   assert.doesNotMatch(config, /Content-Security-Policy/)

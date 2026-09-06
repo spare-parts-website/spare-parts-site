@@ -30,7 +30,7 @@ export function Footer() {
       </div>
       <div className="content-container grid gap-10 py-12 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1fr_1.1fr]">
         <div>
-          <Link href="/" className="inline-flex items-center gap-3"><span className="grid h-14 w-20 place-items-center rounded-2xl bg-white px-1"><img src="/ghyar-market-logo.png" alt="غيار ماركت" className="h-12 w-full object-contain" /></span><div><strong className="block text-xl font-black">غيار ماركت</strong><span className="text-xs text-primary">قطعك أقرب مما تتخيل</span></div></Link>
+          <Link href="/" prefetch={false} className="inline-flex items-center gap-3"><span className="grid h-14 w-20 place-items-center rounded-2xl bg-white px-1"><img src="/ghyar-market-logo.png" alt="غيار ماركت" className="h-12 w-full object-contain" /></span><div><strong className="block text-xl font-black">غيار ماركت</strong><span className="text-xs text-primary">قطعك أقرب مما تتخيل</span></div></Link>
           <p className="mt-5 max-w-sm text-sm leading-7 text-white/55">سوق متخصص يربط أصحاب السيارات بمتاجر قطع الغيار، بمعلومات واضحة وتجربة شراء تناسب السوق المصري.</p>
           <div className="mt-5 flex items-center gap-2 text-sm text-white/60"><MapPin className="size-4 text-primary" /> نخدم عملاء ومتاجر داخل مصر</div>
         </div>
@@ -39,7 +39,7 @@ export function Footer() {
         <div>
           <h2 className="font-black">هل تملك متجر قطع غيار؟</h2>
           <p className="mt-3 text-sm leading-7 text-white/55">اعرض مخزونك واستقبل طلبات ورسائل عملاء جدد.</p>
-          <Button asChild variant="secondary" className="mt-5"><Link href={user?.role === 'SHOP_OWNER' ? '/seller/parts' : '/register'}>{user?.role === 'SHOP_OWNER' ? 'فتح صفحة المحل' : 'انضم كبائع'}</Link></Button>
+          <Button asChild variant="secondary" className="mt-5"><Link href={user?.role === 'SHOP_OWNER' ? '/seller/parts' : '/register'} prefetch={false}>{user?.role === 'SHOP_OWNER' ? 'فتح صفحة المحل' : 'انضم كبائع'}</Link></Button>
           <div className="mt-5 flex items-center gap-2 text-xs text-white/45"><Mail className="size-4" /> الدعم متاح من صفحة الدعم</div>
         </div>
       </div>
@@ -54,5 +54,5 @@ export function Footer() {
 }
 
 function FooterColumn({ title, links }: { title: string; links: Array<{ href: string; label: string }> }) {
-  return <div><h2 className="font-black">{title}</h2><ul className="mt-4 space-y-3">{links.map((link) => <li key={link.href}><Link href={link.href} className="text-sm text-white/55 transition hover:text-primary">{link.label}</Link></li>)}</ul></div>
+  return <div><h2 className="font-black">{title}</h2><ul className="mt-4 space-y-3">{links.map((link) => <li key={link.href}><Link href={link.href} prefetch={false} className="text-sm text-white/55 transition hover:text-primary">{link.label}</Link></li>)}</ul></div>
 }

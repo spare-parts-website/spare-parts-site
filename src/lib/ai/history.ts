@@ -8,7 +8,11 @@ export function nextConversationExpiry() {
   return new Date(Date.now() + AI_HISTORY_TTL_MS)
 }
 
-export async function purgeExpiredAIData() {
+export async function purgeExpiredAIData(options?: { global?: boolean }) {
+  // Normal AI requests may still call this helper from older route code, but
+  // they intentionally do no global cleanup. The authenticated daily cron is
+  // the sole owner of scans/deletes across all users and leases.
+  if (!options?.global) return { count: 0 }
   const now = new Date()
   const expired = await db.aIConversation.findMany({ where: { expiresAt: { lte: now } }, include: { messages: true } })
   const urls = expired.flatMap((conversation) => attachmentUrls(conversation.messages.map(storedMessageToUIMessage)))

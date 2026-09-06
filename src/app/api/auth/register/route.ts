@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { hashPassword } from '@/lib/auth'
-import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import { rateLimit } from '@/lib/rate-limit'
 import { isProfileAvatar } from '@/lib/profile-avatars'
 import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 import { recipientEmailError, validateRecipientEmail } from '@/lib/email-deliverability'
@@ -14,9 +14,6 @@ function emailHint(email: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const address = requestAddress(req)
-    const ipLimit = await rateLimit(`register:ip:${address}`, 20, 15 * 60 * 1000)
-    if (!ipLimit.allowed) return NextResponse.json({ error: 'محاولات تسجيل كثيرة. حاول مرة أخرى لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfter) } })
     const body = await req.json()
     const name = typeof body.name === 'string' ? body.name.trim() : ''
     const emailValidation = validateRecipientEmail(body.email)
@@ -34,6 +31,8 @@ export async function POST(req: NextRequest) {
     if (!['BUYER', 'SHOP_OWNER'].includes(role)) return NextResponse.json({ error: 'دور غير صالح' }, { status: 400 })
     if (phoneInput && !phone) return NextResponse.json({ error: 'رقم الموبايل المصري غير صالح' }, { status: 400 })
 
+    // Proxy handles the coarse IP burst. The durable counter is intentionally
+    // account-scoped so random bot addresses do not amplify DB writes.
     const accountLimit = await rateLimit(`register:account:${email}`, 5, 15 * 60 * 1000)
     if (!accountLimit.allowed) return NextResponse.json({ error: 'طلبات تسجيل كثيرة لهذا البريد. حاول لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(accountLimit.retryAfter) } })
     const existing = await db.user.findUnique({ where: { email }, include: { store: { select: { id: true } } } })
@@ -54,7 +53,6 @@ export async function POST(req: NextRequest) {
       const verification = await issueLoginVerification(targetUser, 'register')
       return NextResponse.json({ verificationRequired: true, ...verification, emailHint: emailHint(targetUser.email), expiresIn: 600 }, { status: existing ? 200 : 201 })
     } catch (error) {
-      // Keep the unverified account/store so a provider outage cannot create a partial destructive rollback.
       const message = error instanceof Error ? error.message : ''
       console.error('Registration verification failed:', message)
       return NextResponse.json({ error: 'تم حفظ بيانات التسجيل ولكن تعذر إرسال رمز التحقق الآن. أعد المحاولة من تسجيل الدخول أو التسجيل بعد قليل.' }, { status: 503 })

@@ -1,3 +1,4 @@
+import { cache } from 'react'
 import { db } from './db'
 import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
@@ -57,7 +58,7 @@ export async function createSession(user: SessionUser): Promise<void> {
   })
 }
 
-export async function getSession(): Promise<SessionUser | null> {
+const loadSession = cache(async (): Promise<SessionUser | null> => {
   const cookieStore = await cookies()
   const token = cookieStore.get(SESSION_COOKIE)?.value
   if (!token) return null
@@ -100,6 +101,11 @@ export async function getSession(): Promise<SessionUser | null> {
   } catch {
     return null
   }
+})
+
+/** React/Next request cache: repeated auth checks in one request share the same revocation lookup. */
+export async function getSession(): Promise<SessionUser | null> {
+  return loadSession()
 }
 
 export async function destroySession(): Promise<void> {

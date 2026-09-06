@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { verifyPassword } from '@/lib/auth'
-import { rateLimit, requestAddress } from '@/lib/rate-limit'
+import { rateLimit } from '@/lib/rate-limit'
 import { issueLoginVerification } from '@/lib/login-verification'
 import { createAdminLoginChallenge, ADMIN_MFA_CHALLENGE_TTL_MS } from '@/lib/admin-mfa'
 
@@ -12,9 +12,9 @@ function emailHint(email: string) {
 
 export async function POST(req: NextRequest) {
   try {
-    const address = requestAddress(req)
-    const ipLimit = await rateLimit(`login:ip:${address}`, 30, 15 * 60 * 1000)
-    if (!ipLimit.allowed) return NextResponse.json({ error: 'محاولات تسجيل دخول كثيرة. حاول لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(ipLimit.retryAfter) } })
+    // Coarse IP bursts are rejected in Proxy before this handler. Keep only the
+    // durable per-account counter in Postgres so brute-force state survives
+    // serverless instance rotation without writing one DB row per random IP hit.
     const body = await req.json()
     const email = typeof body.email === 'string' ? body.email.trim().toLowerCase() : ''
     const password = typeof body.password === 'string' ? body.password : ''

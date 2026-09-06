@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { rateLimit } from '@/lib/rate-limit'
 
 const CATEGORIES = new Set(['GENERAL', 'ORDER', 'ACCOUNT', 'SELLER', 'PAYMENT', 'REPORT', 'RETURN_REFUND', 'TECHNICAL', 'OTHER'])
 const STATUSES = new Set(['OPEN', 'IN_PROGRESS', 'WAITING_FOR_CUSTOMER', 'WAITING_FOR_SUPPORT', 'RESOLVED', 'CLOSED'])
@@ -15,21 +16,10 @@ function clean(value: unknown, max: number) {
 
 function ticketPayload(ticket: any, includePrivateIdentity: boolean) {
   return {
-    id: ticket.id,
-    category: ticket.category,
-    subject: ticket.subject,
-    status: ticket.status,
-    orderId: ticket.orderId,
-    createdAt: ticket.createdAt.toISOString(),
-    updatedAt: ticket.updatedAt.toISOString(),
+    id: ticket.id, category: ticket.category, subject: ticket.subject, status: ticket.status, orderId: ticket.orderId,
+    createdAt: ticket.createdAt.toISOString(), updatedAt: ticket.updatedAt.toISOString(),
     user: includePrivateIdentity && ticket.user ? { id: ticket.user.id, name: ticket.user.name, email: ticket.user.email } : undefined,
-    messages: ticket.messages.map((message: any) => ({
-      id: message.id,
-      body: message.body,
-      authorRole: message.authorRole,
-      author: message.author ? { id: message.author.id, name: message.author.name } : null,
-      createdAt: message.createdAt.toISOString(),
-    })),
+    messages: ticket.messages.map((message: any) => ({ id: message.id, body: message.body, authorRole: message.authorRole, author: message.author ? { id: message.author.id, name: message.author.name } : null, createdAt: message.createdAt.toISOString() })),
   }
 }
 
@@ -50,14 +40,7 @@ export async function GET(req: NextRequest) {
     const filters: Prisma.SupportTicketWhereInput = session.role === 'ADMIN' ? {} : { userId: session.id }
     if (status && STATUSES.has(status)) filters.status = status
     if (category && CATEGORIES.has(category)) filters.category = category
-    if (search) {
-      filters.OR = [
-        { id: { contains: search, mode: 'insensitive' } },
-        { subject: { contains: search, mode: 'insensitive' } },
-        { user: { name: { contains: search, mode: 'insensitive' } } },
-        { user: { email: { contains: search, mode: 'insensitive' } } },
-      ]
-    }
+    if (search) filters.OR = [{ id: { contains: search, mode: 'insensitive' } }, { subject: { contains: search, mode: 'insensitive' } }, { user: { name: { contains: search, mode: 'insensitive' } } }, { user: { email: { contains: search, mode: 'insensitive' } } }]
     const tickets = id
       ? await db.supportTicket.findMany({ where: { id, ...(session.role === 'ADMIN' ? {} : { userId: session.id }) }, include })
       : await db.supportTicket.findMany({ where: filters, include, orderBy: { updatedAt: 'desc' }, take: 100 })
@@ -73,6 +56,9 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401, headers: PRIVATE_HEADERS })
+    const userLimit = await rateLimit(`support:create:user:${session.id}`, session.role === 'ADMIN' ? 40 : 5, 60 * 60 * 1000)
+    if (!userLimit.allowed) return NextResponse.json({ error: 'تم إنشاء عدد كبير من تذاكر الدعم. حاول لاحقاً.' }, { status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(userLimit.retryAfter) } })
+
     const body = await req.json()
     const subject = clean(body.subject, 160)
     const message = clean(body.message, 5000)
@@ -81,26 +67,15 @@ export async function POST(req: NextRequest) {
     if (subject.length < 3 || message.length < 2 || !CATEGORIES.has(category)) return NextResponse.json({ error: 'العنوان والرسالة والتصنيف مطلوبة' }, { status: 400, headers: PRIVATE_HEADERS })
 
     if (orderId && session.role !== 'ADMIN') {
+      const orderLimit = await rateLimit(`support:create:order:${session.id}:${orderId}`, 2, 6 * 60 * 60 * 1000)
+      if (!orderLimit.allowed) return NextResponse.json({ error: 'لديك بالفعل طلبات دعم حديثة مرتبطة بهذا الطلب.' }, { status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(orderLimit.retryAfter) } })
       const order = await db.order.findUnique({ where: { id: orderId }, select: { buyerId: true, store: { select: { ownerId: true } } } })
       if (!order || (order.buyerId !== session.id && order.store.ownerId !== session.id)) return NextResponse.json({ error: 'لا يمكنك ربط هذه التذكرة بالطلب' }, { status: 403, headers: PRIVATE_HEADERS })
     }
 
-    const ticket = await db.supportTicket.create({
-      data: {
-        userId: session.id,
-        orderId,
-        category,
-        subject,
-        messages: { create: { authorId: session.id, authorRole: session.role, body: message } },
-      },
-      include,
-    })
+    const ticket = await db.supportTicket.create({ data: { userId: session.id, orderId, category, subject, messages: { create: { authorId: session.id, authorRole: session.role, body: message } } }, include })
     await audit({ actorId: session.id, action: 'SUPPORT_TICKET_CREATED', targetType: 'support_ticket', targetId: ticket.id, metadata: { category } })
 
-    // Admin notifications are the single delivery path for new tickets. They
-    // create the in-site notification first and independently send email only
-    // when that admin has notifications enabled and is not bounce-suppressed.
-    // This avoids a second SUPPORT_EMAIL copy drifting to a stale address.
     const admins = await db.user.findMany({ where: { role: 'ADMIN' }, select: { id: true } })
     await Promise.allSettled(admins.map((admin) => createNotification({
       userId: admin.id,

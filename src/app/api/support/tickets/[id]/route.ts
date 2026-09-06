@@ -3,6 +3,7 @@ import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
 import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
+import { rateLimit } from '@/lib/rate-limit'
 
 type Params = { params: Promise<{ id: string }> }
 const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' }
@@ -18,13 +19,8 @@ const include = {
 
 function serialize(ticket: any, admin: boolean) {
   return {
-    id: ticket.id,
-    category: ticket.category,
-    subject: ticket.subject,
-    status: ticket.status,
-    orderId: ticket.orderId,
-    createdAt: ticket.createdAt.toISOString(),
-    updatedAt: ticket.updatedAt.toISOString(),
+    id: ticket.id, category: ticket.category, subject: ticket.subject, status: ticket.status, orderId: ticket.orderId,
+    createdAt: ticket.createdAt.toISOString(), updatedAt: ticket.updatedAt.toISOString(),
     user: admin ? { id: ticket.user.id, name: ticket.user.name, email: ticket.user.email } : undefined,
     messages: ticket.messages.map((message: any) => ({ id: message.id, body: message.body, authorRole: message.authorRole, author: message.author ? { id: message.author.id, name: message.author.name } : null, createdAt: message.createdAt.toISOString() })),
   }
@@ -53,6 +49,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     const session = await getSession()
     if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401, headers: PRIVATE_HEADERS })
     const { id } = await params
+    const userLimit = await rateLimit(`support:reply:user:${session.id}`, session.role === 'ADMIN' ? 120 : 20, 15 * 60 * 1000)
+    if (!userLimit.allowed) return NextResponse.json({ error: 'تم إرسال عدد كبير من ردود الدعم. حاول لاحقاً.' }, { status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(userLimit.retryAfter) } })
+    const ticketLimit = await rateLimit(`support:reply:ticket:${session.id}:${id}`, session.role === 'ADMIN' ? 30 : 10, 10 * 60 * 1000)
+    if (!ticketLimit.allowed) return NextResponse.json({ error: 'ردود كثيرة على هذه التذكرة. حاول بعد قليل.' }, { status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(ticketLimit.retryAfter) } })
+
     const ticket = await loadTicket(id, session.id, session.role === 'ADMIN')
     if (!ticket) return NextResponse.json({ error: 'التذكرة غير موجودة' }, { status: 404, headers: PRIVATE_HEADERS })
     const body = await req.json()

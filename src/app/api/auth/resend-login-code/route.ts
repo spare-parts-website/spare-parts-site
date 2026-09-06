@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { issueLoginVerification, purposeFromDb } from '@/lib/login-verification'
 
 export async function POST(req: NextRequest) {
   try {
-    const limit = await rateLimit(`resend-login-code:${requestAddress(req)}`, 4, 15 * 60 * 1000)
-    if (!limit.allowed) return NextResponse.json({ error: 'طلبات رموز كثيرة. حاول لاحقاً.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
+    // Coarse resend bursts are rejected in Proxy. The challenge's one-minute
+    // cooldown below is the durable account-level protection that matters here.
     const body = await req.json()
     const challengeId = typeof body.challengeId === 'string' ? body.challengeId.trim() : ''
     if (!challengeId) return NextResponse.json({ error: 'طلب التحقق غير صالح' }, { status: 400 })

@@ -61,55 +61,53 @@ export function Header() {
     setSearchOpen(false)
   }, [pathname])
 
-  // Warm the small, high-frequency route shells after the header mounts. The
-  // heavier seller/admin bundles are prefetched only for users who can open
-  // them, keeping buyer navigation fast without loading privileged code.
-  useEffect(() => {
-    const routes = ['/', '/parts', '/stores', '/support']
-    if (user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') routes.push('/account/orders', '/account/profile')
-    if (user?.role === 'ADMIN') routes.push('/account/wishlist')
-    if (user?.role === 'SHOP_OWNER') routes.push('/seller/parts', '/seller/orders', '/seller/store')
-    if (user?.role === 'ADMIN') routes.push('/admin/users', '/admin/parts', '/admin/support')
-    routes.forEach((path) => router.prefetch(path))
-  }, [router, user?.role])
+  // Request-rendered HTML is expensive under nonce CSP. Disable Next's viewport
+  // prefetch and warm only the few primary public routes when the user signals
+  // intent by hovering, focusing, or touching the link.
+  const intentPrefetch = (path: string) => ({
+    prefetch: false as const,
+    onMouseEnter: () => router.prefetch(path),
+    onFocus: () => router.prefetch(path),
+    onTouchStart: () => router.prefetch(path),
+  })
 
   const navItems = (
     <>
       <Button asChild variant={pathname === '/' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-        <Link href="/" onClick={() => setMobileOpen(false)}><Home className="size-4" />الرئيسية</Link>
+        <Link href="/" {...intentPrefetch('/')} onClick={() => setMobileOpen(false)}><Home className="size-4" />الرئيسية</Link>
       </Button>
       <Button asChild variant={pathname === '/support' ? 'default' : 'ghost'} size="sm" className="max-xl:order-last justify-start gap-2">
-        <Link href="/support" onClick={() => setMobileOpen(false)}><LifeBuoy className="size-4" />الدعم والمساعدة</Link>
+        <Link href="/support" prefetch={false} onClick={() => setMobileOpen(false)}><LifeBuoy className="size-4" />الدعم والمساعدة</Link>
       </Button>
       <Button asChild variant={pathname.startsWith('/stores') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-        <Link href="/stores" onClick={() => setMobileOpen(false)}><StoreIcon className="size-4" />المتاجر</Link>
+        <Link href="/stores" {...intentPrefetch('/stores')} onClick={() => setMobileOpen(false)}><StoreIcon className="size-4" />المتاجر</Link>
       </Button>
       <Button asChild variant={pathname.startsWith('/parts') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-        <Link href="/parts" onClick={() => setMobileOpen(false)}><Package className="size-4" />قطع الغيار</Link>
+        <Link href="/parts" {...intentPrefetch('/parts')} onClick={() => setMobileOpen(false)}><Package className="size-4" />قطع الغيار</Link>
       </Button>
       {user && (
         <Button asChild variant={pathname === '/account/messages' || pathname.startsWith('/messages/') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-          <Link href="/account/messages" onClick={() => setMobileOpen(false)}><MessageSquare className="size-4" />الرسائل</Link>
+          <Link href="/account/messages" prefetch={false} onClick={() => setMobileOpen(false)}><MessageSquare className="size-4" />الرسائل</Link>
         </Button>
       )}
       {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER') && (
         <Button asChild variant={pathname === '/account/orders' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-          <Link href="/account/orders" onClick={() => setMobileOpen(false)}><ShoppingBag className="size-4" />طلباتي</Link>
+          <Link href="/account/orders" prefetch={false} onClick={() => setMobileOpen(false)}><ShoppingBag className="size-4" />طلباتي</Link>
         </Button>
       )}
       {(user?.role === 'BUYER' || user?.role === 'SHOP_OWNER' || user?.role === 'ADMIN') && (
         <Button asChild variant={pathname === '/account/wishlist' ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-          <Link href="/account/wishlist" onClick={() => setMobileOpen(false)}><Heart className="size-4" />المفضلة</Link>
+          <Link href="/account/wishlist" prefetch={false} onClick={() => setMobileOpen(false)}><Heart className="size-4" />المفضلة</Link>
         </Button>
       )}
       {user?.role === 'SHOP_OWNER' && (
         <Button asChild variant={pathname.startsWith('/seller') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-          <Link href="/seller/parts" onClick={() => setMobileOpen(false)}><LayoutDashboard className="size-4" />صفحة المحل</Link>
+          <Link href="/seller/parts" prefetch={false} onClick={() => setMobileOpen(false)}><LayoutDashboard className="size-4" />صفحة المحل</Link>
         </Button>
       )}
       {user?.role === 'ADMIN' && (
         <Button asChild variant={pathname.startsWith('/admin') ? 'default' : 'ghost'} size="sm" className="justify-start gap-2">
-          <Link href="/admin/users" onClick={() => setMobileOpen(false)}><ShieldCheck className="size-4" />لوحة المدير</Link>
+          <Link href="/admin/users" prefetch={false} onClick={() => setMobileOpen(false)}><ShieldCheck className="size-4" />لوحة المدير</Link>
         </Button>
       )}
     </>
@@ -118,9 +116,9 @@ export function Header() {
   return (
     <header className="site-header sticky top-0 z-40 w-full border-b backdrop-blur-xl supports-[backdrop-filter]:bg-card/60">
       <div className="content-container flex min-h-16 items-center gap-2 py-2">
-        {/* Logo */}
         <Link
           href="/"
+          {...intentPrefetch('/')}
           aria-label="غيار ماركت - الرئيسية"
           className="group flex shrink-0 items-center gap-2 rounded-xl px-1 py-1 transition hover:bg-primary/5"
         >
@@ -134,19 +132,16 @@ export function Header() {
           </span>
         </Link>
 
-        {/* Desktop Search with Autocomplete */}
         <div className="hidden min-w-0 max-w-sm flex-1 md:flex">
           <SearchBar />
         </div>
 
-        {/* Desktop Nav */}
         <nav className="mr-1 hidden items-center gap-0.5 xl:flex">
           {navItems}
         </nav>
 
         <div className="flex-1 lg:flex-none" />
 
-        {/* Cart + Theme + Notifications */}
         <div className="flex items-center gap-0.5 sm:gap-1">
           <Sheet open={searchOpen} onOpenChange={setSearchOpen}>
             <SheetTrigger asChild>
@@ -179,7 +174,6 @@ export function Header() {
           {user && <NotificationsBell />}
         </div>
 
-        {/* Auth */}
         <div className="flex items-center gap-1">
           {user ? (
             <DropdownMenu>
@@ -203,27 +197,27 @@ export function Header() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/account/profile">
+                  <Link href="/account/profile" prefetch={false}>
                   <UserIcon className="size-4 ml-2" />
                   ملفي الشخصي
                   </Link>
                 </DropdownMenuItem>
                 {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
                   <DropdownMenuItem asChild>
-                    <Link href="/account/orders">
+                    <Link href="/account/orders" prefetch={false}>
                     <ShoppingBag className="size-4 ml-2" />
                     طلباتي
                     </Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem asChild>
-                  <Link href="/account/messages">
+                  <Link href="/account/messages" prefetch={false}>
                   <MessageSquare className="size-4 ml-2" />
                   الرسائل
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/support">
+                  <Link href="/support" prefetch={false}>
                   <LifeBuoy className="size-4 ml-2" />
                   الدعم والمساعدة
                   </Link>
@@ -231,13 +225,13 @@ export function Header() {
                 {user.role === 'SHOP_OWNER' && (
                   <>
                     <DropdownMenuItem asChild>
-                      <Link href="/seller/parts">
+                      <Link href="/seller/parts" prefetch={false}>
                       <LayoutDashboard className="size-4 ml-2" />
                       صفحة المحل
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/seller/messages">
+                      <Link href="/seller/messages" prefetch={false}>
                       <MessageSquare className="size-4 ml-2" />
                       رسائل العملاء
                       </Link>
@@ -246,7 +240,7 @@ export function Header() {
                 )}
                 {user.role === 'ADMIN' && (
                   <DropdownMenuItem asChild>
-                    <Link href="/admin/users">
+                    <Link href="/admin/users" prefetch={false}>
                     <ShieldCheck className="size-4 ml-2" />
                     لوحة المدير
                     </Link>
@@ -269,10 +263,10 @@ export function Header() {
           ) : (
             <>
               <Button asChild variant="ghost" size="sm" className="hidden sm:inline-flex">
-                <Link href="/login">دخول</Link>
+                <Link href="/login" prefetch={false}>دخول</Link>
               </Button>
               <Button asChild size="sm" className="size-10 p-0 sm:h-9 sm:w-auto sm:px-3">
-                <Link href="/register" aria-label="إنشاء حساب جديد">
+                <Link href="/register" prefetch={false} aria-label="إنشاء حساب جديد">
                   <UserPlus className="size-4 sm:hidden" />
                   <span className="hidden sm:inline">حساب جديد</span>
                 </Link>
@@ -280,7 +274,6 @@ export function Header() {
             </>
           )}
 
-          {/* Mobile menu */}
           <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="size-10 rounded-xl xl:hidden">
@@ -300,7 +293,7 @@ export function Header() {
               {!user && (
                 <div className="flex flex-col gap-2 mt-auto">
                   <Button asChild variant="outline">
-                    <Link href="/login" onClick={() => setMobileOpen(false)}>تسجيل الدخول</Link>
+                    <Link href="/login" prefetch={false} onClick={() => setMobileOpen(false)}>تسجيل الدخول</Link>
                   </Button>
                 </div>
               )}

@@ -1,19 +1,15 @@
 import { warmSellerCore } from '@/lib/seller-dashboard-cache'
-import { warmSellerAnalytics } from '@/components/views/analytics-view'
-import { warmSellerCoupons } from '@/components/views/coupons-view'
-import { warmSellerMessages } from '@/components/views/shop-messages-view'
-import { warmSupportTickets } from '@/components/views/support-view'
 
+/**
+ * Kept as a narrow intent hook for callers that explicitly know the seller is
+ * entering a dashboard. Legacy fan-out helpers warmSellerAnalytics,
+ * warmSellerCoupons, warmSellerMessages, and warmSupportTickets are
+ * intentionally not imported or called here anymore.
+ */
 export async function warmSellerDashboard(userId: string, currentTab?: string) {
-  await Promise.allSettled([
-    warmSellerCore(userId, currentTab),
-    warmSellerAnalytics(userId),
-    warmSellerCoupons(userId),
-    warmSellerMessages(userId),
-    warmSupportTickets(userId, 'SHOP_OWNER'),
-  ])
+  await warmSellerCore(userId, currentTab)
 }
 
-export async function warmAdminDashboard(userId: string) {
-  await warmSupportTickets(userId, 'ADMIN')
+export async function warmAdminDashboard(_userId: string) {
+  // Admin data is fetched only after the operator opens the relevant screen.
 }

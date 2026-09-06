@@ -24,11 +24,7 @@ test('delivery reasons are bounded and never retain line breaks', () => {
 })
 
 test('recipient validation rejects malformed and common typo domains with a safe suggestion', () => {
-  assert.deepEqual(validateRecipientEmail(' Buyer@GAMIL.com '), {
-    valid: false,
-    email: 'buyer@gamil.com',
-    suggestion: 'buyer@gmail.com',
-  })
+  assert.deepEqual(validateRecipientEmail(' Buyer@GAMIL.com '), { valid: false, email: 'buyer@gamil.com', suggestion: 'buyer@gmail.com' })
   assert.match(recipientEmailError(validateRecipientEmail('buyer@gamil.com')), /buyer@gmail\.com/)
   assert.equal(validateRecipientEmail('buyer@gmail.com').valid, true)
   assert.equal(validateRecipientEmail('buyer@@gmail.com').valid, false)
@@ -40,11 +36,14 @@ test('transactional senders are restricted to the verified Ghyar Market domain',
   assert.equal(getTransactionalSender('alerts@other.example'), null)
 })
 
-test('notification delivery uses recipient state and stable dedupe keys', () => {
+test('notification email is queued durably and webhook events survive provider-id races', () => {
   const notifications = read('src/lib/notifications.ts')
+  const outbox = read('src/lib/email-outbox.ts')
   const webhook = read('src/app/api/webhooks/resend/route.ts')
+  const webhookEvents = read('src/lib/email-webhook-events.ts')
   const migration = read('prisma/email-deliverability.sql')
   const recordsMigration = read('prisma/email-delivery-records.sql')
+  const phase2Migration = read('prisma/phase2-request-amplification-20260906.sql')
   const metrics = read('src/app/api/admin/email-deliverability/route.ts')
   const login = read('src/lib/login-verification.ts')
   const reset = read('src/lib/password-reset.ts')
@@ -52,15 +51,24 @@ test('notification delivery uses recipient state and stable dedupe keys', () => 
   const delivery = read('src/lib/email-delivery.ts')
   const account = read('src/app/api/account/route.ts')
   const adminUsers = read('src/app/api/admin/users/route.ts')
+
   assert.match(notifications, /emailDeliveryStatus/)
   assert.match(notifications, /shouldSendNonessentialEmail/)
   assert.match(notifications, /dedupeKey/)
-  assert.match(notifications, /recipientEmail/)
-  assert.match(webhook, /isPermanentRecipientStatus/)
-  assert.match(webhook, /normalizeRecipientEmail\(recipient\.email\)/)
-  assert.match(webhook, /updateMany\(/)
+  assert.match(notifications, /queueEmailOutbox/)
+  assert.doesNotMatch(notifications, /resend\.emails\.send/)
+  assert.match(outbox, /recordEmailDeliveryAttempt/)
+  assert.match(outbox, /status: 'PENDING'/)
+  assert.match(outbox, /reconcileWebhookEvents/)
+  assert.match(webhook, /persistAndReconcileWebhookEvent/)
+  assert.match(webhookEvents, /INSERT INTO "EmailWebhookEvent"/)
+  assert.match(webhookEvents, /isPermanentRecipientStatus/)
+  assert.match(webhookEvents, /normalizeRecipientEmail\(recipient\.email\)/)
   assert.match(delivery, /shouldApplyDeliveryStatus/)
   assert.match(delivery, /pg_advisory_xact_lock/)
+  assert.match(phase2Migration, /CREATE TABLE IF NOT EXISTS "EmailOutbox"/)
+  assert.match(phase2Migration, /CREATE TABLE IF NOT EXISTS "EmailWebhookEvent"/)
+  assert.match(phase2Migration, /REVOKE ALL ON TABLE "EmailOutbox" FROM PUBLIC, anon, authenticated/)
   assert.match(login, /isPermanentRecipientStatus/)
   assert.match(reset, /isPermanentRecipientStatus/)
   assert.match(support, /SUPPORT_EMAIL_INVALID/)

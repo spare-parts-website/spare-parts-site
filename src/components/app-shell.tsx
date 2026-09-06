@@ -30,11 +30,7 @@ function isCartItem(value: unknown): value is CartItem {
   )
 }
 
-export function AppShell({
-  children,
-}: {
-  children: ReactNode
-}) {
+export function AppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname()
   const user = useAppStore((state) => state.user)
   const setUser = useAppStore((state) => state.setUser)
@@ -42,9 +38,6 @@ export function AppShell({
   const reminderSent = useRef(false)
   const [authResolved, setAuthResolved] = useState(false)
 
-  // Resolve the HttpOnly session once for the lifetime of the persistent shell.
-  // Public SSR remains identity-free; this client overlay restores account
-  // controls after hydration without putting identity into shared HTML caches.
   useEffect(() => {
     let active = true
     fetch('/api/auth/me', { cache: 'no-store' })
@@ -59,45 +52,16 @@ export function AppShell({
     window.scrollTo({ top: 0 })
   }, [pathname])
 
-  // Once the account shell is idle, quietly warm the role-specific dashboard
-  // data. This keeps low-end devices responsive during first paint while making
-  // later dashboard menu changes render from memory instead of a loading state.
-  useEffect(() => {
-    if (!user) return
-    let cancelled = false
-    const run = () => {
-      if (cancelled) return
-      void import('@/lib/dashboard-warmup')
-        .then((module) => user.role === 'SHOP_OWNER'
-          ? module.warmSellerDashboard(user.id)
-          : user.role === 'ADMIN'
-            ? module.warmAdminDashboard(user.id)
-            : undefined)
-        .catch(() => {})
-    }
-    const idleWindow = window as typeof window & {
-      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number
-      cancelIdleCallback?: (handle: number) => void
-    }
-    const hasIdleCallback = typeof idleWindow.requestIdleCallback === 'function'
-    const handle = hasIdleCallback
-      ? idleWindow.requestIdleCallback!(run, { timeout: 1800 })
-      : window.setTimeout(run, 900)
-    return () => {
-      cancelled = true
-      if (hasIdleCallback && typeof idleWindow.cancelIdleCallback === 'function') idleWindow.cancelIdleCallback(handle)
-      else window.clearTimeout(handle)
-    }
-  }, [user?.id, user?.role])
+  // Do not pre-warm seller/admin APIs after sign-in. Dashboard views fetch on
+  // demand and keep their own short-lived user-scoped caches, avoiding a burst
+  // of parts/orders/analytics/messages/support requests at login.
 
   useEffect(() => {
     try {
       const storedCart = window.localStorage.getItem(CART_STORAGE_KEY)
       if (storedCart) {
         const parsed: unknown = JSON.parse(storedCart)
-        if (Array.isArray(parsed)) {
-          useAppStore.setState({ cart: parsed.filter(isCartItem) })
-        }
+        if (Array.isArray(parsed)) useAppStore.setState({ cart: parsed.filter(isCartItem) })
       }
     } catch {
       window.localStorage.removeItem(CART_STORAGE_KEY)
@@ -132,16 +96,12 @@ export function AppShell({
     fetch('/api/wishlist', { cache: 'no-store' })
       .then((response) => (response.ok ? response.json() : { items: [] }))
       .then((data: { items?: Array<{ store: { id: string } }> }) => {
-        if (active) {
-          useAppStore.getState().setFavoriteStores((data.items || []).map((item) => item.store.id))
-        }
+        if (active) useAppStore.getState().setFavoriteStores((data.items || []).map((item) => item.store.id))
       })
       .catch(() => {
         if (active) useAppStore.getState().setFavoriteStores([])
       })
-    return () => {
-      active = false
-    }
+    return () => { active = false }
   }, [user])
 
   const requiredRoles = rolesForPath(pathname)
@@ -177,9 +137,9 @@ function ProtectedLoading() {
 }
 
 function SignInState() {
-  return <div className="content-container grid min-h-[55vh] place-items-center py-16"><div className="max-w-md text-center"><span className="mx-auto grid size-20 place-items-center rounded-3xl bg-primary/10 text-primary"><LockKeyhole className="size-9" /></span><h1 className="mt-6 text-2xl font-black">سجّل الدخول للمتابعة</h1><p className="mt-3 leading-7 text-muted-foreground">هذه الصفحة مرتبطة بحسابك وبياناتك الشخصية.</p><Button asChild className="mt-6"><Link href="/login">تسجيل الدخول</Link></Button></div></div>
+  return <div className="content-container grid min-h-[55vh] place-items-center py-16"><div className="max-w-md text-center"><span className="mx-auto grid size-20 place-items-center rounded-3xl bg-primary/10 text-primary"><LockKeyhole className="size-9" /></span><h1 className="mt-6 text-2xl font-black">سجّل الدخول للمتابعة</h1><p className="mt-3 leading-7 text-muted-foreground">هذه الصفحة مرتبطة بحسابك وبياناتك الشخصية.</p><Button asChild className="mt-6"><Link href="/login" prefetch={false}>تسجيل الدخول</Link></Button></div></div>
 }
 
 function ForbiddenState() {
-  return <div className="content-container grid min-h-[55vh] place-items-center py-16"><div className="max-w-md text-center"><span className="mx-auto grid size-20 place-items-center rounded-3xl bg-destructive/10 text-destructive"><ShieldX className="size-9" /></span><h1 className="mt-6 text-2xl font-black">لا تملك صلاحية لهذه الصفحة</h1><p className="mt-3 leading-7 text-muted-foreground">استخدم الحساب المناسب أو عد إلى الصفحة الرئيسية.</p><Button asChild variant="outline" className="mt-6"><Link href="/">العودة للرئيسية</Link></Button></div></div>
+  return <div className="content-container grid min-h-[55vh] place-items-center py-16"><div className="max-w-md text-center"><span className="mx-auto grid size-20 place-items-center rounded-3xl bg-destructive/10 text-destructive"><ShieldX className="size-9" /></span><h1 className="mt-6 text-2xl font-black">لا تملك صلاحية لهذه الصفحة</h1><p className="mt-3 leading-7 text-muted-foreground">استخدم الحساب المناسب أو عد إلى الصفحة الرئيسية.</p><Button asChild variant="outline" className="mt-6"><Link href="/" prefetch={false}>العودة للرئيسية</Link></Button></div></div>
 }
