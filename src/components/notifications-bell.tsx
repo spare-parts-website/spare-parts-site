@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAppStore, viewToPath, type View } from '@/lib/store'
 import { Button } from '@/components/ui/button'
@@ -91,16 +91,15 @@ export function NotificationsBell() {
   const [open, setOpen] = useState(false)
   const [connected, setConnected] = useState(false)
   const loadingListRef = useRef(false)
-  const tabIdRef = useRef(`tab-${Math.random().toString(36).slice(2)}-${Date.now()}`)
+  const tabIdRef = useRef<string | null>(null)
   const channelRef = useRef<BroadcastChannel | null>(null)
 
-  const publishCount = (count: number) => {
-    setNotificationCount(Math.max(0, count))
-    channelRef.current?.postMessage({ type: 'count', count: Math.max(0, count), at: Date.now() } satisfies NotificationBroadcast)
-  }
+  const publishCount = useCallback((count: number) => {
+    const safeCount = Math.max(0, count)
+    setNotificationCount(safeCount)
+    channelRef.current?.postMessage({ type: 'count', count: safeCount, at: Date.now() } satisfies NotificationBroadcast)
+  }, [setNotificationCount])
 
-  // Only one visible tab polls a tiny unread-count endpoint. Other tabs receive
-  // the count over BroadcastChannel instead of independently hitting Postgres.
   useEffect(() => {
     if (!user) {
       setNotifications([])
@@ -108,6 +107,7 @@ export function NotificationsBell() {
       setConnected(false)
       return
     }
+    if (!tabIdRef.current) tabIdRef.current = crypto.randomUUID()
     const tabId = tabIdRef.current
     const channel = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel(CHANNEL_NAME) : null
     channelRef.current = channel
@@ -125,7 +125,6 @@ export function NotificationsBell() {
         localStorage.setItem(LEADER_KEY, JSON.stringify({ owner: tabId, expiresAt: now + LEADER_LEASE_MS } satisfies LeaderLease))
         return readLeaderLease()?.owner === tabId
       } catch {
-        // Browsers with storage disabled can still poll this one tab normally.
         return true
       }
     }
@@ -173,7 +172,7 @@ export function NotificationsBell() {
         if (lease?.owner === tabId) localStorage.removeItem(LEADER_KEY)
       } catch { /* storage may be disabled */ }
     }
-  }, [user?.id, setNotificationCount])
+  }, [publishCount, setNotificationCount, user])
 
   const loadNotifications = async () => {
     if (!user || loadingListRef.current) return

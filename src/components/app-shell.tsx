@@ -19,15 +19,7 @@ const CART_UPDATED_KEY = 'ghyar-market-cart-updated-v1'
 function isCartItem(value: unknown): value is CartItem {
   if (!value || typeof value !== 'object') return false
   const item = value as Partial<CartItem>
-  return (
-    typeof item.partId === 'string' &&
-    typeof item.name === 'string' &&
-    typeof item.price === 'number' &&
-    typeof item.storeId === 'string' &&
-    typeof item.storeName === 'string' &&
-    typeof item.quantity === 'number' &&
-    typeof item.stock === 'number'
-  )
+  return typeof item.partId === 'string' && typeof item.name === 'string' && typeof item.price === 'number' && typeof item.storeId === 'string' && typeof item.storeName === 'string' && typeof item.quantity === 'number' && typeof item.stock === 'number'
 }
 
 export function AppShell({ children }: { children: ReactNode }) {
@@ -38,6 +30,8 @@ export function AppShell({ children }: { children: ReactNode }) {
   const reminderSent = useRef(false)
   const [authResolved, setAuthResolved] = useState(false)
 
+  // Public SSR remains identity-free; the persistent client shell resolves the
+  // signed-in identity once instead of making public server routes session-aware.
   useEffect(() => {
     let active = true
     fetch('/api/auth/me', { cache: 'no-store' })
@@ -111,9 +105,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col pb-20 lg:pb-0">
       <Header />
-      <main className="flex-1">
-        {protectedContent && !authResolved ? <ProtectedLoading /> : canAccess ? children : user ? <ForbiddenState /> : <SignInState />}
-      </main>
+      <main className="flex-1">{protectedContent && !authResolved ? <ProtectedLoading /> : canAccess ? children : user ? <ForbiddenState /> : <SignInState />}</main>
       <Footer />
       <CartDrawer />
       <MobileBottomNav />
