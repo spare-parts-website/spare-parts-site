@@ -11,6 +11,18 @@ const sql = execFileSync('npx', ['prisma', 'migrate', 'diff', '--from-empty', '-
 writeFileSync(baseline, sql)
 execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-f', baseline], { stdio: 'inherit' })
 
+// Supabase projects provide these roles. CI uses a plain PostgreSQL service, so
+// create non-login stand-ins before replaying Supabase-specific GRANT/REVOKE SQL.
+const supabaseRoles = `
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN CREATE ROLE anon NOLOGIN; END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN CREATE ROLE authenticated NOLOGIN; END IF;
+END
+$$;
+`
+execFileSync('psql', [databaseUrl, '-v', 'ON_ERROR_STOP=1', '-c', supabaseRoles], { stdio: 'inherit' })
+
 const directory = 'supabase/migrations'
 if (existsSync(directory)) {
   for (const file of readdirSync(directory).filter((name) => name.endsWith('.sql')).sort()) {
