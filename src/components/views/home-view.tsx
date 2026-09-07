@@ -24,12 +24,12 @@ export function HomeView({ isSeller = false }: { isSeller?: boolean }) {
         <div className="absolute inset-0 -z-10 premium-grid opacity-30" />
         <div className="content-container flex min-h-[38rem] items-center py-16 sm:min-h-[42rem]">
           <div className="max-w-2xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-primary backdrop-blur">
+            <span className="inline-flex items-center gap-2 rounded-full border border-primary/30 bg-primary/10 px-4 py-2 text-sm font-bold text-emerald-300 backdrop-blur">
               <ShieldCheck className="size-4" /> منصة مصرية لقطع غيار السيارات
             </span>
             <h1 className="mt-6 text-4xl font-black leading-[1.2] tracking-[-0.045em] text-balance sm:text-5xl lg:text-6xl">
               القطعة الصح لسيارتك،
-              <span className="block text-primary">من متجر تعرف تفاصيله.</span>
+              <span className="block text-emerald-300">من متجر تعرف تفاصيله.</span>
             </h1>
             <p className="mt-5 max-w-xl text-base leading-8 text-white/70 sm:text-lg">
               ابحث وقارن واختر من متاجر متخصصة. معلومات واضحة، وتقييمات من المشترين عند توفرها، والدفع عند الاستلام.
