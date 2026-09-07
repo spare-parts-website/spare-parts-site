@@ -1,4 +1,4 @@
-import { fromMinorUnits, multiplyMinor, percentDiscountMinor, toMinorUnits } from './money'
+import { fromMinorUnits, multiplyMinor, percentDiscountMinor, toMinorUnits } from './money.ts'
 
 export const ORDER_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED'] as const
 export const PAYMENT_STATUSES = ['UNPAID', 'PAID', 'REFUNDED'] as const
