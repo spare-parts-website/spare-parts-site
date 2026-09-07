@@ -62,7 +62,21 @@ jobs:
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
-      - run: npm test
+      - name: Run regression suite
+        run: |
+          set +e
+          npm test > .ci-test-output.log 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo 'Regression suite failed. Failing TAP blocks:'
+            awk '/^not ok /{show=1} show{print} show && /^  \.\.\.$/{show=0}' .ci-test-output.log
+            if ! grep -q '^not ok ' .ci-test-output.log; then
+              tail -n 160 .ci-test-output.log
+            fi
+            exit "$status"
+          fi
+          tail -n 20 .ci-test-output.log
       - run: npm run build
       - name: Install pinned browser-gate tooling without changing the lockfile
         run: npm install --no-save --package-lock=false @playwright/test@1.55.0 @axe-core/playwright@4.10.2
