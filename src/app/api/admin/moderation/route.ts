@@ -12,7 +12,7 @@ export async function GET() {
       db.dispute.count({ where: { status: 'OPEN' } }),
       db.sellerVerification.count({ where: { status: 'PENDING' } }),
       db.auditLog.findMany({ select: { id: true, action: true, targetType: true, createdAt: true, actor: { select: { name: true } } }, orderBy: { createdAt: 'desc' }, take: 20 }),
-      db.part.groupBy({ by: ['name', 'storeId'], where: { blocked: false }, _count: { _all: true }, having: { id: { _count: { gt: 1 } } }, orderBy: { _count: { id: 'desc' } }, take: 20 }),
+      db.part.groupBy({ by: ['name', 'storeId'], where: { moderationStatus: 'ACTIVE' }, _count: { _all: true }, having: { id: { _count: { gt: 1 } } }, orderBy: { _count: { id: 'desc' } }, take: 20 }),
       db.report.groupBy({ by: ['targetId'], where: { targetType: 'user', status: 'OPEN' }, _count: { _all: true }, having: { id: { _count: { gte: 2 } } }, orderBy: { _count: { id: 'desc' } }, take: 100 }),
     ])
     return NextResponse.json({ openReports, openDisputes, pendingVerifications, suspiciousAccountCount: flaggedUsers.length, duplicateParts, auditLogs }, { headers: PRIVATE_HEADERS })

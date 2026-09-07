@@ -58,7 +58,7 @@ export async function resolvePart(input: { user?: SessionUser | null; scope: 'pu
   const id = selectedId(input.selection, 'part') || input.reference.targetId
   const store = input.scope === 'seller' && input.user ? await db.store.findUnique({ where: { ownerId: input.user.id }, select: { id: true } }) : null
   if (input.scope === 'seller' && !store) return finish('part', 'القطعة', [])
-  const scope = { ...(input.scope === 'seller' ? { storeId: store!.id } : {}), ...(input.scope === 'public' ? { blocked: false } : {}), ...(input.requireStock ? { stock: { gt: 0 } } : {}) }
+  const scope = { ...(input.scope === 'seller' ? { storeId: store!.id } : {}), ...(input.scope === 'public' ? { moderationStatus: 'ACTIVE' } : {}), ...(input.requireStock ? { stock: { gt: 0 } } : {}) }
   if (id) {
     const part = await db.part.findFirst({ where: { ...scope, id }, select: { id: true, name: true, partNumber: true, store: { select: { name: true } } } })
     return finish('part', 'القطعة', part ? [{ id: part.id, label: part.name, subtitle: `${part.store.name}${part.partNumber ? ` • ${part.partNumber}` : ''}` }] : [])

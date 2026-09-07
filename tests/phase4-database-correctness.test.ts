@@ -43,6 +43,22 @@ test('workflow and fitment correctness are database enforced', () => {
   assert.match(migration, /VehicleCompatibility_identity_text_chk/)
 })
 
+test('part moderation uses an explicit lifecycle with a safe legacy projection', () => {
+  const schema = read('prisma/schema.prisma')
+  const migration = read('supabase/migrations/20260908090000_part_moderation_lifecycle.sql')
+  const adminParts = read('src/app/api/admin/parts/route.ts')
+  const publicMarket = read('src/lib/public-marketplace.ts')
+
+  assert.match(schema, /moderationStatus\s+String\s+@default\("ACTIVE"\)/)
+  assert.match(schema, /moderatedBy\s+User\?\s+@relation\("PartModerator"/)
+  assert.match(migration, /Part_moderationStatus_check/)
+  assert.match(migration, /Part_moderation_projection/)
+  assert.match(migration, /NEW\."moderationStatus" IS DISTINCT FROM OLD\."moderationStatus"/)
+  assert.match(adminParts, /UNDER_REVIEW/)
+  assert.match(adminParts, /moderatedById: session\.id/)
+  assert.match(publicMarket, /moderationStatus: 'ACTIVE'/)
+})
+
 test('inventory and payment ledgers are append-only and database-authoritative', () => {
   const migration = read('supabase/migrations/20260907020000_phase4_database_correctness.sql')
   assert.match(migration, /CREATE TABLE IF NOT EXISTS public\."InventoryLedger"/)

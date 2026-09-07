@@ -4,7 +4,7 @@ import { getSession, requireAdminStepUp, requireRole } from '@/lib/auth'
 import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
-import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
+import { parseVehicleCompatibility } from '@/lib/vehicle-compatibility'
 import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '@/lib/marketplace-taxonomy'
 import { audit } from '@/lib/audit'
 import { getPublicPart, getPublicPartsList } from '@/lib/public-marketplace'
@@ -105,7 +105,6 @@ export async function POST(req: NextRequest) {
     const gallery = Array.isArray(images) ? images : image ? [image] : []
     const compatibilitySource = compatibilityEntries !== undefined ? compatibilityEntries : carModels
     const compatibilities = universal ? [] : parseVehicleCompatibility(compatibilitySource)
-    const legacyCarModels = universal ? null : serializeLegacyCompatibility(compatibilitySource)
     const part = await db.part.create({
       data: {
         name: name.trim(),
@@ -121,7 +120,6 @@ export async function POST(req: NextRequest) {
         universal: Boolean(universal),
         fitmentNotes: typeof fitmentNotes === 'string' ? fitmentNotes.trim().slice(0, 1000) || null : null,
         image: gallery[0] || null,
-        carModels: legacyCarModels,
         storeId: store.id,
         images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
         compatibilities: compatibilities.length ? { create: compatibilities } : undefined,
@@ -175,7 +173,6 @@ export async function PUT(req: NextRequest) {
     const compatibilitySource = compatibilityEntries !== undefined ? compatibilityEntries : carModels
     const replaceCompatibilities = compatibilityEntries !== undefined || carModels !== undefined || universal === true
     const compatibilities = replaceCompatibilities ? (universal ? [] : parseVehicleCompatibility(compatibilitySource)) : null
-    const legacyCarModels = replaceCompatibilities ? (universal ? null : serializeLegacyCompatibility(compatibilitySource)) : undefined
     const updated = await db.$transaction(async (tx) => {
       if (gallery) await tx.partImage.deleteMany({ where: { partId: id } })
       if (compatibilities) await tx.vehicleCompatibility.deleteMany({ where: { partId: id } })
@@ -195,7 +192,6 @@ export async function PUT(req: NextRequest) {
           universal: typeof universal === 'boolean' ? universal : undefined,
           fitmentNotes: fitmentNotes !== undefined ? fitmentNotes.trim().slice(0, 1000) || null : undefined,
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,
-          carModels: legacyCarModels,
           images: gallery && gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
           compatibilities: compatibilities?.length ? { create: compatibilities } : undefined,
         },

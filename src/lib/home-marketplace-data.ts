@@ -10,8 +10,8 @@ export type HomeMarketplacePayload = { parts: HomeMarketplacePart[]; stores: Hom
 
 const loadHomeMarketplaceCached = unstable_cache(async (): Promise<HomeMarketplacePayload> => {
   const [parts, stores] = await Promise.all([
-    db.part.findMany({ where: { blocked: false, store: { moderationStatus: 'ACTIVE' } }, select: { id: true, name: true, price: true, stock: true, brand: true, condition: true, image: true, store: { select: { id: true, name: true, image: true, verified: true } } }, orderBy: { createdAt: 'desc' }, take: 8 }),
-    db.store.findMany({ where: { moderationStatus: 'ACTIVE', parts: { some: { blocked: false } } }, select: { id: true, name: true, description: true, image: true, verified: true, _count: { select: { parts: { where: { blocked: false } } } } }, orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }], take: 6 }),
+    db.part.findMany({ where: { moderationStatus: 'ACTIVE', store: { moderationStatus: 'ACTIVE' } }, select: { id: true, name: true, price: true, stock: true, brand: true, condition: true, image: true, store: { select: { id: true, name: true, image: true, verified: true } } }, orderBy: { createdAt: 'desc' }, take: 8 }),
+    db.store.findMany({ where: { moderationStatus: 'ACTIVE', parts: { some: { moderationStatus: 'ACTIVE' } } }, select: { id: true, name: true, description: true, image: true, verified: true, _count: { select: { parts: { where: { moderationStatus: 'ACTIVE' } } } } }, orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }], take: 6 }),
   ])
   const ratingRows = stores.length ? await db.storeReview.findMany({ where: { storeId: { in: stores.map((store) => store.id) }, blocked: false }, select: { storeId: true, rating: true, user: { select: { name: true } } } }) : []
   const ratingByStore = new Map<string, { total: number; count: number }>()

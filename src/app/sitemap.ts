@@ -9,8 +9,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   if (!/^postgres(?:ql)?:\/\//.test(process.env.DATABASE_URL || '')) return entries
   try {
     const [parts, stores] = await Promise.all([
-      db.part.findMany({ where: { blocked: false, store: { moderationStatus: 'ACTIVE' } }, select: { id: true, updatedAt: true } }),
-      db.store.findMany({ where: { moderationStatus: 'ACTIVE', parts: { some: { blocked: false } } }, select: { id: true, updatedAt: true } }),
+      db.part.findMany({ where: { moderationStatus: 'ACTIVE', store: { moderationStatus: 'ACTIVE' } }, select: { id: true, updatedAt: true } }),
+      db.store.findMany({ where: { moderationStatus: 'ACTIVE', parts: { some: { moderationStatus: 'ACTIVE' } } }, select: { id: true, updatedAt: true } }),
     ])
     entries.push(...parts.map((part) => ({ url: `${baseUrl}/parts/${part.id}`, lastModified: part.updatedAt, changeFrequency: 'weekly' as const, priority: 0.8 })))
     entries.push(...stores.map((store) => ({ url: `${baseUrl}/stores/${store.id}`, lastModified: store.updatedAt, changeFrequency: 'weekly' as const, priority: 0.7 })))

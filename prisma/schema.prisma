@@ -35,6 +35,7 @@ model User {
   store                   Store?
   storesVerified          Store[]              @relation("StoreVerifier")
   storesModerated         Store[]              @relation("StoreModerator")
+  partsModerated          Part[]               @relation("PartModerator")
   orders                  Order[]
   productReviews          ProductReview[]
   storeReviews            StoreReview[]
@@ -190,11 +191,18 @@ model Part {
   wishlist        Wishlist[]
   compatibilities VehicleCompatibility[]
   blocked         Boolean                @default(false)
+  moderationStatus String                @default("ACTIVE")
+  moderationReason String?
+  moderatedAt     DateTime?
+  moderatedById   String?
+  moderatedBy     User?                  @relation("PartModerator", fields: [moderatedById], references: [id], onDelete: SetNull)
   createdAt       DateTime               @default(now())
   updatedAt       DateTime               @updatedAt
 
   @@index([storeId, createdAt])
   @@index([blocked, createdAt])
+  @@index([moderationStatus, createdAt])
+  @@index([moderatedById])
   @@index([category])
   @@index([brand])
   @@index([partNumber])

@@ -121,7 +121,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         if (!vehicle) return { type: 'insight', title: 'اذكر ماركة وموديل السيارة', description: 'اكتب ماركة السيارة وموديلها وسنة الصنع اختيارياً، وسأطابقها مع بيانات التوافق المسجلة في العروض.' }
         const parts = await db.part.findMany({
           where: {
-            blocked: false,
+            moderationStatus: 'ACTIVE',
             ...(query ? { OR: [{ name: { contains: query, mode: 'insensitive' } }, { brand: { contains: query, mode: 'insensitive' } }, { category: { contains: query, mode: 'insensitive' } }] } : {}),
             compatibilities: {
               some: {
@@ -224,7 +224,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         const cart = input.clientContext.cart.slice(0, 50)
         if (!cart.length) return { type: 'insight', title: 'السلة فارغة', description: 'أضف قطعة واحدة على الأقل قبل تجهيز الطلب.', items: [{ id: 'cart', title: 'فتح السلة', href: '/cart' }] }
         const ids = [...new Set(cart.map((item) => item.partId))]
-        const parts = await db.part.findMany({ where: { id: { in: ids }, blocked: false }, select: { id: true, name: true, price: true, stock: true, image: true, store: { select: { id: true, name: true, ownerId: true } } } })
+        const parts = await db.part.findMany({ where: { id: { in: ids }, moderationStatus: 'ACTIVE' }, select: { id: true, name: true, price: true, stock: true, image: true, store: { select: { id: true, name: true, ownerId: true } } } })
         const byId = new Map(parts.map((part) => [part.id, part]))
         const missing = cart.filter((item) => !byId.has(item.partId))
         if (missing.length) return { type: 'results', title: 'السلة تحتاج تحديثاً', description: `لم تعد ${missing.length} ${missing.length === 1 ? 'قطعة' : 'قطع'} متاحة بالسعر والمخزون الحاليين. افتح السلة لمراجعة العناصر قبل الطلب.`, items: missing.map((item) => ({ id: `missing-${item.partId}`, title: item.name, subtitle: 'لم تعد متاحة حالياً', href: '/cart' })) }
@@ -273,7 +273,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         const store = await db.store.findUnique({ where: { ownerId: input.user!.id }, select: { id: true } })
         const part = store ? await db.part.findFirst({ where: { id: resolution.entity.id, storeId: store.id }, select: { id: true, name: true, price: true, category: true, brand: true, stock: true } }) : null
         if (!part) return { type: 'results', title: 'القطعة لم تعد متاحة', description: 'اكتب اسم قطعة أخرى وسأبحث عنها داخل متجرك.' }
-        const comparisons = await db.part.findMany({ where: { id: { not: part.id }, blocked: false, category: part.category || undefined, ...(part.brand ? { brand: part.brand } : {}) }, select: { price: true }, take: 20 })
+        const comparisons = await db.part.findMany({ where: { id: { not: part.id }, moderationStatus: 'ACTIVE', category: part.category || undefined, ...(part.brand ? { brand: part.brand } : {}) }, select: { price: true }, take: 20 })
         const prices = comparisons.map((item) => item.price).filter((price) => price > 0).sort((a, b) => a - b)
         const median = prices.length ? prices[Math.floor(prices.length / 2)] : part.price
         const low = Math.max(0, Math.round(median * 0.9))
@@ -290,7 +290,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
         const orderBy = { createdAt: recency === 'oldest' ? 'asc' as const : 'desc' as const }
         if (section === 'listings') {
           const selectedId = input.clientContext.selection?.kind === 'part' ? input.clientContext.selection.id : undefined
-          const parts = await db.part.findMany({ where: { storeId: store.id, ...(listingState === 'active' ? { blocked: false } : listingState === 'blocked' ? { blocked: true } : listingState === 'low_stock' ? { stock: { lte: 3 } } : listingState === 'out_of_stock' ? { stock: 0 } : {}), ...(selectedId ? { id: selectedId } : query ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { partNumber: { contains: query, mode: 'insensitive' as const } }, { oemNumber: { contains: query, mode: 'insensitive' as const } }] } : {}) }, select: { id: true, name: true, price: true, stock: true, blocked: true, partNumber: true, oemNumber: true }, orderBy: listingState === 'low_stock' || listingState === 'out_of_stock' ? { stock: 'asc' } : { updatedAt: recency === 'oldest' ? 'asc' : 'desc' }, take: limit })
+          const parts = await db.part.findMany({ where: { storeId: store.id, ...(listingState === 'active' ? { moderationStatus: 'ACTIVE' } : listingState === 'blocked' ? { moderationStatus: { not: 'ACTIVE' } } : listingState === 'low_stock' ? { stock: { lte: 3 } } : listingState === 'out_of_stock' ? { stock: 0 } : {}), ...(selectedId ? { id: selectedId } : query ? { OR: [{ name: { contains: query, mode: 'insensitive' as const } }, { partNumber: { contains: query, mode: 'insensitive' as const } }, { oemNumber: { contains: query, mode: 'insensitive' as const } }] } : {}) }, select: { id: true, name: true, price: true, stock: true, blocked: true, moderationStatus: true, partNumber: true, oemNumber: true }, orderBy: listingState === 'low_stock' || listingState === 'out_of_stock' ? { stock: 'asc' } : { updatedAt: recency === 'oldest' ? 'asc' : 'desc' }, take: limit })
           const listingLabel = listingState === 'low_stock' ? 'منخفضة المخزون' : listingState === 'out_of_stock' ? 'نافدة المخزون' : listingState === 'blocked' ? 'المحظورة' : listingState === 'active' ? 'النشطة' : ''
           return { type: 'results', title: `قطع ${store.name}${listingLabel ? ` ${listingLabel}` : ''}`, description: parts.length ? `${parts.length} نتائج تخص متجرك فقط${listingState === 'low_stock' ? ' عند حد 3 قطع أو أقل' : ''}.` : `لا توجد قطع ${listingLabel || 'مطابقة'} في متجرك حالياً.`, items: parts.map((part) => ({ id: `part-${part.id}`, title: part.name, subtitle: `${part.blocked ? 'محظورة' : 'نشطة'} • ${part.stock === 0 ? 'نفد المخزون' : `المخزون ${part.stock}`}${part.partNumber ? ` • رقم ${part.partNumber}` : part.oemNumber ? ` • OEM ${part.oemNumber}` : ''}`, value: `${part.price.toLocaleString('ar-EG')} ج.م`, select: { kind: 'part' as const, id: part.id, label: part.name } })) }
         }
@@ -386,7 +386,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
           db.report.count({ where: { status: 'OPEN' } }),
           db.sellerVerification.count({ where: { status: 'PENDING' } }),
           db.dispute.count({ where: { status: 'OPEN' } }),
-          db.part.groupBy({ by: ['name', 'storeId'], where: { blocked: false }, _count: { _all: true }, having: { id: { _count: { gt: 1 } } }, orderBy: { _count: { id: 'desc' } }, take: 100 }),
+          db.part.groupBy({ by: ['name', 'storeId'], where: { moderationStatus: 'ACTIVE' }, _count: { _all: true }, having: { id: { _count: { gt: 1 } } }, orderBy: { _count: { id: 'desc' } }, take: 100 }),
           db.report.groupBy({ by: ['targetId'], where: { targetType: 'user', status: 'OPEN' }, _count: { _all: true }, having: { id: { _count: { gte: 2 } } }, orderBy: { _count: { id: 'desc' } }, take: 100 }),
           db.auditLog.count({ where: { createdAt: { gte: since } } }),
         ])
@@ -419,7 +419,7 @@ export function createAITools(input: { role: AIRole; user: SessionUser | null; c
       inputSchema: z.object({ focus: z.enum(['overview', 'users', 'stores', 'parts', 'orders', 'reports', 'disputes', 'revenue']).default('overview') }),
       execute: async ({ focus }): Promise<AIToolCard> => {
         const [users, stores, verifiedStores, activeParts, blockedParts, orders, deliveredOrders, openReports, openDisputes, pendingVerifications, revenue] = await Promise.all([
-          db.user.count(), db.store.count(), db.store.count({ where: { verified: true } }), db.part.count({ where: { blocked: false } }), db.part.count({ where: { blocked: true } }), db.order.count(), db.order.count({ where: { status: 'DELIVERED' } }), db.report.count({ where: { status: 'OPEN' } }), db.dispute.count({ where: { status: 'OPEN' } }), db.sellerVerification.count({ where: { status: 'PENDING' } }), db.order.aggregate({ where: { status: 'DELIVERED' }, _sum: { totalPrice: true } }),
+          db.user.count(), db.store.count(), db.store.count({ where: { verified: true } }), db.part.count({ where: { moderationStatus: 'ACTIVE' } }), db.part.count({ where: { moderationStatus: 'BLOCKED' } }), db.order.count(), db.order.count({ where: { status: 'DELIVERED' } }), db.report.count({ where: { status: 'OPEN' } }), db.dispute.count({ where: { status: 'OPEN' } }), db.sellerVerification.count({ where: { status: 'PENDING' } }), db.order.aggregate({ where: { status: 'DELIVERED' }, _sum: { totalPrice: true } }),
         ])
         const deliveredValue = revenue._sum.totalPrice || 0
         if (focus === 'users') return { type: 'insight', title: 'المستخدمون', description: `يوجد ${users} حساب مسجل على غيار ماركت. هذه إحصائية مجمعة ولا تعرض أي بريد أو هاتف أو بيانات شخصية.`, items: [{ id: 'users', title: 'كل المستخدمين', value: users, href: '/admin/users' }] }
@@ -489,7 +489,7 @@ export async function buildSellerPerformancePlan(input: { user: SessionUser; con
   if (!store) return { answer: 'لا يوجد متجر مرتبط بهذا الحساب.', cards: [] }
   const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
   const [parts, orders] = await Promise.all([
-    db.part.findMany({ where: { storeId: store.id, blocked: false }, select: { id: true, name: true, price: true, stock: true, category: true, brand: true } }),
+    db.part.findMany({ where: { storeId: store.id, moderationStatus: 'ACTIVE' }, select: { id: true, name: true, price: true, stock: true, category: true, brand: true } }),
     db.order.findMany({ where: { storeId: store.id, createdAt: { gte: since }, status: { notIn: ['CANCELLED', 'REJECTED', 'RETURNED'] } }, select: { partId: true, quantity: true, totalPrice: true, paymentStatus: true, items: { select: { partId: true, quantity: true, itemTotal: true } } } }),
   ])
   if (!parts.length) return { answer: `تحليل آخر 30 يوماً لمتجر ${store.name}: لا توجد منتجات نشطة لتحليلها حالياً.`, cards: [] }
@@ -508,7 +508,7 @@ export async function buildSellerPerformancePlan(input: { user: SessionUser; con
   const weakest = ranked[0]
   const lowStock = ranked.filter((part) => part.stock <= 3)
   const comparisons = await db.part.findMany({
-    where: { id: { not: weakest.id }, blocked: false, category: weakest.category || undefined, ...(weakest.brand ? { brand: weakest.brand } : {}) },
+    where: { id: { not: weakest.id }, moderationStatus: 'ACTIVE', category: weakest.category || undefined, ...(weakest.brand ? { brand: weakest.brand } : {}) },
     select: { price: true }, take: 30,
   })
   const comparisonPrices = comparisons.map((part) => part.price).filter((price) => price > 0).sort((a, b) => a - b)
@@ -544,7 +544,7 @@ export async function buildSellerMessagePlan(input: { user: SessionUser; convers
   })
   if (!message) return { answer: 'لم أجد رسالة واردة من عميل داخل متجرك حالياً.', cards: [] }
   const comparisons = await db.part.findMany({
-    where: { id: { not: message.part.id }, blocked: false, category: message.part.category || undefined, ...(message.part.brand ? { brand: message.part.brand } : {}) },
+    where: { id: { not: message.part.id }, moderationStatus: 'ACTIVE', category: message.part.category || undefined, ...(message.part.brand ? { brand: message.part.brand } : {}) },
     select: { price: true }, take: 30,
   })
   const prices = comparisons.map((part) => part.price).filter((price) => price > 0).sort((a, b) => a - b)
@@ -580,7 +580,7 @@ export async function getSellerInsightsCard(user: SessionUser, focus: 'overview'
   const [parts, partCount, activePartCount, lowStockCount, orders, reviews] = await Promise.all([
     db.part.findMany({ where: { storeId: store.id }, select: { id: true, name: true, price: true, stock: true, blocked: true }, orderBy: { stock: 'asc' }, take: 500 }),
     db.part.count({ where: { storeId: store.id } }),
-    db.part.count({ where: { storeId: store.id, blocked: false } }),
+    db.part.count({ where: { storeId: store.id, moderationStatus: 'ACTIVE' } }),
     db.part.count({ where: { storeId: store.id, stock: { lte: 3 } } }),
     db.order.findMany({ where: { storeId: store.id }, select: { status: true, paymentStatus: true, totalPrice: true, quantity: true, createdAt: true } }),
     db.productReview.findMany({ where: { part: { storeId: store.id }, blocked: false }, select: { rating: true } }),
