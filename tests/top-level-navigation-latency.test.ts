@@ -25,7 +25,7 @@ test('keeps top-level navigation intent-prefetched without speculative route bur
   assert.match(homePage, /await connection\(\)/)
   assert.match(partsPage, /await connection\(\)/)
   assert.match(storesPage, /await connection\(\)/)
-  assert.match(config, /sri:\s*\{\s*algorithm: 'sha256'/)
+  assert.match(config, /sri:\s*\{\s*algorithm:\s*'sha256'/)
   assert.match(config, /staleTimes:\s*\{[\s\S]*dynamic:\s*300[\s\S]*static:\s*300/)
 })
 
