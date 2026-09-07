@@ -13,8 +13,8 @@ test('support tickets enforce private ownership and failure-safe admin notificat
   assert.match(listRoute, /Promise\.allSettled\(admins\.map/)
   assert.match(listRoute, /createNotification/)
   assert.doesNotMatch(listRoute, /sendSupportTicketEmail|SUPPORT_EMAIL_(?:SENT|SKIPPED|FAILED)/)
-  assert.match(listRoute, /filters\.status/)
-  assert.match(listRoute, /filters\.category/)
+  assert.match(listRoute, /if \(status && STATUSES\.has\(status\)\) where\.status = status/)
+  assert.match(listRoute, /if \(category && CATEGORIES\.has\(category\)\) where\.category = category/)
   assert.match(detailRoute, /loadTicket\(id, session\.id, session\.role === 'ADMIN'\)/)
   assert.match(detailRoute, /session\.role !== 'ADMIN'/)
   assert.match(notifications, /shouldSendNonessentialEmail/)
@@ -56,8 +56,8 @@ test('public marketplace details advertise shared caching while viewer overlays 
   // the shared default marketplace data remains cached for 30 seconds.
   assert.match(partsPage, /await connection\(\)/)
   assert.match(storesPage, /await connection\(\)/)
-  assert.match(publicMarketplace, /loadDefaultPublicPartsList = unstable_cache\([\s\S]*?\['public-parts-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
-  assert.match(publicMarketplace, /loadDefaultPublicStoresList = unstable_cache\([\s\S]*?\['public-stores-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
+  assert.match(publicMarketplace, /loadDefaultPublicPartsList = unstable_cache\([\s\S]*?\['public-parts-default-v3'\],[\s\S]*?\{ revalidate: 30 \}/)
+  assert.match(publicMarketplace, /loadDefaultPublicStoresList = unstable_cache\([\s\S]*?\['public-stores-default-v3'\],[\s\S]*?\{ revalidate: 30 \}/)
 
   for (const publicDetailPage of [partPage, storePage]) {
     assert.match(publicDetailPage, /export const revalidate = 30/)
@@ -91,7 +91,7 @@ test('support inbox exposes admin filters without periodic request amplification
   assert.equal(existsSync(new URL('../src/app/loading.tsx', import.meta.url)), false)
 })
 
-test('latest approved logo is wired to favicon, app chrome, compatibility alias, and service worker', () => {
+test('latest approved logo is wired to favicon, app chrome, compatibility alias, and optimized service-worker cache', () => {
   const layout = read('src/app/layout.tsx')
   const header = read('src/components/header.tsx')
   const config = read('next.config.ts')
@@ -100,5 +100,5 @@ test('latest approved logo is wired to favicon, app chrome, compatibility alias,
   assert.match(layout, /alternates: \{ canonical: '\/' \}/)
   assert.match(header, /src="\/ghyar-market-logo\.png"/)
   assert.match(config, /source:\s*'\/ghyar-market-logo\.png'\s*,\s*destination:\s*'\/ghyar-market-logo\.svg'/)
-  assert.match(worker, /\/ghyar-market-logo\.png/)
+  assert.match(worker, /\/ghyar-market-logo\.svg/)
 })
