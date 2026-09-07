@@ -4,7 +4,6 @@ import type { Prisma } from '@prisma/client'
 import { unstable_cache } from 'next/cache'
 import { db } from '@/lib/db'
 import { detectMarketplaceBrandHint, findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
-import { isDevelopmentReviewAuthor } from '@/lib/review-moderation'
 
 type PublicViewer = { id: string; role: string } | null
 
@@ -32,7 +31,7 @@ const loadPublicPartFacets = unstable_cache(async () => {
     db.part.findMany({ where: { ...facetBase, condition: { not: null } }, distinct: ['condition'], select: { condition: true }, orderBy: { condition: 'asc' }, take: 100 }),
   ])
   return { categories: categories.map((item) => item.category).filter((item): item is string => Boolean(item)), brands: brands.map((item) => item.brand).filter((item): item is string => Boolean(item)), conditions: conditions.map((item) => item.condition).filter((item): item is string => Boolean(item)) }
-}, ['public-part-facets-v2'], { revalidate: 300 })
+}, ['public-part-facets-v3'], { revalidate: 300 })
 
 function isDefaultPartsQuery(query: PublicPartsQuery) {
   return publicPage(query.page) === 1 && !clean(query.search) && !clean(query.category, 120) && !clean(query.brand, 120) && !clean(query.condition, 120) && !clean(query.storeId, 100) && !clean(query.carModel, 160) && !query.minPrice && !query.maxPrice && (clean(query.sort, 30) || 'newest') === 'newest'
@@ -42,7 +41,7 @@ async function buildPublicPartsList(query: PublicPartsQuery): Promise<PublicPart
   const page = publicPage(query.page); const pageSize = 24; const search = clean(query.search); const category = clean(query.category, 120); const brand = clean(query.brand, 120); const condition = clean(query.condition, 120); const storeId = clean(query.storeId, 100); const carModel = clean(query.carModel, 160); const sort = clean(query.sort, 30) || 'newest'
   const brandHint = search ? detectMarketplaceBrandHint(search) : null
   const minPrice = query.minPrice ? Number(query.minPrice) : null; const maxPrice = query.maxPrice ? Number(query.maxPrice) : null
-  const fuzzyPartIds = search ? await findTypoTolerantPartIds(search) : []
+  const fuzzyPartIds = search ? await findTypoTolerantPartIds(search, 200) : []
   const where: Prisma.PartWhereInput = { blocked: false, store: { is: visibleStoreWhere } }
   const and: Prisma.PartWhereInput[] = []
   if (search) {
@@ -62,14 +61,25 @@ async function buildPublicPartsList(query: PublicPartsQuery): Promise<PublicPart
   if (and.length) where.AND = and
   const orderBy: Prisma.PartOrderByWithRelationInput = sort === 'price-asc' ? { price: 'asc' } : sort === 'price-desc' ? { price: 'desc' } : sort === 'name' ? { name: 'asc' } : { createdAt: 'desc' }
   const publicPartSelect = { id: true, name: true, description: true, price: true, stock: true, category: true, brand: true, condition: true, image: true, carModels: true, partNumber: true, oemNumber: true, universal: true, fitmentNotes: true, images: { select: { id: true, url: true, position: true }, orderBy: [{ position: 'asc' as const }, { createdAt: 'asc' as const }] }, compatibilities: { select: { id: true, make: true, model: true, generation: true, yearFrom: true, yearTo: true, engine: true, trim: true, notes: true } }, store: { select: { id: true, name: true, image: true, verified: true } } } satisfies Prisma.PartSelect
-  const rankSearchResults = Boolean(search && fuzzyPartIds.length && page <= 20)
-  const [rawRecords, total, facets] = await Promise.all([db.part.findMany({ where, select: publicPartSelect, orderBy, skip: rankSearchResults ? 0 : (page - 1) * pageSize, take: rankSearchResults ? 300 : pageSize }), db.part.count({ where }), loadPublicPartFacets()])
-  const rankById = new Map(fuzzyPartIds.map((id, index) => [id, index]))
-  const records = rankSearchResults ? rawRecords.slice().sort((left, right) => (rankById.get(left.id) ?? Number.MAX_SAFE_INTEGER) - (rankById.get(right.id) ?? Number.MAX_SAFE_INTEGER)).slice((page - 1) * pageSize, page * pageSize) : rawRecords
+  const rankSearchResults = Boolean(search && fuzzyPartIds.length && page <= Math.ceil(fuzzyPartIds.length / pageSize))
+  const [total, facets] = await Promise.all([db.part.count({ where }), loadPublicPartFacets()])
+  let records: PublicPartListItem[]
+  if (rankSearchResults) {
+    // Keep relevance ranking in the database helper, but hydrate only the IDs
+    // needed for this page instead of materializing hundreds of full records.
+    const candidates = await db.part.findMany({ where: { ...where, id: { in: fuzzyPartIds } }, select: { id: true } })
+    const allowed = new Set(candidates.map((item) => item.id))
+    const pageIds = fuzzyPartIds.filter((id) => allowed.has(id)).slice((page - 1) * pageSize, page * pageSize)
+    const hydrated = pageIds.length ? await db.part.findMany({ where: { id: { in: pageIds }, blocked: false, store: { is: visibleStoreWhere } }, select: publicPartSelect }) : []
+    const byId = new Map(hydrated.map((item) => [item.id, item]))
+    records = pageIds.map((id) => byId.get(id)).filter((item): item is PublicPartListItem => Boolean(item))
+  } else {
+    records = await db.part.findMany({ where, select: publicPartSelect, orderBy, skip: (page - 1) * pageSize, take: pageSize })
+  }
   return { parts: records, pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) }, categories: facets.categories, brands: facets.brands, conditions: facets.conditions }
 }
 
-const loadDefaultPublicPartsList = unstable_cache(() => buildPublicPartsList({ sort: 'newest', page: 1 }), ['public-parts-default-v2'], { revalidate: 30 })
+const loadDefaultPublicPartsList = unstable_cache(() => buildPublicPartsList({ sort: 'newest', page: 1 }), ['public-parts-default-v3'], { revalidate: 30 })
 export async function getPublicPartsList(query: PublicPartsQuery): Promise<PublicPartsList> { return isDefaultPartsQuery(query) ? loadDefaultPublicPartsList() : buildPublicPartsList(query) }
 
 async function buildPublicStoresList(searchValue = '', pageValue = 1): Promise<PublicStoresList> {
@@ -77,13 +87,12 @@ async function buildPublicStoresList(searchValue = '', pageValue = 1): Promise<P
   const where: Prisma.StoreWhereInput = { ...listableStoreWhere, ...(search ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { description: { contains: search, mode: 'insensitive' } }, ...(fuzzyStoreIds.length ? [{ id: { in: fuzzyStoreIds } }] : [])] } : {}) }
   const [stores, total] = await Promise.all([db.store.findMany({ where, select: { id: true, name: true, description: true, address: true, phone: true, image: true, verified: true, _count: { select: { parts: { where: { blocked: false } }, orders: { where: { status: 'DELIVERED' } } } } }, orderBy: [{ verified: 'desc' }, { createdAt: 'desc' }], skip: (page - 1) * pageSize, take: pageSize }), db.store.count({ where })])
   const ids = stores.map((store) => store.id)
-  const [reviewRows, decidedGroups] = ids.length ? await Promise.all([db.storeReview.findMany({ where: { storeId: { in: ids }, blocked: false }, select: { storeId: true, rating: true, user: { select: { name: true } } } }), db.order.groupBy({ by: ['storeId'], where: { storeId: { in: ids }, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } }, _count: { _all: true } })]) : [[], []]
-  const reviewByStore = new Map<string, { total: number; count: number }>()
-  for (const review of reviewRows) { if (isDevelopmentReviewAuthor(review.user.name)) continue; const current = reviewByStore.get(review.storeId) || { total: 0, count: 0 }; current.total += review.rating; current.count += 1; reviewByStore.set(review.storeId, current) }
+  const [reviewGroups, decidedGroups] = ids.length ? await Promise.all([db.storeReview.groupBy({ by: ['storeId'], where: { storeId: { in: ids }, blocked: false }, _avg: { rating: true }, _count: { rating: true } }), db.order.groupBy({ by: ['storeId'], where: { storeId: { in: ids }, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } }, _count: { _all: true } })]) : [[], []]
+  const reviewByStore = new Map(reviewGroups.map((item) => [item.storeId, { avgRating: item._avg.rating || 0, reviewCount: item._count.rating }]))
   const decidedByStore = new Map(decidedGroups.map((item) => [item.storeId, item._count._all]))
-  return { stores: stores.map((store) => { const review = reviewByStore.get(store.id); const decided = decidedByStore.get(store.id) || 0; return { id: store.id, name: store.name, description: store.description, address: store.address, phone: store.phone, image: store.image, verified: store.verified, _count: { parts: store._count.parts }, avgRating: review?.count ? review.total / review.count : 0, reviewCount: review?.count || 0, completedOrderCount: store._count.orders, completionRate: decided ? Math.round(store._count.orders / decided * 100) : null } }), pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } }
+  return { stores: stores.map((store) => { const review = reviewByStore.get(store.id) || { avgRating: 0, reviewCount: 0 }; const decided = decidedByStore.get(store.id) || 0; return { id: store.id, name: store.name, description: store.description, address: store.address, phone: store.phone, image: store.image, verified: store.verified, _count: { parts: store._count.parts }, avgRating: review.avgRating, reviewCount: review.reviewCount, completedOrderCount: store._count.orders, completionRate: decided ? Math.round(store._count.orders / decided * 100) : null } }), pagination: { page, pageSize, total, totalPages: Math.max(1, Math.ceil(total / pageSize)) } }
 }
-const loadDefaultPublicStoresList = unstable_cache(() => buildPublicStoresList('', 1), ['public-stores-default-v2'], { revalidate: 30 })
+const loadDefaultPublicStoresList = unstable_cache(() => buildPublicStoresList('', 1), ['public-stores-default-v3'], { revalidate: 30 })
 export async function getPublicStoresList(searchValue = '', pageValue = 1): Promise<PublicStoresList> { return !clean(searchValue) && publicPage(pageValue) === 1 ? loadDefaultPublicStoresList() : buildPublicStoresList(searchValue, pageValue) }
 
 export type PublicPart = { id: string; name: string; description: string | null; price: number; stock: number; category: string | null; brand: string | null; condition: string | null; image: string | null; carModels: string | null; partNumber: string | null; oemNumber: string | null; universal: boolean; fitmentNotes: string | null; compatibilities: Array<{ id: string; make: string; model: string; generation: string | null; yearFrom: number | null; yearTo: number | null; engine: string | null; trim: string | null; notes: string | null }>; store: { id: string; name: string; address: string | null; phone: string | null; image: string | null; verified: boolean; isOwnedByViewer: boolean }; reviews: Array<{ id: string; rating: number; comment: string | null; createdAt: string; verifiedPurchase: boolean; user: { name: string; avatar: string | null } }>; images: Array<{ id: string; url: string; position: number }> }
@@ -97,15 +106,13 @@ export async function getPublicPart(partId: string, viewer: PublicViewer): Promi
   const qualifyingOrders = reviewOrderIds.length ? await db.order.findMany({ where: { id: { in: reviewOrderIds }, status: { in: ['DELIVERED', 'RETURNED'] }, OR: [{ partId }, { items: { some: { partId } } }] }, select: { id: true, buyerId: true } }) : []
   const qualifyingReviewKeys = new Set(qualifyingOrders.map((order) => `${order.buyerId}:${order.id}`))
   const { blocked: _blocked, store, reviews: storedReviews, ...part } = record; void _blocked
-  const reviews = storedReviews.filter((review) => !isDevelopmentReviewAuthor(review.user.name))
-  return { part: { ...part, store: { id: store.id, name: store.name, address: store.address, phone: store.phone, image: store.image, verified: store.verified, isOwnedByViewer: viewer?.id === store.ownerId }, reviews: reviews.map(({ orderId, userId, ...review }) => ({ ...review, verifiedPurchase: Boolean(orderId && qualifyingReviewKeys.has(`${userId}:${orderId}`)), createdAt: review.createdAt.toISOString() })) }, canReview }
+  return { part: { ...part, store: { id: store.id, name: store.name, address: store.address, phone: store.phone, image: store.image, verified: store.verified, isOwnedByViewer: viewer?.id === store.ownerId }, reviews: storedReviews.map(({ orderId, userId, ...review }) => ({ ...review, verifiedPurchase: Boolean(orderId && qualifyingReviewKeys.has(`${userId}:${orderId}`)), createdAt: review.createdAt.toISOString() })) }, canReview }
 }
 
 export async function getPublicStore(storeId: string, viewer: PublicViewer): Promise<{ store: PublicStore | null; canReview: boolean }> {
   const record = await db.store.findUnique({ where: { id: storeId }, select: { id: true, name: true, description: true, address: true, phone: true, image: true, verified: true, moderationStatus: true, createdAt: true, parts: { where: { blocked: false }, orderBy: { createdAt: 'desc' }, select: { id: true, name: true, price: true, stock: true, category: true, brand: true, image: true }, take: 24 }, reviews: { where: { blocked: false }, select: { id: true, rating: true, comment: true, createdAt: true, user: { select: { name: true, avatar: true } } }, orderBy: { createdAt: 'desc' }, take: 20 } } })
   if (!record || record.moderationStatus !== 'ACTIVE') return { store: null, canReview: false }
-  const [partCount, reviewRows, completedOrderCount, decidedOrderCount, canReview] = await Promise.all([db.part.count({ where: { storeId, blocked: false } }), db.storeReview.findMany({ where: { storeId, blocked: false }, select: { rating: true, user: { select: { name: true } } } }), db.order.count({ where: { storeId, status: 'DELIVERED' } }), db.order.count({ where: { storeId, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } } }), viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role) ? db.order.findFirst({ where: { buyerId: viewer.id, storeId, status: { in: ['DELIVERED', 'RETURNED'] } }, select: { id: true } }).then(Boolean) : false])
-  const publicReviews = reviewRows.filter((review) => !isDevelopmentReviewAuthor(review.user.name)); const reviewTotal = publicReviews.reduce((sum, review) => sum + review.rating, 0)
+  const [partCount, rating, completedOrderCount, decidedOrderCount, canReview] = await Promise.all([db.part.count({ where: { storeId, blocked: false } }), db.storeReview.aggregate({ where: { storeId, blocked: false }, _avg: { rating: true }, _count: { rating: true } }), db.order.count({ where: { storeId, status: 'DELIVERED' } }), db.order.count({ where: { storeId, status: { in: ['DELIVERED', 'RETURNED', 'REJECTED', 'CANCELLED'] } } }), viewer && ['BUYER', 'SHOP_OWNER'].includes(viewer.role) ? db.order.findFirst({ where: { buyerId: viewer.id, storeId, status: { in: ['DELIVERED', 'RETURNED'] } }, select: { id: true } }).then(Boolean) : false])
   const { moderationStatus: _moderationStatus, ...publicRecord } = record; void _moderationStatus
-  return { store: { ...publicRecord, createdAt: record.createdAt.toISOString(), reviews: record.reviews.filter((review) => !isDevelopmentReviewAuthor(review.user.name)).map((review) => ({ ...review, createdAt: review.createdAt.toISOString() })), partCount, avgRating: publicReviews.length ? reviewTotal / publicReviews.length : 0, reviewCount: publicReviews.length, completedOrderCount, completionRate: decidedOrderCount ? Math.round(completedOrderCount / decidedOrderCount * 100) : null }, canReview }
+  return { store: { ...publicRecord, createdAt: record.createdAt.toISOString(), reviews: record.reviews.map((review) => ({ ...review, createdAt: review.createdAt.toISOString() })), partCount, avgRating: rating._avg.rating || 0, reviewCount: rating._count.rating, completedOrderCount, completionRate: decidedOrderCount ? Math.round(completedOrderCount / decidedOrderCount * 100) : null }, canReview }
 }
