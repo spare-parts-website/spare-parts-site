@@ -8,7 +8,7 @@ test('buyer and seller order screens consume cursor list/detail APIs', () => {
   const buyer = read('src/components/views/orders-view.tsx')
   const seller = read('src/components/views/seller-orders-view.tsx')
   for (const source of [buyer, seller]) {
-    assert.match(source, /\/api\/orders\/list\?/) 
+    assert.match(source, /\/api\/orders\/list\?/)
     assert.match(source, /\/api\/orders\/detail\?id=/)
     assert.match(source, /nextCursor/)
     assert.match(source, /تحميل المزيد/)
