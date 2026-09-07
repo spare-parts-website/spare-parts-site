@@ -41,6 +41,19 @@ test('public fuzzy search hydrates one page instead of hundreds of full products
   assert.doesNotMatch(marketplace, /isDevelopmentReviewAuthor/)
 })
 
+test('filtered parts deep links are rendered from URL search params on the server', () => {
+  const page = read('src/app/parts/page.tsx')
+  assert.match(page, /searchParams:\s*Promise/)
+  assert.match(page, /const params = await searchParams/)
+  assert.match(page, /search:\s*first\(params\.search\)/)
+  assert.match(page, /category:\s*first\(params\.category\)/)
+  assert.match(page, /brand:\s*first\(params\.brand\)/)
+  assert.match(page, /condition:\s*first\(params\.condition\)/)
+  assert.match(page, /page:\s*boundedPage\(first\(params\.page\)\)/)
+  assert.match(page, /getPublicPartsList\(initialQuery\)/)
+  assert.match(page, /<PartsView initialData=\{initialData\} initialQuery=\{initialQuery\}/)
+})
+
 test('seller analytics remains aggregate-only', () => {
   const analytics = read('src/app/api/shop/analytics/route.ts')
   assert.match(analytics, /order\.aggregate/)
