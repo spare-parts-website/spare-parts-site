@@ -47,7 +47,8 @@ test('loads private dashboard data on demand instead of fanning out after login'
   assert.match(analytics, /analyticsCache/)
   assert.match(coupons, /couponCache/)
   assert.match(messages, /messageCache/)
-  assert.match(support, /warmSupportTickets/)
+  assert.match(support, /api\/support\/tickets/)
+  assert.doesNotMatch(support, /warmSupportTickets/)
 })
 
 test('keeps the current page visible instead of showing a route-wide loading screen', () => {

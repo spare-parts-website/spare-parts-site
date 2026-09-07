@@ -47,7 +47,7 @@ test('support ticket creation has one durable admin notification delivery path',
   const outbox = read('src/lib/email-outbox.ts')
 
   assert.match(route, /createNotification/)
-  assert.match(route, /dedupeKey: `support-ticket\/\$\{ticket\.id\}\/\$\{admin\.id\}`/)
+  assert.match(route, /dedupeKey:\s*`support-ticket\/\$\{result\.ticket\.id\}\/\$\{admin\.id\}`/)
   assert.doesNotMatch(route, /sendSupportTicketEmail/)
   assert.match(notifications, /shouldSendNonessentialEmail\(recipient\.emailDeliveryStatus\)/)
   assert.match(notifications, /queueEmailOutbox/)
@@ -84,7 +84,7 @@ test('strict CSP remains nonce-based on all HTML while cacheable JSON avoids non
   assert.match(proxy, /frame-ancestors 'none'/)
   assert.doesNotMatch(proxy, /STATIC_PUBLIC_PATHS/)
   assert.doesNotMatch(proxy, /script-src[^\n]*unsafe-inline/)
-  assert.match(config, /sri:\s*\{\s*algorithm: 'sha256'/)
+  assert.match(config, /sri:\s*\{\s*algorithm:\s*'sha256'/)
   assert.doesNotMatch(config, /publicStaticCsp/)
   assert.doesNotMatch(config, /Content-Security-Policy/)
   assert.match(config, /X-Frame-Options/)
