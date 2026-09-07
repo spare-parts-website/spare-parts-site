@@ -23,13 +23,18 @@ test('delivery status handling is idempotent and does not regress terminal event
   assert.equal(shouldApplyDeliveryStatus('DELIVERED', 'COMPLAINED'), true)
 })
 
-test('Resend webhook verifies Standard Webhooks signatures before database access', () => {
+test('Resend webhook verifies signatures before durable event persistence and reconciliation', () => {
   const route = readFileSync(new URL('../src/app/api/webhooks/resend/route.ts', import.meta.url), 'utf8')
   assert.match(route, /RESEND_WEBHOOK_SECRET/)
   assert.match(route, /resend\.webhooks\.verify/)
   assert.match(route, /svix-signature/)
-  assert.match(route, /emailDeliveryAttempt\.findFirst/)
-  assert.match(route, /recipientUserId/)
-  assert.match(route, /lastEventId/)
+  assert.match(route, /persistAndReconcileWebhookEvent\(webhookId, event\)/)
+  assert.match(route, /queued: true/)
+  assert.match(route, /status: 202/)
+  assert.doesNotMatch(route, /emailDeliveryAttempt\.findFirst/)
   assert.doesNotMatch(route, /console\.log\(payload/)
+
+  const verifyAt = route.indexOf('resend.webhooks.verify')
+  const persistAt = route.indexOf('persistAndReconcileWebhookEvent(webhookId, event)')
+  assert.ok(verifyAt >= 0 && persistAt > verifyAt, 'verified webhook data must be persisted only after signature verification')
 })

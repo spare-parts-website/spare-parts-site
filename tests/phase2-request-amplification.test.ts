@@ -42,7 +42,7 @@ test('notification bell polls one tiny count endpoint and shares it across tabs'
 test('session lookup is request-memoized without cross-request identity caching', () => {
   const auth = read('src/lib/auth.ts')
   assert.match(auth, /import \{ cache \} from 'react'/)
-  assert.match(auth, /const loadSession = cache\(async/)
+  assert.match(auth, /const loadSession\s*=\s*cache\(async/)
   assert.match(auth, /return loadSession\(\)/)
   assert.doesNotMatch(auth, /unstable_cache/)
   assert.match(auth, /sessionVersion/)
