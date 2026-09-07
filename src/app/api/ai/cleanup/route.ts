@@ -4,13 +4,14 @@ import { purgeExpiredAIData } from '@/lib/ai/history'
 import { cleanupEmailQueueHistory, processEmailOutboxBatch } from '@/lib/email-outbox'
 import { runSyntheticProviderHealth } from '@/lib/ai/synthetic-health'
 import { notifyOperationalAlert } from '@/lib/operational-alerts'
+import { processObjectLifecycle } from '@/lib/storage'
 import { secretsMatch } from '@/lib/security'
 
 export async function GET(request: Request) {
   const secret = process.env.CRON_SECRET
   if (!secret || !secretsMatch(request.headers.get('authorization'), `Bearer ${secret}`)) return new NextResponse(null, { status: 404 })
 
-  const [ai, email, rateBuckets, loginChallenges, passwordResets, adminChallenges, emailChanges] = await Promise.all([
+  const [ai, email, rateBuckets, loginChallenges, passwordResets, adminChallenges, emailChanges, protectedObjects] = await Promise.all([
     purgeExpiredAIData({ global: true }),
     processEmailOutboxBatch(100),
     db.rateLimitBucket.deleteMany({ where: { resetAt: { lt: new Date(Date.now() - 24 * 60 * 60_000) } } }),
@@ -18,6 +19,7 @@ export async function GET(request: Request) {
     db.passwordReset.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 24 * 60 * 60_000) } } }),
     db.adminMfaChallenge.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 24 * 60 * 60_000) } } }),
     db.emailChangeRequest.deleteMany({ where: { expiresAt: { lt: new Date(Date.now() - 24 * 60 * 60_000) } } }),
+    processObjectLifecycle(),
   ])
   const emailHistory = await cleanupEmailQueueHistory()
   const providerHealth = await runSyntheticProviderHealth()
@@ -36,6 +38,7 @@ export async function GET(request: Request) {
       passwordResets: passwordResets.count,
       adminChallenges: adminChallenges.count,
       emailChanges: emailChanges.count,
+      protectedObjects,
       emailHistory,
     },
   }, { headers: { 'Cache-Control': 'no-store, max-age=0' } })
