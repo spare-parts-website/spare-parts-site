@@ -72,7 +72,7 @@ test('public marketplace details advertise shared caching while viewer overlays 
   assert.match(breadcrumbs, /BreadcrumbList/)
 })
 
-test('support inbox exposes admin filters without a route-wide loading takeover', () => {
+test('support inbox exposes admin filters without periodic request amplification', () => {
   const view = read('src/components/views/support-view.tsx')
   const input = read('src/components/ui/input.tsx')
   const textarea = read('src/components/ui/textarea.tsx')
@@ -80,16 +80,18 @@ test('support inbox exposes admin filters without a route-wide loading takeover'
   assert.match(view, /كل التصنيفات/)
   assert.match(view, /ابحث برقم التذكرة/)
   assert.match(view, /WAITING_FOR_SUPPORT/)
-  assert.match(view, /SUPPORT_REFRESH_INTERVAL/)
-  assert.match(view, /window\.setInterval\(refresh, SUPPORT_REFRESH_INTERVAL\)/)
-  assert.match(view, /visibilitychange/)
+  assert.match(view, /window\.addEventListener\('focus', refresh\)/)
+  assert.match(view, /document\.addEventListener\('visibilitychange', refresh\)/)
+  assert.match(view, /document\.visibilityState === 'visible'/)
+  assert.doesNotMatch(view, /SUPPORT_REFRESH_INTERVAL/)
+  assert.doesNotMatch(view, /setInterval\(/)
   assert.doesNotMatch(view, /LifeBuoy/)
   assert.match(input, /dir="auto"/)
   assert.match(textarea, /dir="auto"/)
   assert.equal(existsSync(new URL('../src/app/loading.tsx', import.meta.url)), false)
 })
 
-test('latest approved logo is wired to favicon, app chrome, and service worker', () => {
+test('latest approved logo is wired to favicon, app chrome, compatibility alias, and service worker', () => {
   const layout = read('src/app/layout.tsx')
   const header = read('src/components/header.tsx')
   const config = read('next.config.ts')
@@ -97,6 +99,6 @@ test('latest approved logo is wired to favicon, app chrome, and service worker',
   assert.match(layout, /icon: "\/ghyar-market-logo\.png"/)
   assert.match(layout, /alternates: \{ canonical: '\/' \}/)
   assert.match(header, /src="\/ghyar-market-logo\.png"/)
-  assert.match(config, /destination: '\/ghyar-market-logo\.png'/)
+  assert.match(config, /source:\s*'\/ghyar-market-logo\.png'\s*,\s*destination:\s*'\/ghyar-market-logo\.svg'/)
   assert.match(worker, /\/ghyar-market-logo\.png/)
 })
