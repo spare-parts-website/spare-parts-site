@@ -1,3 +1,5 @@
+import { fromMinorUnits, multiplyMinor, percentDiscountMinor, toMinorUnits } from './money.ts'
+
 export const ORDER_STATUSES = ['PENDING', 'APPROVED', 'REJECTED', 'PAID', 'SHIPPED', 'DELIVERED', 'RETURNED', 'CANCELLED'] as const
 export const PAYMENT_STATUSES = ['UNPAID', 'PAID', 'REFUNDED'] as const
 export const ORDER_ACTIONS = ['approve', 'reject', 'pay', 'ship', 'deliver', 'return', 'cancel'] as const
@@ -60,7 +62,13 @@ export function resolveOrderTransition(input: {
 export function calculateOrderLine(price: number, quantity: number, discountPercent = 0) {
   if (!Number.isFinite(price) || price < 0 || !Number.isInteger(quantity) || quantity < 1) throw new Error('INVALID_LINE')
   const safePercent = Number.isFinite(discountPercent) ? Math.min(100, Math.max(0, discountPercent)) : 0
-  const subtotal = price * quantity
-  const discount = Math.round(subtotal * safePercent) / 100
-  return { subtotal, discount, total: Math.max(0, subtotal - discount) }
+  const unitMinor = toMinorUnits(price)
+  const subtotalMinor = multiplyMinor(unitMinor, quantity)
+  const discountMinor = percentDiscountMinor(subtotalMinor, safePercent)
+  const totalMinor = subtotalMinor > discountMinor ? subtotalMinor - discountMinor : 0n
+  return {
+    subtotal: fromMinorUnits(subtotalMinor),
+    discount: fromMinorUnits(discountMinor),
+    total: fromMinorUnits(totalMinor),
+  }
 }

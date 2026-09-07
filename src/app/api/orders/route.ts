@@ -49,7 +49,7 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
     }
 
     const parts = await tx.part.findMany({
-      where: { id: { in: items.map((item) => item.partId) }, blocked: false },
+      where: { id: { in: items.map((item) => item.partId) }, moderationStatus: 'ACTIVE' },
       include: { store: true },
     })
     if (parts.length !== items.length) throw new Error('PART_UNAVAILABLE')
@@ -77,7 +77,7 @@ async function createCartOrders(session: Awaited<ReturnType<typeof requireAuth>>
     for (const item of items) {
       const part = partById.get(item.partId)!
       const reserved = await tx.part.updateMany({
-        where: { id: part.id, blocked: false, stock: { gte: item.quantity } },
+        where: { id: part.id, moderationStatus: 'ACTIVE', stock: { gte: item.quantity } },
         data: { stock: { decrement: item.quantity } },
       })
       if (reserved.count !== 1) throw new Error('OUT_OF_STOCK')
@@ -282,7 +282,7 @@ export async function POST(req: NextRequest) {
       where: { id: partId },
       include: { store: true },
     })
-    if (!part || part.blocked) {
+    if (!part || part.moderationStatus !== 'ACTIVE') {
       return NextResponse.json({ error: 'قطعة الغيار غير متوفرة' }, { status: 404 })
     }
     if (session.role === 'SHOP_OWNER' && part.store.ownerId === session.id) {
@@ -305,7 +305,7 @@ export async function POST(req: NextRequest) {
 
       // Reserve stock at checkout so concurrent buyers cannot oversell it.
       const reserved = await tx.part.updateMany({
-        where: { id: part.id, blocked: false, stock: { gte: qty } },
+        where: { id: part.id, moderationStatus: 'ACTIVE', stock: { gte: qty } },
         data: { stock: { decrement: qty } },
       })
       if (reserved.count !== 1) throw new Error('OUT_OF_STOCK')

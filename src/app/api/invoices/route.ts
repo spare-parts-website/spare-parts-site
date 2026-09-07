@@ -11,13 +11,22 @@ function escapeHtml(value: string) {
     .replace(/'/g, '&#039;')
 }
 
-// GET /api/invoices?id=orderId - returns HTML invoice for printing
+const INVOICE_SECURITY_HEADERS = {
+  'Content-Type': 'text/html; charset=utf-8',
+  'Cache-Control': 'private, no-store, max-age=0, must-revalidate',
+  'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; script-src 'none'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'",
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Referrer-Policy': 'no-referrer',
+} as const
+
+// GET /api/invoices?id=orderId - returns private HTML invoice for printing
 export async function GET(req: NextRequest) {
   try {
     const session = await requireAuth()
     const { searchParams } = new URL(req.url)
     const orderId = searchParams.get('id')
-    if (!orderId) return new Response('Order ID required', { status: 400 })
+    if (!orderId) return new Response('Order ID required', { status: 400, headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
 
     const order = await db.order.findUnique({
       where: { id: orderId },
@@ -30,13 +39,13 @@ export async function GET(req: NextRequest) {
       },
     })
 
-    if (!order) return new Response('Order not found', { status: 404 })
+    if (!order) return new Response('Order not found', { status: 404, headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
 
     const isBuyer = order.buyerId === session.id
     const isOwner = session.role === 'SHOP_OWNER' && order.store.ownerId === session.id
     const isAdmin = session.role === 'ADMIN'
     if (!isBuyer && !isOwner && !isAdmin) {
-      return new Response('Unauthorized', { status: 403 })
+      return new Response('Unauthorized', { status: 403, headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
     }
 
     const items = order.items.length ? order.items : [{
@@ -65,6 +74,7 @@ export async function GET(req: NextRequest) {
 <html dir="rtl" lang="ar">
 <head>
 <meta charset="utf-8">
+<meta name="referrer" content="no-referrer">
 <title>فاتورة ${invoiceNumber}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -88,9 +98,8 @@ export async function GET(req: NextRequest) {
   .totals .total { border-top: 2px solid #0d9488; padding-top: 12px; margin-top: 8px; font-size: 22px; font-weight: bold; color: #0d9488; }
   .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; background: #d1fae5; color: #065f46; }
   .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #eee; text-align: center; color: #999; font-size: 12px; }
-  .print-btn { display: block; margin: 20px auto; padding: 12px 32px; background: #0d9488; color: white; border: none; border-radius: 8px; font-size: 16px; cursor: pointer; }
-  .print-btn:hover { background: #0f766e; }
-  @media print { body { background: white; padding: 0; } .invoice { box-shadow: none; padding: 20px; } .print-btn { display: none; } }
+  .print-hint { margin-top: 20px; text-align: center; color: #666; font-size: 13px; }
+  @media print { body { background: white; padding: 0; } .invoice { box-shadow: none; padding: 20px; } .print-hint { display: none; } }
 </style>
 </head>
 <body>
@@ -156,18 +165,15 @@ export async function GET(req: NextRequest) {
       <p>شكراً لتعاملكم معنا</p>
       <p>هذه الفاتورة مولدة إلكترونياً من منصة غيار ماركت</p>
     </div>
-
-    <button class="print-btn" onclick="window.print()">طباعة / حفظ PDF</button>
+    <p class="print-hint">للطباعة أو الحفظ كملف PDF استخدم أمر الطباعة من المتصفح.</p>
   </div>
 </body>
 </html>`
 
-    return new Response(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
-    })
+    return new Response(html, { headers: INVOICE_SECURITY_HEADERS })
   } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED') return new Response('Unauthorized', { status: 401 })
+    if (e.message === 'UNAUTHORIZED') return new Response('Unauthorized', { status: 401, headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
     console.error(e)
-    return new Response('Server error', { status: 500 })
+    return new Response('Server error', { status: 500, headers: { 'Cache-Control': 'private, no-store, max-age=0' } })
   }
 }

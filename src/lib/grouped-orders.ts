@@ -1,4 +1,5 @@
 import { calculateOrderLine } from './order-state.ts'
+import { addMinor, fromMinorUnits, toMinorUnits } from './money.ts'
 
 export type CheckoutPartSnapshot = {
   partId: string
@@ -49,18 +50,19 @@ export function buildGroupedOrderDrafts(
       return { ...line, discount: pricing.discount, itemTotal: pricing.total }
     })
     const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
-    const discount = items.reduce((sum, item) => sum + item.discount, 0)
-    const itemsTotal = items.reduce((sum, item) => sum + item.itemTotal, 0)
+    const discountMinor = addMinor(...items.map((item) => toMinorUnits(item.discount)))
+    const itemsTotalMinor = addMinor(...items.map((item) => toMinorUnits(item.itemTotal)))
+    const shippingFeeMinor = toMinorUnits(shippingFee)
     return {
       storeId,
       ownerId: items[0].ownerId,
       storeName: items[0].storeName,
       couponCode: appliesCoupon?.code || null,
-      shippingFee,
+      shippingFee: fromMinorUnits(shippingFeeMinor),
       totalQuantity,
-      discount,
-      itemsTotal,
-      totalPrice: itemsTotal + shippingFee,
+      discount: fromMinorUnits(discountMinor),
+      itemsTotal: fromMinorUnits(itemsTotalMinor),
+      totalPrice: fromMinorUnits(addMinor(itemsTotalMinor, shippingFeeMinor)),
       items,
     }
   })

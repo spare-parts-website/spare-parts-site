@@ -1,37 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest,NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { db } from '@/lib/db'
-import { canAccessPrivateImage } from '@/lib/private-image-access'
-
-const BUCKET = 'protected-uploads'
-const SAFE_PATH = /^[A-Za-z0-9._-]{20,220}$/
-
-export async function GET(req: NextRequest) {
-  try {
-    const session = await requireAuth(); const path = new URL(req.url).searchParams.get('path') || ''
-    if (!SAFE_PATH.test(path)) return new NextResponse(null, { status: 404 })
-    const privateUrl = `/api/private-image?path=${encodeURIComponent(path)}`
-    // A filename is only an opaque lookup key. Authorization is derived from
-    // the database resource that references it, so recipients can access
-    // shared attachments without relying on the uploader id in the filename.
-    const [chat, productMessage, dispute, verification, aiMessage] = await Promise.all([
-      db.chatMessage.findFirst({ where: { imageUrl: { contains: privateUrl } }, select: { senderId: true, receiverId: true } }),
-      db.productMessage.findFirst({ where: { imageUrl: { contains: privateUrl } }, select: { senderId: true, receiverId: true } }),
-      db.dispute.findFirst({ where: { evidenceUrls: { contains: privateUrl } }, select: { buyerId: true, store: { select: { ownerId: true } } } }),
-      db.sellerVerification.findFirst({ where: { documentUrls: { contains: privateUrl } }, select: { store: { select: { ownerId: true } } } }),
-      db.aIMessage.findFirst({ where: { content: { contains: privateUrl } }, select: { conversation: { select: { userId: true } } } }),
-    ])
-    const participantIds = new Set<string>()
-    if (chat) { participantIds.add(chat.senderId); participantIds.add(chat.receiverId) }
-    if (productMessage) { participantIds.add(productMessage.senderId); participantIds.add(productMessage.receiverId) }
-    if (dispute) { participantIds.add(dispute.buyerId); participantIds.add(dispute.store.ownerId) }
-    if (verification) participantIds.add(verification.store.ownerId)
-    if (aiMessage) participantIds.add(aiMessage.conversation.userId)
-    if (!canAccessPrivateImage(session, participantIds.size ? { participantIds } : null)) return new NextResponse(null, { status: 404 })
-    const base = process.env.SUPABASE_URL?.replace(/\/$/, ''); const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-    if (!base || !key) return new NextResponse(null, { status: 503 })
-    const response = await fetch(`${base}/storage/v1/object/${BUCKET}/${path}`, { headers: { Authorization: `Bearer ${key}`, apikey: key }, cache: 'no-store' })
-    if (!response.ok) return new NextResponse(null, { status: 404 })
-    return new NextResponse(response.body, { headers: { 'Content-Type': response.headers.get('content-type') || 'image/webp', 'Cache-Control': 'private, max-age=300' } })
-  } catch { return new NextResponse(null, { status: 404 }) }
-}
+import { attachLegacyProtectedObject,lookupProtectedObject } from '@/lib/protected-object'
+const BUCKET='protected-uploads';const SAFE_PATH=/^[A-Za-z0-9._-]{20,220}$/
+async function resourceAllowed(session:{id:string;role:string},object:Awaited<ReturnType<typeof lookupProtectedObject>>){if(!object)return false;if(session.role==='ADMIN'||object.ownerId===session.id)return true;if(object.status!=='ATTACHED'||!object.resourceType||!object.resourceId)return false;if(object.resourceType==='chat-order'){const row=await db.chatMessage.findUnique({where:{id:object.resourceId},select:{senderId:true,receiverId:true}});return !!row&&(row.senderId===session.id||row.receiverId===session.id)}if(object.resourceType==='chat-product'){const row=await db.productMessage.findUnique({where:{id:object.resourceId},select:{senderId:true,receiverId:true}});return !!row&&(row.senderId===session.id||row.receiverId===session.id)}if(object.resourceType==='dispute'){const row=await db.dispute.findUnique({where:{id:object.resourceId},select:{buyerId:true,store:{select:{ownerId:true}}}});return !!row&&(row.buyerId===session.id||row.store.ownerId===session.id)}if(object.resourceType==='verification'){const row=await db.sellerVerification.findUnique({where:{id:object.resourceId},select:{store:{select:{ownerId:true}}}});return !!row&&row.store.ownerId===session.id}if(object.resourceType==='ai'){const row=await db.aIMessage.findUnique({where:{id:object.resourceId},select:{conversation:{select:{userId:true}}}});return !!row&&row.conversation.userId===session.id}return false}
+async function legacyLookup(path:string,session:{id:string;role:string}){const privateUrl=`/api/private-image?path=${encodeURIComponent(path)}`;if(path.startsWith('chat-')){const chat=await db.chatMessage.findFirst({where:{imageUrl:{contains:privateUrl}},select:{id:true,senderId:true,receiverId:true}});if(chat){if(chat.senderId===session.id||chat.receiverId===session.id||session.role==='ADMIN'){await attachLegacyProtectedObject(path,{ownerId:chat.senderId,purpose:'chat',resourceType:'chat-order',resourceId:chat.id}).catch(()=>undefined);return true}}const product=await db.productMessage.findFirst({where:{imageUrl:{contains:privateUrl}},select:{id:true,senderId:true,receiverId:true}});if(product&&((product.senderId===session.id||product.receiverId===session.id)||session.role==='ADMIN')){await attachLegacyProtectedObject(path,{ownerId:product.senderId,purpose:'chat',resourceType:'chat-product',resourceId:product.id}).catch(()=>undefined);return true}}else if(path.startsWith('evidence-')){const dispute=await db.dispute.findFirst({where:{evidenceUrls:{contains:privateUrl}},select:{id:true,buyerId:true,store:{select:{ownerId:true}}}});if(dispute&&(session.role==='ADMIN'||dispute.buyerId===session.id||dispute.store.ownerId===session.id)){await attachLegacyProtectedObject(path,{ownerId:dispute.buyerId,purpose:'evidence',resourceType:'dispute',resourceId:dispute.id}).catch(()=>undefined);return true}}else if(path.startsWith('verification-')){const verification=await db.sellerVerification.findFirst({where:{documentUrls:{contains:privateUrl}},select:{id:true,store:{select:{ownerId:true}}}});if(verification&&(session.role==='ADMIN'||verification.store.ownerId===session.id)){await attachLegacyProtectedObject(path,{ownerId:verification.store.ownerId,purpose:'verification',resourceType:'verification',resourceId:verification.id}).catch(()=>undefined);return true}}return false}
+async function signedUrl(base:string,key:string,path:string){const response=await fetch(`${base}/storage/v1/object/sign/${BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`,{method:'POST',headers:{Authorization:`Bearer ${key}`,apikey:key,'Content-Type':'application/json'},body:JSON.stringify({expiresIn:60}),cache:'no-store'});if(!response.ok)return null;const data=await response.json() as {signedURL?:string;signedUrl?:string};const signed=data.signedURL||data.signedUrl;return signed?new URL(signed,base).toString():null}
+export async function GET(req:NextRequest){try{const session=await requireAuth();const path=new URL(req.url).searchParams.get('path')||'';if(!SAFE_PATH.test(path))return new NextResponse(null,{status:404});const object=await lookupProtectedObject(path);let allowed=await resourceAllowed(session,object);if(!allowed&&(!object||object.status==='TEMPORARY'))allowed=await legacyLookup(path,session);if(!allowed)return new NextResponse(null,{status:404});const base=process.env.SUPABASE_URL?.replace(/\/$/,'');const key=process.env.SUPABASE_SERVICE_ROLE_KEY;if(!base||!key)return new NextResponse(null,{status:503});const signed=await signedUrl(base,key,path);if(signed)return NextResponse.redirect(signed,{status:307,headers:{'Cache-Control':'private, no-store','Referrer-Policy':'no-referrer'}});const response=await fetch(`${base}/storage/v1/object/${BUCKET}/${path}`,{headers:{Authorization:`Bearer ${key}`,apikey:key},cache:'no-store'});if(!response.ok)return new NextResponse(null,{status:404});return new NextResponse(response.body,{headers:{'Content-Type':response.headers.get('content-type')||'image/webp','Cache-Control':'private, max-age=60','Referrer-Policy':'no-referrer'}})}catch{return new NextResponse(null,{status:404})}}

@@ -1,18 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSession, requireRole } from '@/lib/auth'
+import { getSession, requireAdminStepUp, requireRole } from '@/lib/auth'
 import { deletePartWithDependencies } from '@/lib/admin-deletion'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { deleteUploadedFiles } from '@/lib/storage'
-import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
+import { parseVehicleCompatibility } from '@/lib/vehicle-compatibility'
 import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '@/lib/marketplace-taxonomy'
 import { audit } from '@/lib/audit'
 import { getPublicPart, getPublicPartsList } from '@/lib/public-marketplace'
-
-const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
+import { isPublicUploadUrl } from '@/lib/storage-url'
 
 function validGallery(value: unknown) {
-  return Array.isArray(value) && value.length <= 4 && new Set(value).size === value.length && value.every((url) => typeof url === 'string' && UPLOAD_URL.test(url))
+  return Array.isArray(value) && value.length <= 4 && new Set(value).size === value.length && value.every(isPublicUploadUrl)
 }
 
 export async function GET(req: NextRequest) {
@@ -94,7 +93,7 @@ export async function POST(req: NextRequest) {
     }
     if (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
-    if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
+    if (image !== undefined && image !== null && !isPublicUploadUrl(image)) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
     if (universal !== undefined && typeof universal !== 'boolean') return NextResponse.json({ error: 'نوع التوافق غير صالح' }, { status: 400 })
     if (fitmentNotes !== undefined && typeof fitmentNotes !== 'string') return NextResponse.json({ error: 'ملاحظات التوافق غير صالحة' }, { status: 400 })
 
@@ -106,7 +105,6 @@ export async function POST(req: NextRequest) {
     const gallery = Array.isArray(images) ? images : image ? [image] : []
     const compatibilitySource = compatibilityEntries !== undefined ? compatibilityEntries : carModels
     const compatibilities = universal ? [] : parseVehicleCompatibility(compatibilitySource)
-    const legacyCarModels = universal ? null : serializeLegacyCompatibility(compatibilitySource)
     const part = await db.part.create({
       data: {
         name: name.trim(),
@@ -122,7 +120,6 @@ export async function POST(req: NextRequest) {
         universal: Boolean(universal),
         fitmentNotes: typeof fitmentNotes === 'string' ? fitmentNotes.trim().slice(0, 1000) || null : null,
         image: gallery[0] || null,
-        carModels: legacyCarModels,
         storeId: store.id,
         images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
         compatibilities: compatibilities.length ? { create: compatibilities } : undefined,
@@ -161,22 +158,21 @@ export async function PUT(req: NextRequest) {
     if (numericStock !== undefined && (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000)) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
     if (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
-    if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
+    if (image !== undefined && image !== null && !isPublicUploadUrl(image)) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
     if (universal !== undefined && typeof universal !== 'boolean') return NextResponse.json({ error: 'نوع التوافق غير صالح' }, { status: 400 })
     if (fitmentNotes !== undefined && typeof fitmentNotes !== 'string') return NextResponse.json({ error: 'ملاحظات التوافق غير صالحة' }, { status: 400 })
 
-    // Only shop owner of this part's store OR admin can edit
     const isOwner = session.role === 'SHOP_OWNER' && part.store.ownerId === session.id
     const isAdmin = session.role === 'ADMIN'
     if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
+    if (isAdmin) await requireAdminStepUp()
 
     const gallery = Array.isArray(images) ? images : undefined
     const compatibilitySource = compatibilityEntries !== undefined ? compatibilityEntries : carModels
     const replaceCompatibilities = compatibilityEntries !== undefined || carModels !== undefined || universal === true
     const compatibilities = replaceCompatibilities ? (universal ? [] : parseVehicleCompatibility(compatibilitySource)) : null
-    const legacyCarModels = replaceCompatibilities ? (universal ? null : serializeLegacyCompatibility(compatibilitySource)) : undefined
     const updated = await db.$transaction(async (tx) => {
       if (gallery) await tx.partImage.deleteMany({ where: { partId: id } })
       if (compatibilities) await tx.vehicleCompatibility.deleteMany({ where: { partId: id } })
@@ -196,7 +192,6 @@ export async function PUT(req: NextRequest) {
           universal: typeof universal === 'boolean' ? universal : undefined,
           fitmentNotes: fitmentNotes !== undefined ? fitmentNotes.trim().slice(0, 1000) || null : undefined,
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,
-          carModels: legacyCarModels,
           images: gallery && gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined,
           compatibilities: compatibilities?.length ? { create: compatibilities } : undefined,
         },
@@ -213,6 +208,9 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json({ part: updated })
   } catch (e) {
+    const message = e instanceof Error ? e.message : ''
+    if (message === 'STEP_UP_REQUIRED') return NextResponse.json({ error: 'يلزم تأكيد هوية المدير قبل تعديل قطعة.', stepUpUrl: '/admin/security' }, { status: 428 })
+    if (message === 'UNAUTHORIZED' || message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     console.error(e)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
@@ -241,6 +239,7 @@ export async function DELETE(req: NextRequest) {
     if (!isOwner && !isAdmin) {
       return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     }
+    if (isAdmin) await requireAdminStepUp()
 
     const media = await db.part.findUnique({ where: { id }, select: { image: true, images: { select: { url: true } } } })
     await db.$transaction((tx) => deletePartWithDependencies(tx, id))
@@ -249,6 +248,8 @@ export async function DELETE(req: NextRequest) {
 
     return NextResponse.json({ ok: true })
   } catch (e: any) {
+    if (e.message === 'STEP_UP_REQUIRED') return NextResponse.json({ error: 'يلزم تأكيد هوية المدير قبل حذف قطعة.', stepUpUrl: '/admin/security' }, { status: 428 })
+    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
     if (e.message === 'PART_HAS_ORDERS') {
       return NextResponse.json({ error: 'لا يمكن حذف قطعة مرتبطة بطلبات. احفظ سجل الطلبات أولاً.' }, { status: 409 })
     }

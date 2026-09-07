@@ -1,51 +1,22 @@
 export type SellerCoreTab = 'parts' | 'orders' | 'store'
 
-type SellerCacheEntry = {
-  fetchedAt: number
-  data: Record<string, unknown>
-}
-
+type SellerCacheEntry = { fetchedAt: number; data: Record<string, unknown> }
 const SELLER_CACHE_TTL = 30_000
 const sellerCache = new Map<string, SellerCacheEntry>()
 const inFlight = new Map<string, Promise<Record<string, unknown>>>()
-
-function key(userId: string, tab: SellerCoreTab) {
-  return `${userId}:${tab}`
-}
-
-function endpoint(tab: SellerCoreTab) {
-  return tab === 'parts' ? '/api/parts?scope=mine' : tab === 'orders' ? '/api/orders?scope=shop' : '/api/shop/store'
-}
-
-export function readSellerCore(userId: string, tab: SellerCoreTab) {
-  return sellerCache.get(key(userId, tab))
-}
-
+function key(userId: string, tab: SellerCoreTab) { return `${userId}:${tab}` }
+function endpoint(tab: SellerCoreTab) { return tab === 'parts' ? '/api/parts?scope=mine' : tab === 'orders' ? '/api/orders/list?scope=shop&limit=50' : '/api/shop/store' }
+export function readSellerCore(userId: string, tab: SellerCoreTab) { return sellerCache.get(key(userId, tab)) }
 export async function loadSellerCore(userId: string, tab: SellerCoreTab, force = false) {
-  const cacheKey = key(userId, tab)
-  const cached = sellerCache.get(cacheKey)
+  const cacheKey = key(userId, tab); const cached = sellerCache.get(cacheKey)
   if (!force && cached && Date.now() - cached.fetchedAt < SELLER_CACHE_TTL) return cached.data
-  const pending = inFlight.get(cacheKey)
-  if (!force && pending) return pending
-
-  const request = fetch(endpoint(tab), { cache: 'no-store' })
-    .then(async (response) => {
-      const data = await response.json()
-      if (!response.ok) throw new Error(data.error || 'SHOP_TAB_LOAD_FAILED')
-      sellerCache.set(cacheKey, { fetchedAt: Date.now(), data })
-      return data as Record<string, unknown>
-    })
-    .finally(() => inFlight.delete(cacheKey))
-
-  inFlight.set(cacheKey, request)
-  return request
+  const pending = inFlight.get(cacheKey); if (!force && pending) return pending
+  const request = fetch(endpoint(tab), { cache: 'no-store' }).then(async (response) => { const data = await response.json(); if (!response.ok) throw new Error(data.error || 'SHOP_TAB_LOAD_FAILED'); sellerCache.set(cacheKey, { fetchedAt: Date.now(), data }); return data as Record<string, unknown> }).finally(() => inFlight.delete(cacheKey))
+  inFlight.set(cacheKey, request); return request
 }
-
 export async function warmSellerCore(userId: string, currentTab?: string) {
-  const tabs: SellerCoreTab[] = ['parts', 'orders', 'store']
-  await Promise.allSettled(tabs.filter((tab) => tab !== currentTab).map((tab) => loadSellerCore(userId, tab)))
+  // Warm at most one adjacent high-probability tab. Never fan out all seller reads at login/navigation.
+  const adjacent: SellerCoreTab = currentTab === 'orders' ? 'parts' : 'orders'
+  if (adjacent !== currentTab) await loadSellerCore(userId, adjacent)
 }
-
-export function updateSellerCore(userId: string, tab: SellerCoreTab, data: Record<string, unknown>) {
-  sellerCache.set(key(userId, tab), { fetchedAt: Date.now(), data })
-}
+export function updateSellerCore(userId: string, tab: SellerCoreTab, data: Record<string, unknown>) { sellerCache.set(key(userId, tab), { fetchedAt: Date.now(), data }) }

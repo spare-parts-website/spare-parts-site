@@ -5,12 +5,12 @@ export async function GET() {
   try {
     const [parts, compatibilities] = await Promise.all([
       db.part.findMany({
-        where: { blocked: false, carModels: { not: null } },
+        where: { moderationStatus: 'ACTIVE', carModels: { not: null } },
         select: { carModels: true },
         take: 1000,
       }),
       db.vehicleCompatibility.findMany({
-        where: { part: { blocked: false } },
+        where: { part: { moderationStatus: 'ACTIVE' } },
         select: { make: true, model: true, generation: true, yearFrom: true, yearTo: true, engine: true, trim: true },
         orderBy: [{ make: 'asc' }, { model: 'asc' }],
         take: 2000,

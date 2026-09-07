@@ -1,0 +1,22 @@
+name: Production Uptime
+on:
+  schedule:
+    - cron: '11 * * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe public production endpoints
+        shell: bash
+        run: |
+          set -euo pipefail
+          for url in \
+            https://ghyarmarket-eg.com/ \
+            https://ghyarmarket-eg.com/parts \
+            https://ghyarmarket-eg.com/stores \
+            https://ghyarmarket-eg.com/api/home-marketplace; do
+            curl --fail --silent --show-error --location --retry 2 --retry-delay 2 --max-time 20 "$url" >/dev/null
+          done

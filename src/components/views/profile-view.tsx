@@ -8,19 +8,19 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { UserAvatar } from '@/components/user-avatar'
-import { BellRing, Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock } from 'lucide-react'
+import { BellRing, Mail, Phone, ShieldCheck, Store as StoreIcon, ShoppingBag, LayoutDashboard, Save, Lock, KeyRound } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { useToast } from '@/hooks/use-toast'
 import { ImageUpload } from '@/components/image-upload'
 import { ProfileAvatarPicker } from '@/components/profile-avatar-picker'
 import { Switch } from '@/components/ui/switch'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
+import { REGEXP_ONLY_DIGITS } from 'input-otp'
 
-const ROLE_LABELS: Record<string, string> = {
-  BUYER: 'مشتري',
-  ADMIN: 'مدير النظام',
-  SHOP_OWNER: 'صاحب محل',
-}
+const ROLE_LABELS: Record<string, string> = { BUYER: 'مشتري', ADMIN: 'مدير النظام', SHOP_OWNER: 'صاحب محل' }
+
+type EmailChallenge = { challengeId: string; emailHint: string }
 
 export function ProfileView() {
   const navigate = useAppNavigation()
@@ -30,21 +30,11 @@ export function ProfileView() {
   const [form, setForm] = useState({ email: user?.email || '', name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '', currentPassword: '', newPassword: '', emailNotifications: user?.emailNotifications ?? true })
   const [saving, setSaving] = useState(false)
   const [avatarUploading, setAvatarUploading] = useState(false)
+  const [emailChallenge, setEmailChallenge] = useState<EmailChallenge | null>(null)
+  const [emailCode, setEmailCode] = useState('')
 
-  useEffect(() => {
-    if (user) {
-      setForm((current) => ({ ...current, email: user.email, name: user.name, phone: user.phone || '', avatar: user.avatar || '', emailNotifications: user.emailNotifications ?? true }))
-    }
-  }, [user])
-
-  if (!user) {
-    return (
-      <div className="container mx-auto px-4 py-16 text-center">
-        <h2 className="text-xl font-semibold mb-4">سجّل الدخول لعرض ملفك</h2>
-        <Button onClick={() => navigate({ name: 'login' })}>تسجيل الدخول</Button>
-      </div>
-    )
-  }
+  useEffect(() => { if (user) setForm((current) => ({ ...current, email: user.email, name: user.name, phone: user.phone || '', avatar: user.avatar || '', emailNotifications: user.emailNotifications ?? true })) }, [user])
+  if (!user) return <div className="container mx-auto px-4 py-16 text-center"><h2 className="text-xl font-semibold mb-4">سجّل الدخول لعرض ملفك</h2><Button onClick={() => navigate({ name: 'login' })}>تسجيل الدخول</Button></div>
 
   const save = async () => {
     setSaving(true)
@@ -52,130 +42,42 @@ export function ProfileView() {
       const res = await fetch('/api/account', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(form) })
       const data = await res.json()
       if (!res.ok) {
-        toast({ title: 'تعذر حفظ الحساب', description: data.error, variant: 'destructive' })
+        toast({ title: 'تعذر حفظ الحساب', description: data.error || 'حدث خطأ', variant: 'destructive' })
+        if (res.status === 428 && data.stepUpUrl) toast({ title: 'يلزم تأكيد هوية المدير', description: 'افتح صفحة أمان المدير ثم أعد حفظ تغيير البريد.' })
         return
       }
       setUser(data.user)
-      setForm((current) => ({ ...current, avatar: data.user.avatar || '', currentPassword: '', newPassword: '' }))
-      toast({ title: 'تم تحديث الحساب', description: 'تم حفظ معلوماتك بنجاح' })
-    } finally {
-      setSaving(false)
-    }
+      setForm((current) => ({ ...current, email: data.user.email, avatar: data.user.avatar || '', currentPassword: '', newPassword: '' }))
+      if (data.emailChangeVerificationRequired) {
+        setEmailChallenge({ challengeId: data.challengeId, emailHint: data.emailHint }); setEmailCode('')
+        toast({ title: 'تحقق من البريد الجديد', description: 'لم يتغير بريد الحساب بعد. أدخل الرمز المرسل إلى العنوان الجديد.' })
+      } else toast({ title: 'تم تحديث الحساب', description: 'تم حفظ معلوماتك بنجاح' })
+    } finally { setSaving(false) }
   }
 
-  return (
-    <div className="content-container space-y-7 py-10">
-      <div className="page-heading mb-0">
-        <div>
-          <p className="page-kicker">الحساب</p>
-          <h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الملف الشخصي</h1>
-        <p className="text-muted-foreground mt-1">معلومات حسابك</p>
-        </div>
-      </div>
+  const verifyEmail = async () => {
+    if (!emailChallenge || emailCode.length !== 6) return
+    setSaving(true)
+    try {
+      const res = await fetch('/api/account/email/verify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ challengeId: emailChallenge.challengeId, code: emailCode }) })
+      const data = await res.json()
+      if (!res.ok) { setEmailCode(''); toast({ title: 'تعذر تأكيد البريد', description: data.error || 'الرمز غير صحيح', variant: 'destructive' }); return }
+      setUser(data.user); setForm((current) => ({ ...current, email: data.user.email })); setEmailChallenge(null); setEmailCode('')
+      toast({ title: 'تم تغيير البريد', description: 'تم تأكيد البريد الجديد وتحديث تسجيل الدخول.' })
+    } finally { setSaving(false) }
+  }
 
-      <Card className="market-card">
-        <CardContent className="p-6">
-          <div className="flex flex-col sm:flex-row items-start gap-5">
-            <UserAvatar name={user.name} src={user.avatar} className="size-20 text-2xl" />
-            <div className="flex-1 space-y-3">
-              <div>
-                <h2 className="text-xl font-bold">{user.name}</h2>
-                <Badge variant="secondary" className="mt-1">
-                  {ROLE_LABELS[user.role]}
-                </Badge>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-3 text-sm">
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Mail className="size-4 text-primary" />
-                  <span dir="ltr">{user.email}</span>
-                </div>
-                {user.phone && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="size-4 text-primary" />
-                    <span dir="ltr">{user.phone}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Card className="market-card">
-        <CardHeader><CardTitle>تعديل الحساب</CardTitle></CardHeader>
-        <CardContent className="space-y-4">
-          {user.emailDeliveryStatus && user.emailDeliveryStatus !== 'ACTIVE' && (
-            <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-6 text-amber-950 dark:text-amber-100">
-              تعذر تسليم بعض رسائل البريد إلى العنوان الحالي. صحح البريد أدناه مع إدخال كلمة المرور الحالية، أو تواصل مع الدعم. تظل إشعارات الموقع مفعلة.
-            </div>
-          )}
-          <div className="space-y-2">
-            <Label>رفع صورة شخصية</Label>
-            <p className="text-xs text-muted-foreground">يمكنك رفع صورتك أو اختيار إحدى الصور الجاهزة أدناه. ستظهر الصورة في ملفك والتقييمات، ولصاحب المحل بجانب إعلانات المتجر.</p>
-            <ImageUpload purpose="avatar" value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} className="max-w-sm" compact />
-          </div>
-          <div className="space-y-2">
-            <Label>اختيار صورة الحساب</Label>
-            <ProfileAvatarPicker value={form.avatar} onChange={(avatar) => setForm({ ...form, avatar })} />
-          </div>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div className="space-y-2 sm:col-span-2"><Label>البريد الإلكتروني</Label><Input type="email" dir="ltr" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /><p className="text-xs text-muted-foreground">تغيير البريد يتطلب كلمة المرور الحالية وسيعيد حالة التسليم إلى نشطة.</p></div>
-            <div className="space-y-2"><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div>
-            <div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="01********" /></div>
-            <div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير البريد أو كلمة المرور" /></div>
-            <div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div>
-          </div>
-          <div className="flex items-center justify-between gap-4 rounded-2xl border bg-muted/35 p-4">
-            <div className="flex items-start gap-3"><BellRing className="mt-0.5 size-5 text-primary" /><div><p className="font-bold">إشعارات البريد الإلكتروني</p><p className="mt-1 text-xs leading-5 text-muted-foreground">استلم تحديثات الطلبات والرسائل المهمة بالبريد. إشعارات الموقع تظل مفعلة دائماً.</p></div></div>
-            <Switch checked={form.emailNotifications} onCheckedChange={(checked) => setForm({ ...form, emailNotifications: checked })} aria-label="تفعيل إشعارات البريد الإلكتروني" />
-          </div>
-          <Button onClick={save} disabled={saving || avatarUploading}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button>
-          <p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> نطلب كلمة المرور الحالية عند تغيير البريد أو كلمة المرور لحماية الحساب.</p>
-        </CardContent>
-      </Card>
-
-      {/* Quick actions */}
-      <Card className="market-card">
-        <CardHeader>
-          <CardTitle>إجراءات سريعة</CardTitle>
-        </CardHeader>
-        <CardContent className="grid sm:grid-cols-2 gap-3">
-          {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
-            <Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/account/orders">
-              <ShoppingBag className="size-5 ml-2" />
-              <div className="text-right">
-                <p className="font-medium">طلباتي</p>
-                <p className="text-xs text-muted-foreground">عرض ومتابعة طلباتك</p>
-              </div>
-            </Link></Button>
-          )}
-          {user.role === 'SHOP_OWNER' && (
-            <Button variant="outline" onClick={() => navigate({ name: 'shop-dashboard' })} className="justify-start h-auto p-4">
-              <LayoutDashboard className="size-5 ml-2" />
-              <div className="text-right">
-                <p className="font-medium">صفحة المحل</p>
-                <p className="text-xs text-muted-foreground">إدارة قطع الغيار والطلبات</p>
-              </div>
-            </Button>
-          )}
-          {user.role === 'ADMIN' && (
-            <Button variant="outline" onClick={() => navigate({ name: 'admin-dashboard' })} className="justify-start h-auto p-4">
-              <ShieldCheck className="size-5 ml-2" />
-              <div className="text-right">
-                <p className="font-medium">لوحة المدير</p>
-                <p className="text-xs text-muted-foreground">إدارة شاملة للنظام</p>
-              </div>
-            </Button>
-          )}
-          <Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/parts">
-            <StoreIcon className="ml-2 size-5" />
-            <div className="text-right">
-              <p className="font-medium">تصفح قطع الغيار</p>
-              <p className="text-xs text-muted-foreground">استكشف المتاجر والقطع</p>
-            </div>
-          </Link></Button>
-        </CardContent>
-      </Card>
-    </div>
-  )
+  return <div className="content-container space-y-7 py-10"><div className="page-heading mb-0"><div><p className="page-kicker">الحساب</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الملف الشخصي</h1><p className="text-muted-foreground mt-1">معلومات حسابك</p></div></div>
+    <Card className="market-card"><CardContent className="p-6"><div className="flex flex-col sm:flex-row items-start gap-5"><UserAvatar name={user.name} src={user.avatar} className="size-20 text-2xl" /><div className="flex-1 space-y-3"><div><h2 className="text-xl font-bold">{user.name}</h2><Badge variant="secondary" className="mt-1">{ROLE_LABELS[user.role]}</Badge></div><div className="grid sm:grid-cols-2 gap-3 text-sm"><div className="flex items-center gap-2 text-muted-foreground"><Mail className="size-4 text-primary" /><span dir="ltr">{user.email}</span></div>{user.phone && <div className="flex items-center gap-2 text-muted-foreground"><Phone className="size-4 text-primary" /><span dir="ltr">{user.phone}</span></div>}</div></div></div></CardContent></Card>
+    <Card className="market-card"><CardHeader><CardTitle>تعديل الحساب</CardTitle></CardHeader><CardContent className="space-y-4">
+      {user.emailDeliveryStatus && user.emailDeliveryStatus !== 'ACTIVE' && <div className="rounded-xl border border-amber-400/40 bg-amber-400/10 p-4 text-sm leading-6 text-amber-950 dark:text-amber-100">تعذر تسليم بعض رسائل البريد إلى العنوان الحالي. يمكنك إدخال بريد جديد وتأكيده قبل أن يصبح بريد تسجيل الدخول.</div>}
+      {emailChallenge && <div className="space-y-4 rounded-2xl border border-primary/30 bg-primary/5 p-4"><div><p className="font-bold">تأكيد البريد الجديد</p><p className="mt-1 text-sm text-muted-foreground">أرسلنا رمزاً من 6 أرقام إلى {emailChallenge.emailHint}. بريد حسابك الحالي لم يتغير بعد.</p></div><InputOTP maxLength={6} pattern={REGEXP_ONLY_DIGITS} value={emailCode} onChange={setEmailCode} containerClassName="justify-center"><InputOTPGroup dir="ltr">{[0,1,2,3,4,5].map((index) => <InputOTPSlot key={index} index={index} className="h-11 w-10" />)}</InputOTPGroup></InputOTP><div className="flex gap-2"><Button onClick={verifyEmail} disabled={saving || emailCode.length !== 6}>تأكيد البريد الجديد</Button><Button variant="outline" onClick={() => { setEmailChallenge(null); setEmailCode(''); setForm((current) => ({ ...current, email: user.email })) }}>إلغاء</Button></div></div>}
+      <div className="space-y-2"><Label>رفع صورة شخصية</Label><p className="text-xs text-muted-foreground">يمكنك رفع صورتك أو اختيار إحدى الصور الجاهزة.</p><ImageUpload purpose="avatar" value={form.avatar} onChange={(url) => setForm({ ...form, avatar: url })} onUploadingChange={setAvatarUploading} className="max-w-sm" compact /></div>
+      <div className="space-y-2"><Label>اختيار صورة الحساب</Label><ProfileAvatarPicker value={form.avatar} onChange={(avatar) => setForm({ ...form, avatar })} /></div>
+      <div className="grid sm:grid-cols-2 gap-4"><div className="space-y-2 sm:col-span-2"><Label>البريد الإلكتروني</Label><Input type="email" dir="ltr" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /><p className="text-xs text-muted-foreground">لن يتغير بريد الدخول إلا بعد إدخال كلمة المرور الحالية ثم تأكيد رمز يصل إلى البريد الجديد.</p></div><div className="space-y-2"><Label>الاسم</Label><Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} /></div><div className="space-y-2"><Label>الهاتف</Label><Input dir="ltr" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="01********" /></div><div className="space-y-2"><Label>كلمة المرور الحالية</Label><Input type="password" value={form.currentPassword} onChange={(e) => setForm({ ...form, currentPassword: e.target.value })} placeholder="مطلوبة عند تغيير البريد أو كلمة المرور" /></div><div className="space-y-2"><Label>كلمة المرور الجديدة</Label><Input type="password" value={form.newPassword} onChange={(e) => setForm({ ...form, newPassword: e.target.value })} placeholder="8 أحرف على الأقل" /></div></div>
+      <div className="flex items-center justify-between gap-4 rounded-2xl border bg-muted/35 p-4"><div className="flex items-start gap-3"><BellRing className="mt-0.5 size-5 text-primary" /><div><p className="font-bold">إشعارات البريد الإلكتروني</p><p className="mt-1 text-xs leading-5 text-muted-foreground">استلم تحديثات الطلبات والرسائل المهمة بالبريد.</p></div></div><Switch checked={form.emailNotifications} onCheckedChange={(checked) => setForm({ ...form, emailNotifications: checked })} /></div>
+      <Button onClick={save} disabled={saving || avatarUploading}><Save className="size-4 ml-1" />{saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}</Button><p className="text-xs text-muted-foreground flex items-center gap-1"><Lock className="size-3" /> نطلب كلمة المرور الحالية عند تغيير البريد أو كلمة المرور لحماية الحساب.</p>
+    </CardContent></Card>
+    <Card className="market-card"><CardHeader><CardTitle>إجراءات سريعة</CardTitle></CardHeader><CardContent className="grid sm:grid-cols-2 gap-3">{(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && <Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/account/orders"><ShoppingBag className="size-5 ml-2" /><div className="text-right"><p className="font-medium">طلباتي</p><p className="text-xs text-muted-foreground">عرض ومتابعة طلباتك</p></div></Link></Button>}{user.role === 'SHOP_OWNER' && <Button variant="outline" onClick={() => navigate({ name: 'shop-dashboard' })} className="justify-start h-auto p-4"><LayoutDashboard className="size-5 ml-2" /><div className="text-right"><p className="font-medium">صفحة المحل</p><p className="text-xs text-muted-foreground">إدارة قطع الغيار والطلبات</p></div></Button>}{user.role === 'ADMIN' && <><Button variant="outline" onClick={() => navigate({ name: 'admin-dashboard' })} className="justify-start h-auto p-4"><ShieldCheck className="size-5 ml-2" /><div className="text-right"><p className="font-medium">لوحة المدير</p><p className="text-xs text-muted-foreground">إدارة شاملة للنظام</p></div></Button><Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/admin/security"><KeyRound className="size-5 ml-2" /><div className="text-right"><p className="font-medium">أمان المدير</p><p className="text-xs text-muted-foreground">تأكيد الهوية للإجراءات الحساسة</p></div></Link></Button></>}<Button asChild variant="outline" className="h-auto justify-start p-4"><Link href="/parts"><StoreIcon className="ml-2 size-5" /><div className="text-right"><p className="font-medium">تصفح قطع الغيار</p><p className="text-xs text-muted-foreground">استكشف المتاجر والقطع</p></div></Link></Button></CardContent></Card>
+  </div>
 }

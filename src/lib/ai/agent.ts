@@ -124,7 +124,13 @@ function providerOptions(input: { provider: AIProviderTarget; user: SessionUser 
   // The former explicit zero-budget payload was rejected by the direct API.
   if (input.provider === 'google') return undefined
 
-  const privacyPolicy = input.user ? { data_collection: 'deny' as const, zdr: true } : { data_collection: 'deny' as const }
+  // `data_collection: deny` is supported on the linked Hobby project. Hard
+  // zero-data-retention routing is an opt-in compliance mode because Vercel's
+  // Hobby AI Gateway plan rejects `zdr: true` before a provider is selected.
+  const requireZeroDataRetention = process.env.AI_REQUIRE_ZDR === 'true'
+  const privacyPolicy = input.user
+    ? { data_collection: 'deny' as const, ...(requireZeroDataRetention ? { zdr: true as const } : {}) }
+    : { data_collection: 'deny' as const }
   if (input.provider === 'openrouter-primary') return {
     openrouter: {
       models: [aiPaidPrimaryModel() || 'openrouter/auto'],

@@ -1,13 +1,13 @@
-export type DeliveryStatus = 'SENT' | 'DELAYED' | 'DELIVERED' | 'BOUNCED' | 'FAILED' | 'COMPLAINED' | 'SUPPRESSED'
+export type DeliveryStatus = 'PENDING' | 'SENT' | 'DELAYED' | 'DELIVERED' | 'BOUNCED' | 'FAILED' | 'COMPLAINED' | 'SUPPRESSED'
 
 export type ParsedDeliveryEvent = {
   eventType: string
   providerId: string
-  status: DeliveryStatus
+  status: Exclude<DeliveryStatus, 'PENDING'>
   error: string | null
   occurredAt: Date | null
 }
-const EVENT_STATUS: Record<string, DeliveryStatus> = {
+const EVENT_STATUS: Record<string, Exclude<DeliveryStatus, 'PENDING'>> = {
   'email.sent': 'SENT',
   'email.scheduled': 'SENT',
   'email.delivery_delayed': 'DELAYED',
@@ -50,6 +50,7 @@ export function parseResendDeliveryEvent(value: unknown): ParsedDeliveryEvent | 
 }
 
 const STATUS_RANK: Record<DeliveryStatus, number> = {
+  PENDING: -1,
   SENT: 0,
   DELAYED: 1,
   FAILED: 2,

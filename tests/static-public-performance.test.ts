@@ -17,8 +17,8 @@ test('hot anonymous HTML keeps nonce hydration safety while marketplace data sta
   assert.match(partsPage, /await connection\(\)/)
   assert.match(storesPage, /await connection\(\)/)
 
-  assert.match(publicMarketplace, /loadDefaultPublicPartsList = unstable_cache\([\s\S]*?\['public-parts-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
-  assert.match(publicMarketplace, /loadDefaultPublicStoresList = unstable_cache\([\s\S]*?\['public-stores-default-v1'\],[\s\S]*?\{ revalidate: 30 \}/)
+  assert.match(publicMarketplace, /loadDefaultPublicPartsList = unstable_cache\([\s\S]*?\['public-parts-default-v3'\],[\s\S]*?\{ revalidate: 30 \}/)
+  assert.match(publicMarketplace, /loadDefaultPublicStoresList = unstable_cache\([\s\S]*?\['public-stores-default-v3'\],[\s\S]*?\{ revalidate: 30 \}/)
   assert.match(homeApi, /s-maxage=120/)
   assert.match(homeApi, /stale-while-revalidate=300/)
 })
@@ -48,7 +48,7 @@ test('theme bootstrap is external so nonce CSP does not need custom inline theme
   assert.doesNotMatch(toggle, /next-themes/)
 })
 
-test('homepage defers below-fold marketplace work and spreads the client request burst', () => {
+test('homepage defers below-fold marketplace work without randomized request timing', () => {
   const home = read('src/components/views/home-view.tsx')
   const loader = read('src/components/home-marketplace-sections-loader.tsx')
   const data = read('src/app/api/home-marketplace/route.ts')
@@ -56,8 +56,10 @@ test('homepage defers below-fold marketplace work and spreads the client request
   assert.match(home, /HomeMarketplaceSectionsLoader/)
   assert.match(loader, /dynamic\(/)
   assert.match(loader, /ssr: false/)
-  assert.match(loader, /Math\.random\(\)/)
+  assert.match(loader, /IntersectionObserver/)
+  assert.match(loader, /requestIdleCallback/)
   assert.match(loader, /setTimeout/)
+  assert.doesNotMatch(loader, /Math\.random\(\)/)
   assert.match(data, /s-maxage=120/)
   assert.match(data, /stale-while-revalidate=300/)
 })
