@@ -2,6 +2,9 @@
   "name": "nextjs_tailwind_shadcn_ts",
   "version": "0.2.1",
   "private": true,
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "prisma generate && next build",
@@ -9,11 +12,11 @@
     "lint": "eslint .",
     "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/*.test.ts",
     "test:smoke": "node scripts/smoke-test.mjs",
-    "db:push": "prisma db push --accept-data-loss",
     "db:generate": "prisma generate",
-    "admin:create": "node scripts/create-admin.cjs",
     "db:migrate": "prisma migrate dev",
-    "db:reset": "prisma migrate reset"
+    "db:migrate:ci": "node scripts/replay-migrations.mjs",
+    "db:reset-dev-only": "prisma migrate reset",
+    "admin:create": "node scripts/create-admin.cjs"
   },
   "dependencies": {
     "@ai-sdk/google": "^4.0.51",

@@ -1,280 +1,125 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
-import { requireAuth } from '@/lib/auth'
+import { requireAuth, requireRole } from '@/lib/auth'
+import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createNotification } from '@/lib/notifications'
-import { rateLimit } from '@/lib/rate-limit'
-import { censorChatContent } from '@/lib/content-moderation'
+import { moderateUserText } from '@/lib/content-moderation'
 import { isPrivateImageOwnedBy } from '@/lib/private-image'
+import { isPublicUploadUrl } from '@/lib/storage-url'
+import { decodeCursor, encodeCursor, parseLimit } from '@/lib/pagination'
 
-const PUBLIC_UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' }
 
-function unauthorized() {
-  return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+type InboxOrderRow = { kind: 'order'; orderId: string; partId: string; partName: string; partImage: string | null; storeName: string; otherId: string; otherName: string; message: string; imageUrl: string | null; createdAt: Date; unreadCount: bigint }
+type InboxProductRow = { kind: 'product'; partId: string; partName: string; partImage: string | null; storeName: string; otherId: string; otherName: string; message: string; imageUrl: string | null; createdAt: Date; unreadCount: bigint }
+
+function messageCursorWhere(cursor: ReturnType<typeof decodeCursor>) {
+  if (!cursor) return undefined
+  const createdAt = new Date(cursor.createdAt)
+  return { OR: [{ createdAt: { lt: createdAt } }, { createdAt, id: { lt: cursor.id } }] }
 }
 
-function databaseError(error: any) {
-  const code = error?.code
-  const message = String(error?.message || '')
-  console.error('Chat database error', { code, message })
-
-  if (code === 'P2021' || message.includes('ProductMessage')) {
-    return NextResponse.json(
-      { error: 'ميزة المحادثة غير جاهزة في قاعدة البيانات. شغّل ملف prisma/product-messages.sql في مشروع Supabase الصحيح ثم أعد النشر.' },
-      { status: 503 },
-    )
-  }
-  if (code === 'P2003') {
-    return NextResponse.json({ error: 'بيانات المستخدم أو القطعة غير متوافقة. أعد تحميل الصفحة وسجّل الدخول من جديد.' }, { status: 409 })
-  }
-  return NextResponse.json({ error: 'حدث خطأ في قاعدة البيانات. راجع سجلات Vercel.' }, { status: 500 })
+async function orderContext(orderId: string, userId: string) {
+  const order = await db.order.findUnique({ where: { id: orderId }, select: { id: true, buyerId: true, part: { select: { id: true, name: true, image: true } }, store: { select: { name: true, ownerId: true } } } })
+  if (!order || (order.buyerId !== userId && order.store.ownerId !== userId)) return null
+  return { order, otherId: order.buyerId === userId ? order.store.ownerId : order.buyerId }
 }
 
-async function getProductParticipant(partId: string, sessionId: string, participantId: string | null) {
-  const part = await db.part.findUnique({ where: { id: partId }, include: { store: true } })
-  if (!part || part.blocked) return { error: NextResponse.json({ error: 'القطعة غير موجودة' }, { status: 404 }) }
-
-  const isOwner = part.store.ownerId === sessionId
-  const otherUserId = isOwner ? participantId : part.store.ownerId
-  if (!otherUserId || otherUserId === sessionId) return { error: unauthorized() }
-
-  if (isOwner) {
-    const existing = await db.productMessage.count({
-      where: {
-        partId,
-        OR: [
-          { senderId: sessionId, receiverId: otherUserId },
-          { senderId: otherUserId, receiverId: sessionId },
-        ],
-      },
-    })
-    if (!existing) return { error: unauthorized() }
-  }
-
-  return { part, otherUserId }
+async function productContext(partId: string, userId: string, requestedParticipantId?: string | null) {
+  const part = await db.part.findUnique({ where: { id: partId }, select: { id: true, name: true, image: true, store: { select: { name: true, ownerId: true } } } })
+  if (!part || part.store.ownerId === userId && !requestedParticipantId) return part && part.store.ownerId === userId ? { error: 'PARTICIPANT_REQUIRED' as const } : null
+  const otherId = part.store.ownerId === userId ? requestedParticipantId! : part.store.ownerId
+  if (otherId === userId) return null
+  if (part.store.ownerId !== userId && requestedParticipantId && requestedParticipantId !== part.store.ownerId) return null
+  const other = await db.user.findUnique({ where: { id: otherId }, select: { id: true } })
+  if (!other) return null
+  return { part, otherId }
 }
 
-async function getShopThreads(sessionId: string) {
-  const messages = await db.productMessage.findMany({
-    where: { part: { store: { ownerId: sessionId } } },
-    include: {
-      part: { select: { id: true, name: true, image: true } },
-      sender: { select: { id: true, name: true } },
-      receiver: { select: { id: true, name: true } },
-    },
-    orderBy: { createdAt: 'asc' },
-  })
-
-  const threadMap = new Map<string, any>()
-  for (const message of messages) {
-    const buyer = message.senderId === sessionId ? message.receiver : message.sender
-    const key = `${message.partId}:${buyer.id}`
-    const current = threadMap.get(key)
-    threadMap.set(key, {
-      partId: message.partId,
-      part: message.part,
-      buyerId: buyer.id,
-      buyer,
-      lastMessage: message,
-      unreadCount: (current?.unreadCount || 0) + (!message.read && message.receiverId === sessionId ? 1 : 0),
-    })
-  }
-
-  return Array.from(threadMap.values()).reverse()
-}
-
-async function getInboxThreads(sessionId: string) {
-  const [orderMessages, productMessages] = await Promise.all([
-    db.chatMessage.findMany({
-      where: { OR: [{ senderId: sessionId }, { receiverId: sessionId }] },
-      include: {
-        order: { select: { id: true, part: { select: { id: true, name: true, image: true } }, store: { select: { name: true } } } },
-        sender: { select: { id: true, name: true } },
-        receiver: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
-    db.productMessage.findMany({
-      where: { OR: [{ senderId: sessionId }, { receiverId: sessionId }] },
-      include: {
-        part: { select: { id: true, name: true, image: true } },
-        sender: { select: { id: true, name: true } },
-        receiver: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    }),
+async function getInboxThreads(userId: string) {
+  const [orders, products] = await Promise.all([
+    db.$queryRaw<InboxOrderRow[]>(Prisma.sql`
+      WITH latest AS (
+        SELECT DISTINCT ON (m."orderId") m."orderId", m."message", m."imageUrl", m."createdAt",
+          CASE WHEN m."senderId"=${userId} THEN m."receiverId" ELSE m."senderId" END AS "otherId"
+        FROM public."ChatMessage" m
+        WHERE m."senderId"=${userId} OR m."receiverId"=${userId}
+        ORDER BY m."orderId", m."createdAt" DESC, m."id" DESC
+      )
+      SELECT 'order'::text AS kind, l."orderId", p.id AS "partId", p.name AS "partName", p.image AS "partImage", s.name AS "storeName",
+        l."otherId", u.name AS "otherName", l.message, l."imageUrl", l."createdAt",
+        (SELECT count(*) FROM public."ChatMessage" unread WHERE unread."orderId"=l."orderId" AND unread."receiverId"=${userId} AND unread.read=false)::bigint AS "unreadCount"
+      FROM latest l JOIN public."Order" o ON o.id=l."orderId" JOIN public."Part" p ON p.id=o."partId" JOIN public."Store" s ON s.id=o."storeId" JOIN public."User" u ON u.id=l."otherId"
+      ORDER BY l."createdAt" DESC LIMIT 50
+    `),
+    db.$queryRaw<InboxProductRow[]>(Prisma.sql`
+      WITH relevant AS (
+        SELECT m.*, CASE WHEN m."senderId"=${userId} THEN m."receiverId" ELSE m."senderId" END AS "otherId"
+        FROM public."ProductMessage" m WHERE m."senderId"=${userId} OR m."receiverId"=${userId}
+      ), latest AS (
+        SELECT DISTINCT ON (r."partId",r."otherId") r."partId",r."otherId",r.message,r."imageUrl",r."createdAt"
+        FROM relevant r ORDER BY r."partId",r."otherId",r."createdAt" DESC,r.id DESC
+      )
+      SELECT 'product'::text AS kind, l."partId",p.name AS "partName",p.image AS "partImage",s.name AS "storeName",
+        l."otherId",u.name AS "otherName",l.message,l."imageUrl",l."createdAt",
+        (SELECT count(*) FROM public."ProductMessage" unread WHERE unread."partId"=l."partId" AND unread."receiverId"=${userId} AND unread.read=false AND (unread."senderId"=l."otherId" OR unread."receiverId"=l."otherId"))::bigint AS "unreadCount"
+      FROM latest l JOIN public."Part" p ON p.id=l."partId" JOIN public."Store" s ON s.id=p."storeId" JOIN public."User" u ON u.id=l."otherId"
+      ORDER BY l."createdAt" DESC LIMIT 50
+    `),
   ])
-
-  const threads = new Map<string, any>()
-  for (const message of orderMessages) {
-    const other = message.senderId === sessionId ? message.receiver : message.sender
-    const key = `order:${message.orderId}:${other.id}`
-    if (!threads.has(key)) {
-      threads.set(key, {
-        kind: 'order', orderId: message.orderId, part: message.order.part,
-        storeName: message.order.store.name, otherUser: other, lastMessage: message,
-        unreadCount: message.receiverId === sessionId && !message.read ? 1 : 0,
-      })
-    }
-  }
-  for (const message of productMessages) {
-    const other = message.senderId === sessionId ? message.receiver : message.sender
-    const key = `product:${message.partId}:${other.id}`
-    if (!threads.has(key)) {
-      threads.set(key, {
-        kind: 'product', partId: message.partId, participantId: other.id, part: message.part,
-        otherUser: other, lastMessage: message,
-        unreadCount: message.receiverId === sessionId && !message.read ? 1 : 0,
-      })
-    }
-  }
-  return Array.from(threads.values()).sort(
-    (a, b) => new Date(b.lastMessage.createdAt).getTime() - new Date(a.lastMessage.createdAt).getTime(),
-  )
+  return [...orders.map((row) => ({ kind: 'order' as const, orderId: row.orderId, part: { id: row.partId, name: row.partName, image: row.partImage }, storeName: row.storeName, otherUser: { id: row.otherId, name: row.otherName }, lastMessage: { message: row.message, imageUrl: row.imageUrl, createdAt: row.createdAt.toISOString() }, unreadCount: Number(row.unreadCount) })), ...products.map((row) => ({ kind: 'product' as const, partId: row.partId, participantId: row.otherId, part: { id: row.partId, name: row.partName, image: row.partImage }, storeName: row.storeName, otherUser: { id: row.otherId, name: row.otherName }, lastMessage: { message: row.message, imageUrl: row.imageUrl, createdAt: row.createdAt.toISOString() }, unreadCount: Number(row.unreadCount) }))].sort((a, b) => Date.parse(b.lastMessage.createdAt) - Date.parse(a.lastMessage.createdAt)).slice(0, 100)
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await requireAuth()
-    const { searchParams } = new URL(req.url)
-    const orderId = searchParams.get('orderId')
-    const partId = searchParams.get('partId')
-    const participantId = searchParams.get('participantId')
-
-    if (searchParams.get('scope') === 'inbox') {
-      return NextResponse.json({ threads: await getInboxThreads(session.id) })
+    const session = await requireAuth(); const url = new URL(req.url); const scope = url.searchParams.get('scope')
+    if (scope === 'inbox' || scope === 'shop') {
+      if (scope === 'shop') await requireRole('SHOP_OWNER')
+      return NextResponse.json({ threads: await getInboxThreads(session.id) }, { headers: PRIVATE_HEADERS })
     }
-
-    if (searchParams.get('scope') === 'shop') {
-      if (session.role !== 'SHOP_OWNER') return unauthorized()
-      return NextResponse.json({ threads: await getShopThreads(session.id) })
+    const orderId = url.searchParams.get('orderId')?.trim(); const partId = url.searchParams.get('partId')?.trim(); const participantId = url.searchParams.get('participantId')?.trim(); const limit = parseLimit(url.searchParams.get('limit'), 50, 100); const cursor = decodeCursor(url.searchParams.get('cursor'))
+    if (!orderId && !partId) return NextResponse.json({ error: 'معرف المحادثة مطلوب' }, { status: 400, headers: PRIVATE_HEADERS })
+    if (orderId) {
+      const context = await orderContext(orderId, session.id); if (!context) return NextResponse.json({ error: 'غير مصرح' }, { status: 403, headers: PRIVATE_HEADERS })
+      const rows = await db.chatMessage.findMany({ where: { orderId, AND: [{ OR: [{ senderId: session.id, receiverId: context.otherId }, { senderId: context.otherId, receiverId: session.id }] }, ...(messageCursorWhere(cursor) ? [messageCursorWhere(cursor)!] : [])] }, include: { sender: { select: { id: true, name: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1 })
+      const hasMore = rows.length > limit; const page = rows.slice(0, limit); const nextCursor = hasMore && page.length ? encodeCursor(page[page.length - 1]) : null
+      return NextResponse.json({ messages: page.reverse(), nextCursor }, { headers: PRIVATE_HEADERS })
     }
+    const context = await productContext(partId!, session.id, participantId); if (!context || 'error' in context) return NextResponse.json({ error: context && 'error' in context ? 'حدد العميل للمحادثة' : 'غير مصرح' }, { status: context && 'error' in context ? 400 : 403, headers: PRIVATE_HEADERS })
+    const rows = await db.productMessage.findMany({ where: { partId: partId!, AND: [{ OR: [{ senderId: session.id, receiverId: context.otherId }, { senderId: context.otherId, receiverId: session.id }] }, ...(messageCursorWhere(cursor) ? [messageCursorWhere(cursor)!] : [])] }, include: { sender: { select: { id: true, name: true } } }, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], take: limit + 1 })
+    const hasMore = rows.length > limit; const page = rows.slice(0, limit); const nextCursor = hasMore && page.length ? encodeCursor(page[page.length - 1]) : null
+    return NextResponse.json({ messages: page.reverse(), nextCursor }, { headers: PRIVATE_HEADERS })
+  } catch (error) { const message = error instanceof Error ? error.message : ''; if (message === 'UNAUTHORIZED' || message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403, headers: PRIVATE_HEADERS }); console.error('Chat load failed', error); return NextResponse.json({ error: 'تعذر تحميل المحادثة. حاول مرة أخرى.' }, { status: 500, headers: PRIVATE_HEADERS }) }
+}
 
-    if (partId) {
-      const target = await getProductParticipant(partId, session.id, participantId)
-      if (target.error) return target.error
-
-      const messages = await db.productMessage.findMany({
-        where: {
-          partId,
-          OR: [
-            { senderId: session.id, receiverId: target.otherUserId },
-            { senderId: target.otherUserId, receiverId: session.id },
-          ],
-        },
-        include: { sender: { select: { id: true, name: true } } },
-        orderBy: { createdAt: 'asc' },
-      })
-      await db.productMessage.updateMany({
-        where: { partId, senderId: target.otherUserId, receiverId: session.id, read: false },
-        data: { read: true },
-      })
-      return NextResponse.json({ messages, part: target.part, participantId: target.otherUserId })
-    }
-
-    if (!orderId) return NextResponse.json({ error: 'orderId أو partId مطلوب' }, { status: 400 })
-
-    const order = await db.order.findUnique({ where: { id: orderId }, include: { store: true } })
-    if (!order) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
-
-    const isBuyer = order.buyerId === session.id
-    const isOwner = session.role === 'SHOP_OWNER' && order.store.ownerId === session.id
-    const isAdmin = session.role === 'ADMIN'
-    if (!isBuyer && !isOwner && !isAdmin) return unauthorized()
-
-    const messages = await db.chatMessage.findMany({
-      where: { orderId },
-      include: { sender: { select: { id: true, name: true } } },
-      orderBy: { createdAt: 'asc' },
-    })
-    await db.chatMessage.updateMany({ where: { orderId, receiverId: session.id, read: false }, data: { read: true } })
-    return NextResponse.json({ messages })
-  } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
-    return databaseError(e)
-  }
+export async function PATCH(req: NextRequest) {
+  try {
+    const session = await requireAuth(); const body = await req.json(); const orderId = typeof body.orderId === 'string' ? body.orderId : ''; const partId = typeof body.partId === 'string' ? body.partId : ''; const participantId = typeof body.participantId === 'string' ? body.participantId : null
+    if (orderId) { const context = await orderContext(orderId, session.id); if (!context) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 }); await db.chatMessage.updateMany({ where: { orderId, senderId: context.otherId, receiverId: session.id, read: false }, data: { read: true } }); return NextResponse.json({ ok: true }) }
+    if (partId) { const context = await productContext(partId, session.id, participantId); if (!context || 'error' in context) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 }); await db.productMessage.updateMany({ where: { partId, senderId: context.otherId, receiverId: session.id, read: false }, data: { read: true } }); return NextResponse.json({ ok: true }) }
+    return NextResponse.json({ error: 'معرف المحادثة مطلوب' }, { status: 400 })
+  } catch { return NextResponse.json({ error: 'تعذر تحديث حالة القراءة' }, { status: 500 }) }
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await requireAuth()
-    const limit = await rateLimit(`chat:${session.id}`, 60, 60 * 1000)
-    if (!limit.allowed) return NextResponse.json({ error: 'رسائل كثيرة. حاول مرة أخرى بعد قليل.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
-    const body = await req.json()
-    const orderId = typeof body.orderId === 'string' ? body.orderId : null
-    const partId = typeof body.partId === 'string' ? body.partId : null
-    const participantId = typeof body.participantId === 'string' ? body.participantId : null
-    const rawMessage = typeof body.message === 'string' ? body.message.trim() : ''
-    const message = censorChatContent(rawMessage).text
-    const submittedImageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : ''
-    const imageUrl = submittedImageUrl
-      ? isPrivateImageOwnedBy(submittedImageUrl, 'chat', session.id) || PUBLIC_UPLOAD_URL.test(submittedImageUrl)
-        ? submittedImageUrl
-        : null
-      : null
-    if (submittedImageUrl && !imageUrl) return NextResponse.json({ error: 'مرفق الصورة غير صالح' }, { status: 400 })
-
-    if (!message && !imageUrl) return NextResponse.json({ error: 'اكتب رسالة أو أرفق صورة' }, { status: 400 })
-    if (rawMessage.length > 2000) return NextResponse.json({ error: 'الرسالة طويلة جداً' }, { status: 400 })
-
-    if (partId) {
-      const target = await getProductParticipant(partId, session.id, participantId)
-      if (target.error) return target.error
-
-      const msg = await db.productMessage.create({
-        data: {
-          partId,
-          senderId: session.id,
-          receiverId: target.otherUserId,
-          message,
-          imageUrl,
-        },
-        include: { sender: { select: { id: true, name: true } } },
-      })
-
-      try {
-        await createNotification({
-          userId: target.otherUserId,
-          title: 'رسالة عن قطعة غيار',
-          message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
-          type: 'CHAT',
-          link: 'inbox',
-          dedupeKey: `chat-part/${msg.id}/${target.otherUserId}`,
-        })
-      } catch (e) {
-        console.error('Notify error:', e)
-      }
-      return NextResponse.json({ message: msg })
-    }
-
-    if (!orderId) return NextResponse.json({ error: 'orderId أو partId مطلوب' }, { status: 400 })
-    const order = await db.order.findUnique({ where: { id: orderId }, include: { store: true, part: true } })
-    if (!order) return NextResponse.json({ error: 'الطلب غير موجود' }, { status: 404 })
-
-    const isBuyer = order.buyerId === session.id
-    const isOwner = session.role === 'SHOP_OWNER' && order.store.ownerId === session.id
-    if (!isBuyer && !isOwner) return unauthorized()
-    const receiverId = isBuyer ? order.store.ownerId : order.buyerId
-
-    const msg = await db.chatMessage.create({
-      data: { orderId, senderId: session.id, receiverId, message, imageUrl },
-      include: { sender: { select: { id: true, name: true } } },
-    })
-
-    try {
-      await createNotification({
-        userId: receiverId,
-        title: 'رسالة جديدة',
-        message: `${session.name}: ${message || 'أرسل صورة'}`.substring(0, 70),
-        type: 'CHAT',
-        link: 'inbox',
-        dedupeKey: `chat-order/${msg.id}/${receiverId}`,
-      })
-    } catch (e) {
-      console.error('Notify error:', e)
-    }
-    return NextResponse.json({ message: msg })
-  } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 })
-    return databaseError(e)
-  }
+    const session = await requireAuth(); const limit = await rateLimit(`chat:${session.id}:${requestAddress(req)}`, 40, 60_000)
+    if (!limit.allowed) return NextResponse.json({ error: 'رسائل كثيرة. حاول بعد قليل.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter) } })
+    const body = await req.json(); const orderId = typeof body.orderId === 'string' ? body.orderId.trim() : ''; const partId = typeof body.partId === 'string' ? body.partId.trim() : ''; const participantId = typeof body.participantId === 'string' ? body.participantId.trim() : null; const text = typeof body.message === 'string' ? body.message.trim().slice(0, 3000) : ''; const imageUrl = typeof body.imageUrl === 'string' ? body.imageUrl.trim() : ''
+    if (!text && !imageUrl) return NextResponse.json({ error: 'اكتب رسالة أو أرفق صورة' }, { status: 400 })
+    if (text) { const moderation = moderateUserText(text); if (!moderation.allowed) return NextResponse.json({ error: moderation.message }, { status: 400 }) }
+    if (imageUrl && session.role === 'BUYER') return NextResponse.json({ error: 'إرفاق الصور غير متاح لهذا الحساب' }, { status: 403 })
+    if (imageUrl && !isPrivateImageOwnedBy(imageUrl, 'chat', session.id) && !isPublicUploadUrl(imageUrl)) return NextResponse.json({ error: 'رابط الصورة غير صالح' }, { status: 400 })
+    let created; let receiverId: string; let title: string; let link: string
+    if (orderId) {
+      const context = await orderContext(orderId, session.id); if (!context) return NextResponse.json({ error: 'غير مصرح' }, { status: 403 }); receiverId = context.otherId
+      created = await db.chatMessage.create({ data: { orderId, senderId: session.id, receiverId, message: text, imageUrl: imageUrl || null }, include: { sender: { select: { id: true, name: true } } } }); title = 'رسالة جديدة عن طلب'; link = `/messages/${orderId}`
+    } else if (partId) {
+      const context = await productContext(partId, session.id, participantId); if (!context || 'error' in context) return NextResponse.json({ error: context && 'error' in context ? 'حدد العميل للمحادثة' : 'غير مصرح' }, { status: context && 'error' in context ? 400 : 403 }); receiverId = context.otherId
+      created = await db.productMessage.create({ data: { partId, senderId: session.id, receiverId, message: text, imageUrl: imageUrl || null }, include: { sender: { select: { id: true, name: true } } } }); title = 'رسالة جديدة عن قطعة'; link = `/messages/part/${partId}?participant=${encodeURIComponent(session.id)}`
+    } else return NextResponse.json({ error: 'معرف المحادثة مطلوب' }, { status: 400 })
+    await createNotification({ userId: receiverId, title, message: text || 'صورة مرفقة', type: 'MESSAGE', link, dedupeKey: `message/${created.id}/${receiverId}` })
+    return NextResponse.json({ message: created }, { status: 201, headers: PRIVATE_HEADERS })
+  } catch (error) { const message = error instanceof Error ? error.message : ''; if (message === 'UNAUTHORIZED') return NextResponse.json({ error: 'غير مصرح' }, { status: 401 }); console.error('Chat send failed', error); return NextResponse.json({ error: 'تعذر إرسال الرسالة' }, { status: 500 }) }
 }

@@ -3,8 +3,7 @@ name: CI
 on:
   pull_request:
   push:
-    branches:
-      - main
+    branches: [main]
 
 permissions:
   contents: read
@@ -16,7 +15,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:17
@@ -24,8 +23,7 @@ jobs:
           POSTGRES_USER: ci
           POSTGRES_PASSWORD: ci
           POSTGRES_DB: ci
-        ports:
-          - 5432:5432
+        ports: ['5432:5432']
         options: >-
           --health-cmd "pg_isready -U ci -d ci"
           --health-interval 10s
@@ -36,49 +34,42 @@ jobs:
       DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/ci
       AUTH_SECRET: ci-only-secret-used-for-build-verification-2026
       APP_URL: https://example.invalid
-
+      CSP_REPORT_ONLY: '1'
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Set up Node.js 24
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Generate Prisma client for typecheck
-        run: npx prisma generate
-
+      - run: npm ci
+      - run: npx prisma generate
       - name: Typecheck
         run: npx tsc --noEmit
-
       - name: Diff check
         run: |
           git fetch origin main --depth=1
           git diff --check origin/main HEAD
-
-      - name: Prepare isolated checkout database
-        run: npx prisma db push --skip-generate
-
-      - name: Run checkout concurrency integration
+      - name: Recreate database through reproducible SQL path
+        run: npm run db:migrate:ci
+      - name: Checkout concurrency integration
         env:
           NODE_ENV: test
           RUN_CHECKOUT_INTEGRATION: '1'
           TEST_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/ci?connection_limit=10
         run: node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types --test tests/checkout-concurrency.integration.test.ts
-
       - name: Audit production dependencies
         run: npm audit --omit=dev --audit-level=high
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test
-
-      - name: Build
-        run: npm run build
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+      - name: Install pinned browser-gate tooling without changing the lockfile
+        run: npm install --no-save --package-lock=false @playwright/test@1.55.0 @axe-core/playwright@4.10.2
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Browser CSP, hydration and accessibility gate
+        env:
+          NODE_ENV: production
+          APP_URL: http://127.0.0.1:3100
+        run: node scripts/browser-release-gate.mjs
