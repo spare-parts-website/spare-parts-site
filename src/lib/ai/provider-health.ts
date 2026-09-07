@@ -1,12 +1,7 @@
-import 'server-only'
-
-import { Prisma } from '@prisma/client'
-import { db } from '@/lib/db'
-import type { AIProviderTarget } from '@/lib/ai/runtime'
+import type { AIProviderTarget } from './runtime.ts'
 
 export type ProviderFailureCategory = string
 export type AIProviderHealth = { provider: AIProviderTarget; consecutiveFailures: number; circuitOpen: boolean; openedUntil: string | null; lastFailureAt: string | null; lastSuccessAt: string | null; lastFailureCategory: ProviderFailureCategory | null }
-export type SharedProviderHealth = AIProviderHealth & { status: 'HEALTHY' | 'DEGRADED' | 'OPEN'; updatedAt: string; stale: boolean }
 
 const FAILURE_THRESHOLD = 3
 const BASE_COOLDOWN_MS = 30_000
@@ -27,25 +22,5 @@ export function providerBackoffMs(attemptIndex: number) { if (attemptIndex <= 0)
 export function recordProviderSuccess(provider: AIProviderTarget, now = Date.now()) { const state = stateFor(provider); state.consecutiveFailures = 0; state.openedUntil = 0; state.lastSuccessAt = now; state.lastFailureCategory = null }
 export function recordProviderFailure(provider: AIProviderTarget, category: ProviderFailureCategory, now = Date.now()) { const state = stateFor(provider); state.consecutiveFailures += 1; state.lastFailureAt = now; state.lastFailureCategory = category.slice(0, 64); if (state.consecutiveFailures >= FAILURE_THRESHOLD) { const exponent = Math.min(state.consecutiveFailures - FAILURE_THRESHOLD, 4); state.openedUntil = now + Math.min(MAX_COOLDOWN_MS, BASE_COOLDOWN_MS * (2 ** exponent)) } return { consecutiveFailures: state.consecutiveFailures, circuitOpened: state.openedUntil > now, openedUntil: state.openedUntil } }
 export function providerHealthSnapshot(now = Date.now()): AIProviderHealth[] { return [...states.entries()].map(([provider,state]) => ({ provider, consecutiveFailures: state.consecutiveFailures, circuitOpen: state.openedUntil > now, openedUntil: state.openedUntil ? new Date(state.openedUntil).toISOString() : null, lastFailureAt: state.lastFailureAt ? new Date(state.lastFailureAt).toISOString() : null, lastSuccessAt: state.lastSuccessAt ? new Date(state.lastSuccessAt).toISOString() : null, lastFailureCategory: state.lastFailureCategory })) }
-
-export async function publishProviderHealthSnapshot(now = Date.now()) {
-  const snapshot = providerHealthSnapshot(now)
-  for (const row of snapshot) {
-    const status = row.circuitOpen ? 'OPEN' : row.consecutiveFailures > 0 ? 'DEGRADED' : 'HEALTHY'
-    await db.$executeRaw(Prisma.sql`
-      INSERT INTO public."AIProviderHealth" (provider,status,"consecutiveFailures","circuitOpenUntil","lastFailureCategory","lastSuccessAt","lastFailureAt","updatedAt")
-      VALUES (${row.provider},${status},${row.consecutiveFailures},${row.openedUntil ? new Date(row.openedUntil) : null},${row.lastFailureCategory},${row.lastSuccessAt ? new Date(row.lastSuccessAt) : null},${row.lastFailureAt ? new Date(row.lastFailureAt) : null},CURRENT_TIMESTAMP)
-      ON CONFLICT (provider) DO UPDATE SET status=EXCLUDED.status,"consecutiveFailures"=EXCLUDED."consecutiveFailures","circuitOpenUntil"=EXCLUDED."circuitOpenUntil","lastFailureCategory"=EXCLUDED."lastFailureCategory","lastSuccessAt"=EXCLUDED."lastSuccessAt","lastFailureAt"=EXCLUDED."lastFailureAt","updatedAt"=CURRENT_TIMESTAMP
-    `)
-  }
-  return snapshot.length
-}
-
-export async function sharedProviderHealthSnapshot(now = Date.now()): Promise<SharedProviderHealth[]> {
-  try {
-    const rows = await db.$queryRaw<SharedRow[]>`SELECT provider,status,"consecutiveFailures","circuitOpenUntil","lastFailureCategory","lastSuccessAt","lastFailureAt","updatedAt" FROM public."AIProviderHealth" ORDER BY provider`
-    return rows.map((row) => ({ provider: row.provider, status: row.status, consecutiveFailures: row.consecutiveFailures, circuitOpen: Boolean(row.circuitOpenUntil && row.circuitOpenUntil.getTime() > now), openedUntil: row.circuitOpenUntil?.toISOString() || null, lastFailureAt: row.lastFailureAt?.toISOString() || null, lastSuccessAt: row.lastSuccessAt?.toISOString() || null, lastFailureCategory: row.lastFailureCategory, updatedAt: row.updatedAt.toISOString(), stale: now - row.updatedAt.getTime() > SHARED_STALE_MS }))
-  } catch { return [] }
-}
 
 export function resetProviderHealth() { states.clear() }

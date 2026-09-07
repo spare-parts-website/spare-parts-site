@@ -95,7 +95,7 @@ test('keeps public SSR routes independent from session resolution', () => {
   const routes = readFileSync(new URL('../src/app/[...route]/page.tsx', import.meta.url), 'utf8')
   const shell = readFileSync(new URL('../src/components/app-shell.tsx', import.meta.url), 'utf8')
   assert.doesNotMatch(homePage, /getSession/)
-  assert.match(routes, /const user = null/)
+  assert.match(routes, /getPublic(?:Part|Store)\(id, null\)/)
   assert.doesNotMatch(routes, /await getSession\(\)/)
   assert.match(shell, /\/api\/auth\/me/)
   assert.match(shell, /Public SSR remains identity-free/)
@@ -136,23 +136,27 @@ test('keeps the shared shell persistent and navigation URL-driven', () => {
   assert.match(wishlist, /\['BUYER', 'SHOP_OWNER', 'ADMIN'\]/)
 })
 
-test('loads seller tabs independently and scopes support cache by user and filters', () => {
+test('loads seller tabs independently and keeps support read-model requests bounded', () => {
   const seller = readFileSync(new URL('../src/components/views/shop-dashboard-view.tsx', import.meta.url), 'utf8')
   const sellerCache = readFileSync(new URL('../src/lib/seller-dashboard-cache.ts', import.meta.url), 'utf8')
   const warmup = readFileSync(new URL('../src/lib/dashboard-warmup.ts', import.meta.url), 'utf8')
   const support = readFileSync(new URL('../src/components/views/support-view.tsx', import.meta.url), 'utf8')
 
   assert.match(sellerCache, /tab === 'parts' \? '\/api\/parts\?scope=mine'/)
-  assert.match(sellerCache, /tab === 'orders' \? '\/api\/orders\?scope=shop'/)
+  assert.match(sellerCache, /tab === 'orders' \? '\/api\/orders\/list\?scope=shop&limit=50'/)
   assert.match(sellerCache, /'\/api\/shop\/store'/)
   assert.match(warmup, /warmSellerAnalytics/)
   assert.match(warmup, /warmSellerCoupons/)
   assert.match(warmup, /warmSellerMessages/)
   assert.match(seller, /loadSellerCore/)
   assert.doesNotMatch(seller, /Promise\.all\(\[\s*fetch\('\/api\/shop\/store'/)
-  assert.match(support, /supportCacheKey\(user\.id, user\.role, statusFilter, categoryFilter, ticketSearch\)/)
-  assert.match(support, /SUPPORT_CACHE_TTL/)
-  assert.match(support, /supportCache\.clear\(\)/)
+  assert.match(support, /if \(!user\) return/)
+  assert.match(support, /new URLSearchParams\(\{ limit: '25' \}\)/)
+  assert.match(support, /if \(statusFilter\) params\.set\('status'/)
+  assert.match(support, /if \(categoryFilter\) params\.set\('category'/)
+  assert.match(support, /if \(ticketSearch\) params\.set\('search'/)
+  assert.match(support, /if \(append && nextCursor\) params\.set\('cursor'/)
+  assert.match(support, /new URLSearchParams\(\{ limit: '50' \}\)/)
 })
 
 test('expands structured fitment additively and warns before checkout', () => {

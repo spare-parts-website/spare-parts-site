@@ -18,6 +18,7 @@ Before public launch:
 
 - [ ] Configure a paid primary AI model/provider with sufficient quota.
 - [ ] Keep at least one independently configured fallback provider.
+- [ ] Set `AI_REQUIRE_ZDR=true` only when the selected AI Gateway/provider plan supports hard zero-data-retention routing; the default still denies provider data collection without making unsupported Hobby-plan requests.
 - [ ] Exercise text, image, buyer, seller, and admin flows against the release candidate.
 - [ ] Verify provider billing/usage alerts and rate-limit behavior without exposing provider keys to the browser.
 

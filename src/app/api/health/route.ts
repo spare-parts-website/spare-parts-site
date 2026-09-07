@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { secretsMatch } from '@/lib/security'
 import { aiPaidPrimaryModel, aiProviderTargets } from '@/lib/ai/runtime'
-import { providerHealthSnapshot, sharedProviderHealthSnapshot } from '@/lib/ai/provider-health'
+import { providerHealthSnapshot } from '@/lib/ai/provider-health'
+import { sharedProviderHealthSnapshot } from '@/lib/ai/provider-health-persistence'
 import { getTransactionalSender } from '@/lib/email-sender'
 
 export async function GET(req: NextRequest) {

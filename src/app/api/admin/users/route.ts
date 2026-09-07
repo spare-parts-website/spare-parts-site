@@ -9,6 +9,7 @@ import { isPublicUploadUrl } from '@/lib/storage-url'
 import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 import { audit } from '@/lib/audit'
 import { decodeCursor, encodeCursor, keysetBefore, parseLimit } from '@/lib/pagination'
+import { recipientEmailError, validateRecipientEmail } from '@/lib/email-deliverability'
 
 const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' }
 
@@ -32,7 +33,11 @@ export async function PUT(req: NextRequest) {
     const session = await requireAdminStepUp(); const body = await req.json(); const id = typeof body.id === 'string' ? body.id : ''
     if (!id) return NextResponse.json({ error: 'معرف المستخدم مطلوب' }, { status: 400 }); if (body.role !== undefined && !['BUYER', 'SHOP_OWNER', 'ADMIN'].includes(body.role)) return NextResponse.json({ error: 'دور غير صالح' }, { status: 400 })
     const target = await db.user.findUnique({ where: { id }, include: { store: { select: { id: true } } } }); if (!target) return NextResponse.json({ error: 'المستخدم غير موجود' }, { status: 404 })
-    if (body.email !== undefined && String(body.email).trim().toLowerCase() !== target.email) return NextResponse.json({ error: 'تغيير البريد الإلكتروني يتطلب تحقق صاحب الحساب من صفحة ملفه الشخصي.' }, { status: 409 })
+    if (body.email !== undefined) {
+      const emailValidation = validateRecipientEmail(body.email)
+      if (!emailValidation.valid) return NextResponse.json({ error: recipientEmailError(emailValidation), suggestion: emailValidation.suggestion }, { status: 400 })
+      if (emailValidation.email !== target.email) return NextResponse.json({ error: 'تغيير البريد الإلكتروني يتطلب تحقق صاحب الحساب من صفحة ملفه الشخصي.' }, { status: 409 })
+    }
     const role = body.role === undefined ? target.role : body.role; if (id === session.id && role !== target.role) return NextResponse.json({ error: 'لا يمكنك تغيير دور حساب المدير الحالي' }, { status: 400 })
     if (target.role === 'SHOP_OWNER' && role !== 'SHOP_OWNER' && target.store) return NextResponse.json({ error: 'احذف أو انقل المتجر قبل تغيير دور صاحبه' }, { status: 409 })
     if (target.role === 'ADMIN' && role !== 'ADMIN') { const admins = await db.user.count({ where: { role: 'ADMIN' } }); if (admins <= 1) return NextResponse.json({ error: 'يجب أن يبقى مدير واحد على الأقل' }, { status: 409 }) }

@@ -4,7 +4,8 @@ import { generateText, gateway } from 'ai'
 import { createGoogle } from '@ai-sdk/google'
 import { createOpenRouter } from '@openrouter/ai-sdk-provider'
 import { aiModel, aiPaidPrimaryModel, aiProviderTargets, type AIProviderTarget } from '@/lib/ai/runtime'
-import { publishProviderHealthSnapshot, recordProviderFailure, recordProviderSuccess, sharedProviderHealthSnapshot } from '@/lib/ai/provider-health'
+import { recordProviderFailure, recordProviderSuccess } from '@/lib/ai/provider-health'
+import { publishProviderHealthSnapshot, sharedProviderHealthSnapshot } from '@/lib/ai/provider-health-persistence'
 
 function syntheticModel(provider: AIProviderTarget) {
   if (provider === 'gateway-minimax-free') return gateway('minimax/minimax-m3')

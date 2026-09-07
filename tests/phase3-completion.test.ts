@@ -35,7 +35,7 @@ test('inbox consumers can reach older pages without quiet-refresh cursor rewind'
 })
 
 test('shared operations state and migration are non-destructive', () => {
-  const health = read('src/lib/ai/provider-health.ts')
+  const health = read('src/lib/ai/provider-health-persistence.ts')
   const alerts = read('src/lib/operational-alerts.ts')
   const migration = read('supabase/migrations/20260907013000_p0_p3_reconciliation.sql')
   assert.match(health, /AIProviderHealth/)

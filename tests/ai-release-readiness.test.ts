@@ -59,6 +59,7 @@ test('private routing fails closed before public free fallbacks', () => {
   assert.ok(privateReturn >= 0 && freeGateway > privateReturn)
   assert.equal(/privateContext[\s\S]{0,300}targets\.push\('openrouter'\)/.test(runtime), false)
   assert.match(agent, /data_collection: 'deny'/)
+  assert.match(agent, /AI_REQUIRE_ZDR === 'true'/)
 })
 
 test('never forwards a raw internal user id to model providers', () => {
