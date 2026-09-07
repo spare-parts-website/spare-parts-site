@@ -46,7 +46,13 @@ try {
       if (browserErrors.length) throw new Error(`${path} browser errors:\n${browserErrors.join('\n')}`)
       const accessibility = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
       const blocking = accessibility.violations.filter((violation) => violation.impact === 'critical' || violation.impact === 'serious')
-      if (blocking.length) throw new Error(`${path} serious accessibility violations: ${blocking.map((v) => `${v.id}(${v.nodes.length})`).join(', ')}`)
+      if (blocking.length) {
+        const details = blocking.map((violation) => {
+          const nodes = violation.nodes.map((node) => `${node.target.join(' ')}: ${node.failureSummary ?? 'no summary'} ${node.html.slice(0, 240)}`).join(' | ')
+          return `${violation.id}(${violation.nodes.length}) ${nodes}`
+        }).join('; ')
+        throw new Error(`${path} serious accessibility violations: ${details}`)
+      }
       await page.close()
     }
   } finally {
