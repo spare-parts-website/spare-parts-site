@@ -35,6 +35,8 @@ try {
       page.on('console', (message) => {
         if (message.type() !== 'error') return
         const text = message.text()
+        // Vercel serves these telemetry routes at the platform edge; plain `next start` in CI returns the app HTML instead.
+        if (/\/_vercel\/(?:insights|speed-insights)\/script\.js/.test(text)) return
         if (/hydration|content security policy|refused to execute|uncaught/i.test(text)) browserErrors.push(`console: ${text}`)
       })
       const response = await page.goto(`${baseURL}${path}`, { waitUntil: 'domcontentloaded' })
