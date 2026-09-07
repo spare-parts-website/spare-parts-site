@@ -81,7 +81,7 @@ test('keeps grouped-order rollout additive, idempotent, and stock-safe', () => {
   assert.match(route, /stock: \{ decrement: item\.quantity \}/)
   assert.match(route, /نطاق الطلبات غير صالح/)
   assert.match(route, /code === 'P2002'/)
-  assert.match(disputes, /status: \{ in: \['SHIPPED', 'DELIVERED'\] \}/)
+  assert.match(disputes, /status:\s*\{\s*in:\s*\['SHIPPED','DELIVERED'\]\s*\}/)
   assert.match(disputes, /claimedOrder\.count !== 1/)
 })
 

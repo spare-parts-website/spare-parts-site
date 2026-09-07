@@ -20,8 +20,10 @@ test('support tickets enforce private ownership and failure-safe admin notificat
   assert.match(detailRoute, /const admin = session\.role === 'ADMIN'/)
   assert.match(detailRoute, /loadTicket\(id, session\.id, admin\)/)
   assert.match(notifications, /shouldSendNonessentialEmail/)
-  assert.match(notifications, /idempotencyKey: `notification\//)
-  assert.match(notifications, /recordEmailDeliveryAttempt/)
+  assert.match(notifications, /const deliveryKey = `notification\/\$\{notification\.id\}`/)
+  assert.match(notifications, /queueEmailOutbox/)
+  assert.match(notifications, /after\(async \(\) =>/)
+  assert.doesNotMatch(notifications, /resend\.emails\.send/)
   assert.match(migration, /enable row level security/i)
 })
 
