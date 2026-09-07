@@ -191,6 +191,77 @@ CREATE TRIGGER "PaymentLedger_append_only"
   BEFORE UPDATE OR DELETE ON public."PaymentLedger"
   FOR EACH ROW EXECUTE FUNCTION public.reject_marketplace_ledger_mutation();
 
+-- Capture stock changes at the database boundary so every code path (checkout,
+-- dispute resolution, seller edits, CSV import, or future admin tooling) is audited.
+CREATE OR REPLACE FUNCTION public.record_inventory_stock_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+DECLARE
+  event_id text := gen_random_uuid()::text;
+BEGIN
+  IF NEW."stock" IS DISTINCT FROM OLD."stock" THEN
+    INSERT INTO public."InventoryLedger" (
+      "id", "partId", "eventType", "delta", "stockAfter", "idempotencyKey", "metadata"
+    ) VALUES (
+      event_id,
+      NEW."id",
+      'ADJUSTMENT',
+      NEW."stock" - OLD."stock",
+      NEW."stock",
+      'stock-change:' || event_id,
+      jsonb_build_object('source', 'Part.stock trigger')
+    );
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "Part_inventory_ledger" ON public."Part";
+CREATE TRIGGER "Part_inventory_ledger"
+  AFTER UPDATE OF "stock" ON public."Part"
+  FOR EACH ROW
+  WHEN (OLD."stock" IS DISTINCT FROM NEW."stock")
+  EXECUTE FUNCTION public.record_inventory_stock_change();
+
+-- Payment business-state changes are also captured centrally. This records state
+-- transitions only; it does not pretend a PSP charge/refund occurred.
+CREATE OR REPLACE FUNCTION public.record_order_payment_change()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public, pg_temp
+AS $$
+BEGIN
+  IF NEW."paymentStatus" IS DISTINCT FROM OLD."paymentStatus"
+     AND NEW."paymentStatus" IN ('PAID', 'REFUNDED') THEN
+    INSERT INTO public."PaymentLedger" (
+      "id", "orderId", "eventType", "amountMinor", "currency", "paymentMethod",
+      "paymentStatus", "idempotencyKey", "metadata"
+    ) VALUES (
+      gen_random_uuid()::text,
+      NEW."id",
+      NEW."paymentStatus",
+      NEW."totalPriceMinor",
+      'EGP',
+      NEW."paymentMethod",
+      NEW."paymentStatus",
+      'order:' || NEW."id" || ':payment:' || NEW."paymentStatus",
+      jsonb_build_object('source', 'Order.paymentStatus trigger', 'previousStatus', OLD."paymentStatus")
+    )
+    ON CONFLICT ("idempotencyKey") DO NOTHING;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS "Order_payment_ledger" ON public."Order";
+CREATE TRIGGER "Order_payment_ledger"
+  AFTER UPDATE OF "paymentStatus" ON public."Order"
+  FOR EACH ROW
+  WHEN (OLD."paymentStatus" IS DISTINCT FROM NEW."paymentStatus")
+  EXECUTE FUNCTION public.record_order_payment_change();
+
 ALTER TABLE public."InventoryLedger" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public."PaymentLedger" ENABLE ROW LEVEL SECURITY;
 REVOKE ALL PRIVILEGES ON TABLE public."InventoryLedger" FROM PUBLIC, anon, authenticated;
