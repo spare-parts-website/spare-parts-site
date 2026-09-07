@@ -91,7 +91,7 @@ test('registration requires email verification and does not issue unverified ses
   const register = read('src/app/api/auth/register/route.ts')
   const authView = read('src/components/views/auth-view.tsx')
   assert.match(register, /issueLoginVerification/)
-  assert.match(register, /verificationRequired: true/)
+  assert.match(register, /verificationRequired:\s*true/)
   assert.ok(!register.includes('createSession('))
   assert.match(authView, /if \(data\.verificationRequired\)/)
 })

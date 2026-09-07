@@ -22,7 +22,7 @@ test('switches seller and admin dashboard tabs immediately without a server rout
   assert.match(seller, /pushDashboardTab\('seller', v\)/)
   assert.match(navigation, /dashboard && isInsideDashboard\(pathname, dashboard\.area\)/)
   assert.match(navigation, /router\.push\(path\)/)
-  assert.match(admin, /router\.push\(`\/admin\/\$\{v\}`\)/)
+  assert.match(admin, /router\.push\(`\/admin\/\$\{(?:v|value)\}`\)/)
 })
 
 test('loads private dashboard data on demand instead of fanning out after login', () => {

@@ -5,7 +5,7 @@ import { Resend } from 'resend'
 import { db } from '@/lib/db'
 import { loginCodeEmailHtml } from '@/lib/email-templates'
 import { getTransactionalSender } from '@/lib/email-sender'
-import { normalizeRecipientEmail } from '@/lib/email-deliverability'
+import { isPermanentRecipientStatus, normalizeRecipientEmail } from '@/lib/email-deliverability'
 import { recordEmailDeliveryAttempt } from '@/lib/email-delivery'
 import { purposeSecret } from '@/lib/crypto-purpose'
 
@@ -13,7 +13,7 @@ export const LOGIN_CODE_TTL_MS = 10 * 60 * 1000
 export const LOGIN_CODE_MAX_ATTEMPTS = 5
 export type LoginVerificationPurpose = 'login' | 'register' | 'admin-bootstrap'
 
-type VerificationUser = { id: string; name: string; email: string }
+type VerificationUser = { id: string; name: string; email: string; emailDeliveryStatus?: string | null }
 
 function purposeDbValue(purpose: LoginVerificationPurpose) {
   return purpose === 'register' ? 'REGISTER' : purpose === 'admin-bootstrap' ? 'ADMIN_BOOTSTRAP' : 'LOGIN'
@@ -34,6 +34,7 @@ export function matchesLoginCode(challengeId: string, code: string, storedHash: 
 }
 
 export async function issueLoginVerification(user: VerificationUser, purpose: LoginVerificationPurpose = 'login') {
+  if (isPermanentRecipientStatus(user.emailDeliveryStatus)) throw new Error('EMAIL_UNDELIVERABLE')
   const challengeId = randomUUID()
   const code = String(randomInt(100000, 1000000))
   const expiresAt = new Date(Date.now() + LOGIN_CODE_TTL_MS)

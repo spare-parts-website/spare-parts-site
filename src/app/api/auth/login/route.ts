@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ verificationRequired: true, challengeId: challenge.challengeId, emailHint: emailHint(user.email), expiresIn: 600 })
   } catch (error) {
     const message = error instanceof Error ? error.message : ''
+    if (message === 'EMAIL_UNDELIVERABLE') return NextResponse.json({ error: 'هذا البريد لا يستطيع استلام رسائل التحقق حالياً. تواصل مع الدعم لتحديث البريد الإلكتروني.' }, { status: 409 })
     if (message === 'EMAIL_NOT_CONFIGURED' || message === 'EMAIL_DELIVERY_FAILED') return NextResponse.json({ error: 'تعذر إرسال رمز التحقق الآن. حاول مرة أخرى بعد قليل.' }, { status: 503 })
     console.error('Login failed', error)
     return NextResponse.json({ error: 'تعذر تسجيل الدخول' }, { status: 500 })
