@@ -82,7 +82,7 @@ test('keeps grouped-order rollout additive, idempotent, and stock-safe', () => {
   assert.match(route, /نطاق الطلبات غير صالح/)
   assert.match(route, /code === 'P2002'/)
   assert.match(disputes, /status:\s*\{\s*in:\s*\['SHIPPED','DELIVERED'\]\s*\}/)
-  assert.match(disputes, /claimedOrder\.count !== 1/)
+  assert.match(disputes, /claimedOrder\.count\s*!==\s*1/)
 })
 
 test('parses, validates, deduplicates, and serializes vehicle compatibility', () => {
