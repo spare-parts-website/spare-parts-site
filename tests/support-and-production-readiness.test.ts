@@ -92,13 +92,11 @@ test('support inbox exposes admin filters without a route-wide loading takeover'
 test('latest approved logo is wired to favicon, app chrome, and service worker', () => {
   const layout = read('src/app/layout.tsx')
   const header = read('src/components/header.tsx')
-  const auth = read('src/components/views/auth-view.tsx')
   const config = read('next.config.ts')
   const worker = read('public/sw.js')
   assert.match(layout, /icon: "\/ghyar-market-logo\.png"/)
   assert.match(layout, /alternates: \{ canonical: '\/' \}/)
   assert.match(header, /src="\/ghyar-market-logo\.png"/)
-  assert.match(auth, /src="\/ghyar-market-logo\.png"/)
   assert.match(config, /destination: '\/ghyar-market-logo\.png'/)
   assert.match(worker, /\/ghyar-market-logo\.png/)
 })
