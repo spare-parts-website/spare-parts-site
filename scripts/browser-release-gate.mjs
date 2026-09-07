@@ -26,9 +26,10 @@ async function waitForServer() {
 try {
   await waitForServer()
   const browser = await chromium.launch({ headless: true })
+  const context = await browser.newContext()
   try {
     for (const path of ['/', '/parts', '/parts?search=brake', '/stores', '/login']) {
-      const page = await browser.newPage()
+      const page = await context.newPage()
       const browserErrors = []
       page.on('pageerror', (error) => browserErrors.push(`pageerror: ${error.message}`))
       page.on('console', (message) => {
@@ -49,6 +50,7 @@ try {
       await page.close()
     }
   } finally {
+    await context.close()
     await browser.close()
   }
   console.log('Browser release gate passed')

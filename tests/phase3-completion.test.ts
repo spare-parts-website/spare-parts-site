@@ -54,5 +54,6 @@ test('release gate includes locked build plus browser CSP and axe checks', () =>
   assert.match(ci, /@axe-core\/playwright@4\.10\.2/)
   assert.match(browser, /content-security-policy/)
   assert.match(browser, /AxeBuilder/)
+  assert.match(browser, /browser\.newContext\(\)/)
   assert.match(browser, /hydration/)
 })
