@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-test('keeps high-frequency top-level routes warm without periodic duplicate traffic', () => {
+test('keeps top-level navigation intent-prefetched without speculative route bursts', () => {
   const header = readFileSync(new URL('../src/components/header.tsx', import.meta.url), 'utf8')
   const layout = readFileSync(new URL('../src/app/layout.tsx', import.meta.url), 'utf8')
   const homePage = readFileSync(new URL('../src/app/page.tsx', import.meta.url), 'utf8')
@@ -10,8 +10,16 @@ test('keeps high-frequency top-level routes warm without periodic duplicate traf
   const storesPage = readFileSync(new URL('../src/app/stores/page.tsx', import.meta.url), 'utf8')
   const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8')
 
-  assert.match(header, /const routes = \['\/', '\/parts', '\/stores', '\/support'\]/)
-  assert.match(header, /routes\.forEach\(\(path\) => router\.prefetch\(path\)\)/)
+  assert.match(header, /const intentPrefetch = \(path: string\) => \(\{/)
+  assert.match(header, /prefetch: false as const/)
+  assert.match(header, /onMouseEnter: \(\) => router\.prefetch\(path\)/)
+  assert.match(header, /onFocus: \(\) => router\.prefetch\(path\)/)
+  assert.match(header, /onTouchStart: \(\) => router\.prefetch\(path\)/)
+  assert.match(header, /<Link href="\/support" prefetch=\{false\}/)
+  assert.match(header, /<Link href="\/seller\/parts" prefetch=\{false\}/)
+  assert.match(header, /<Link href="\/admin\/users" prefetch=\{false\}/)
+  assert.doesNotMatch(header, /const routes = \[/)
+  assert.doesNotMatch(header, /routes\.forEach\(.*router\.prefetch/)
   assert.doesNotMatch(layout, /NavigationWarmup/)
   assert.doesNotMatch(layout, /export const dynamic = 'force-dynamic'/)
   assert.match(homePage, /await connection\(\)/)
