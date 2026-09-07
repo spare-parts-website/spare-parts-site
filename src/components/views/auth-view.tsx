@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { cloneElement, isValidElement, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useAppStore, viewToPath } from '@/lib/store'
@@ -123,7 +123,11 @@ function SixDigitOtp({ value, onChange, disabled }: { value: string; onChange: (
 }
 
 function Field({ label, icon, children }: { label: string; icon: React.ReactNode; children: React.ReactNode }) {
-  return <div className="space-y-2"><Label>{label}</Label><div className="relative"><span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>{children}</div></div>
+  const accessibleChild = isValidElement(children)
+    ? cloneElement(children as React.ReactElement<{ 'aria-label'?: string }>, { 'aria-label': label })
+    : children
+
+  return <div className="space-y-2"><Label>{label}</Label><div className="relative"><span className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground">{icon}</span>{accessibleChild}</div></div>
 }
 function RoleButton({ active, onClick, icon, label }: { active: boolean; onClick: () => void; icon: React.ReactNode; label: string }) {
   return <button type="button" onClick={onClick} className={`flex flex-col items-center gap-2 rounded-lg border-2 p-3 transition ${active ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/40'}`}>{icon}<span className="text-sm font-medium">{label}</span></button>
