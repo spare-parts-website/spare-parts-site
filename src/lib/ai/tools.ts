@@ -710,7 +710,19 @@ type SearchResult = { title: string; snippet: string; url: string }
 const SEARCH_ENDPOINTS = ['https://baresearch.org/', 'https://search.mectov.my.id/', 'https://search.hbubli.cc/']
 
 function searchSubject(query: string) {
-  return query.replace(/\b(?:price|egypt|egp)\b/gi, ' ').replace(/(?:سعر|مصر|مصري)/g, ' ').replace(/\s+/g, ' ').trim()
+  const cleaned = query
+    .replace(/\b(?:price|egypt|egp)\b/gi, ' ')
+    .replace(/(?:سعر|مصر|مصري)/g, ' ')
+    .replace(/(?:^|\s)(?:في|من|عن|على|لـ?|لي)(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const synonyms: Array<[RegExp, string]> = [
+    [/(?:سير|سيور)/gi, 'belt'], [/(?:محرك)/gi, 'engine'], [/(?:تيل|فرامل)/gi, 'brake pad'],
+    [/(?:فلتر)/gi, 'filter'], [/(?:حساس)/gi, 'sensor'], [/(?:طرمبة|طلمبة)/gi, 'pump'],
+    [/(?:كشاف)/gi, 'headlight'], [/(?:موتور)/gi, 'motor'], [/(?:جنط|جنوط)/gi, 'rim'],
+  ]
+  const expanded = synonyms.flatMap(([pattern, value]) => pattern.test(cleaned) ? [value as string] : [])
+  return [...new Set([cleaned, ...expanded])].filter(Boolean).join(' ').slice(0, 160)
 }
 
 function globalSearchQueries(subject: string) {
@@ -722,7 +734,10 @@ function globalSearchQueries(subject: string) {
 }
 
 async function searchAcrossProviders(queries: string[]) {
-  const responses = await Promise.allSettled(SEARCH_ENDPOINTS.flatMap((endpoint) => queries.map((searchQuery) => searchSearx(endpoint, searchQuery))))
+  const responses = await Promise.allSettled([
+    ...SEARCH_ENDPOINTS.flatMap((endpoint) => queries.map((searchQuery) => searchSearx(endpoint, searchQuery))),
+    ...queries.slice(0, 2).map((searchQuery) => searchBing(searchQuery)),
+  ])
   return responses.flatMap((response) => response.status === 'fulfilled' ? response.value : [])
 }
 
@@ -794,6 +809,26 @@ async function searchDuckDuckGo(queries: string[]): Promise<SearchResult[]> {
     return parseDuckDuckGo(await response.text())
   }))
   return responses.flatMap((response) => response.status === 'fulfilled' ? response.value : [])
+}
+
+async function searchBing(query: string): Promise<SearchResult[]> {
+  const response = await fetch(`https://www.bing.com/search?q=${encodeURIComponent(query)}`, {
+    headers: { Accept: 'text/html', 'User-Agent': 'Mozilla/5.0 (compatible; GhyarMarket/1.0; +https://ghyarmarket-eg.com)' },
+    signal: AbortSignal.timeout(7_000),
+  })
+  if (!response.ok) throw new Error(`BING_HTTP_${response.status}`)
+  return parseBing(await response.text())
+}
+
+function parseBing(html: string): SearchResult[] {
+  const results = [...html.matchAll(/<li[^>]*class="[^"]*b_algo[^"]*"[^>]*>[\s\S]*?<h2[^>]*>\s*<a[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?<\/h2>[\s\S]*?(?:<div[^>]*class="[^"]*b_caption[^"]*"[^>]*>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>|<p[^>]*>([\s\S]*?)<\/p>)[\s\S]*?<\/li>/gi)]
+  return results.slice(0, 10).flatMap((match) => {
+    const url = decodeHtml(match[1])
+    if (!/^https?:\/\//i.test(url)) return []
+    const title = plainText(match[2]).slice(0, 180)
+    const snippet = plainText(match[3] || match[4] || '').slice(0, 300)
+    return title ? [{ title, snippet, url }] : []
+  })
 }
 
 function parseDuckDuckGo(html: string): SearchResult[] {
