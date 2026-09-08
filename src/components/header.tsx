@@ -189,7 +189,8 @@ export function Header() {
                   </span>
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
+              <DropdownMenuContent align="end" className="w-60">
+                <div dir="rtl">
                 <DropdownMenuLabel>
                   <div className="flex flex-col gap-0.5">
                     <span className="font-medium">{user.name}</span>
@@ -201,34 +202,34 @@ export function Header() {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/account/profile" prefetch={false}>
-                  <UserIcon className="size-4 ml-2" />
-                  ملفي الشخصي
+                  <Link href="/account/profile" prefetch={false} className="flex w-full items-center gap-2 whitespace-nowrap text-right">
+                  <UserIcon className="size-4 shrink-0" />
+                  الملف الشخصي
                   </Link>
                 </DropdownMenuItem>
                 {(user.role === 'BUYER' || user.role === 'SHOP_OWNER') && (
                   <DropdownMenuItem asChild>
-                    <Link href="/account/orders" prefetch={false}>
-                    <ShoppingBag className="size-4 ml-2" />
+                    <Link href="/account/orders" prefetch={false} className="flex w-full items-center gap-2 whitespace-nowrap text-right">
+                    <ShoppingBag className="size-4 shrink-0" />
                     طلباتي
                     </Link>
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem asChild>
-                  <Link href="/account/messages" prefetch={false}>
-                  <MessageSquare className="size-4 ml-2" />
+                  <Link href="/account/messages" prefetch={false} className="flex w-full items-center gap-2 whitespace-nowrap text-right">
+                  <MessageSquare className="size-4 shrink-0" />
                   الرسائل
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/account/security" prefetch={false}>
-                  <ShieldCheck className="size-4 ml-2" />
-                  أمان الحساب وMFA
+                  <Link href="/account/security" prefetch={false} className="flex w-full items-center gap-2 whitespace-nowrap text-right">
+                  <ShieldCheck className="size-4 shrink-0" />
+                  إعدادات MFA
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/support" prefetch={false}>
-                  <LifeBuoy className="size-4 ml-2" />
+                  <Link href="/support" prefetch={false} className="flex w-full items-center gap-2 whitespace-nowrap text-right">
+                  <LifeBuoy className="size-4 shrink-0" />
                   الدعم والمساعدة
                   </Link>
                 </DropdownMenuItem>
@@ -277,6 +278,7 @@ export function Header() {
                   <LogOut className="size-4 ml-2" />
                   تسجيل الخروج
                 </DropdownMenuItem>
+                </div>
               </DropdownMenuContent>
             </DropdownMenu>
           ) : (
