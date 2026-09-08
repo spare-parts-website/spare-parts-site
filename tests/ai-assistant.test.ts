@@ -139,6 +139,15 @@ test('routes part price advice to live web research even when it looks like a ma
   assert.equal(planAIRequest('What is a fair market price for a Toyota Corolla brake pad?', 'BUYER').forcedTool, 'searchInternet')
 })
 
+test('normalizes natural price prompts into automotive web queries', () => {
+  assert.equal(cleanWebSearchQuery('Suggest a market price for front brake pads for a 2015 Toyota Corolla in Egypt.'), 'front brake pads 2015 Toyota Corolla price Egypt EGP')
+  assert.equal(cleanWebSearchQuery('What is a fair market price for Toyota Corolla 2015 brake pads?'), 'Toyota Corolla 2015 brake pads price')
+  assert.equal(planAIRequest('Suggest a market price for front brake pads for a 2015 Toyota Corolla in Egypt.', 'GUEST').forcedTool, 'searchInternet')
+  assert.equal(planAIRequest('What is a fair market price for Toyota Corolla 2015 brake pads?', 'BUYER').forcedTool, 'searchInternet')
+  assert.equal(planAIRequest('اقترح سعر تيل فرامل تويوتا كورولا 2015 في مصر', 'GUEST').forcedTool, 'searchInternet')
+  assert.equal(planAIRequest('اقترح سعر سير محرك BMW في مصر', 'GUEST').forcedTool, 'searchInternet')
+})
+
 test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
   const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
   const aiConfig = readFileSync(new URL('../src/lib/ai/config.ts', import.meta.url), 'utf8')
