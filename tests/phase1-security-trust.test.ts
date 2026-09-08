@@ -4,8 +4,9 @@ import test from 'node:test'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('Phase 1 requires MFA for administrators and fresh step-up for privileged writes', () => {
+test('Admin login uses password while privileged writes retain fresh step-up', () => {
   const auth = read('src/lib/auth.ts')
+  const login = read('src/app/api/auth/login/route.ts')
   const loginPolicy = read('src/lib/login-policy.ts')
   const adminMfa = read('src/lib/admin-mfa.ts')
   const users = read('src/app/api/admin/users/route.ts')
@@ -17,7 +18,9 @@ test('Phase 1 requires MFA for administrators and fresh step-up for privileged w
   const reports = read('src/app/api/reports/route.ts')
   const reviews = read('src/app/api/reviews/route.ts')
   const aiActions = read('src/app/api/ai/actions/route.ts')
-  assert.match(auth, /ADMIN_MFA_REQUIRED/)
+  assert.match(login, /user\.role === 'ADMIN'/)
+  assert.match(login, /await createSession\(/)
+  assert.doesNotMatch(login, /adminMfaRequired: true/)
   assert.match(auth, /requireAdminStepUp/)
   assert.match(auth, /ADMIN_STEP_UP_TTL_MS/)
   assert.doesNotMatch(loginPolicy, /role\s*!==\s*['"]ADMIN['"]/)

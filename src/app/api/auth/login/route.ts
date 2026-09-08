@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { verifyPassword } from '@/lib/auth'
+import { createSession, verifyPassword } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
 import { issueLoginVerification } from '@/lib/login-verification'
 import { createAdminLoginChallenge, ADMIN_MFA_CHALLENGE_TTL_MS } from '@/lib/admin-mfa'
@@ -26,12 +26,8 @@ export async function POST(req: NextRequest) {
     if (!user || !(await verifyPassword(password, user.password))) return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 401 })
 
     if (user.role === 'ADMIN') {
-      if (user.adminMfaEnabledAt && user.adminMfaSecret) {
-        const challenge = await createAdminLoginChallenge(user.id)
-        return NextResponse.json({ adminMfaRequired: true, challengeId: challenge.id, expiresIn: Math.floor(ADMIN_MFA_CHALLENGE_TTL_MS / 1000) })
-      }
-      const setupChallenge = await db.adminMfaChallenge.create({ data: { userId: user.id, purpose: 'ENROLL', expiresAt: new Date(Date.now() + 10 * 60 * 1000) } })
-      return NextResponse.json({ adminMfaSetupRequired: true, setupChallengeId: setupChallenge.id, expiresIn: 600 })
+      await createSession({ id: user.id, name: user.name, email: user.email, role: 'ADMIN', phone: user.phone, avatar: user.avatar, emailNotifications: user.emailNotifications, emailDeliveryStatus: user.emailDeliveryStatus, emailDeliveryReason: user.emailDeliveryReason, emailDeliveryAt: user.emailDeliveryAt, sessionVersion: user.sessionVersion }, req)
+      return NextResponse.json({ user: { id: user.id, name: user.name, email: user.email, role: user.role, phone: user.phone, avatar: user.avatar, emailNotifications: user.emailNotifications, emailDeliveryStatus: user.emailDeliveryStatus, emailDeliveryReason: user.emailDeliveryReason, emailDeliveryAt: user.emailDeliveryAt } })
     }
 
     if (user.adminMfaEnabledAt && user.adminMfaSecret) {

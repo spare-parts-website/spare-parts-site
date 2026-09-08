@@ -68,16 +68,13 @@ test('coarse abuse throttling runs before handlers without Postgres writes', () 
   assert.doesNotMatch(resend, /resend-login-code:\$\{requestAddress/)
 })
 
-test('admin login skips email verification and starts mandatory MFA enrollment', () => {
+test('admin login skips email verification and uses password session login', () => {
   const login = read('src/app/api/auth/login/route.ts')
-  const setup = read('src/app/api/auth/admin-mfa/setup/route.ts')
 
   assert.match(login, /user\.role === 'ADMIN'/)
-  assert.match(login, /adminMfaSetupRequired: true/)
-  assert.match(login, /purpose: 'ENROLL'/)
+  assert.match(login, /await createSession\(/)
+  assert.match(login, /return NextResponse\.json\(\{ user:/)
   assert.doesNotMatch(login, /issueLoginVerification\(user, 'admin-bootstrap'\)/)
-  assert.match(setup, /setupChallengeId/)
-  assert.match(setup, /setupChallenge\?\.purpose === 'ENROLL'/)
 })
 
 test('AI global expiration scans belong only to daily maintenance', () => {
