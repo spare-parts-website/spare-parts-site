@@ -134,6 +134,11 @@ test('cleans conversational filler from current web searches', () => {
   assert.equal(cleanWebSearchQuery('كم سعر BMW 328i belt في مصر حالياً؟'), 'BMW 328i belt price Egypt EGP')
 })
 
+test('routes part price advice to live web research even when it looks like a marketplace query', () => {
+  assert.equal(planAIRequest('اقترح سعر تيل فرامل BMW في مصر', 'GUEST').forcedTool, 'searchInternet')
+  assert.equal(planAIRequest('What is a fair market price for a Toyota Corolla brake pad?', 'BUYER').forcedTool, 'searchInternet')
+})
+
 test('uses stable Gemini Flash Lite with zero-cost provider failover', () => {
   const runtime = readFileSync(new URL('../src/lib/ai/runtime.ts', import.meta.url), 'utf8')
   const aiConfig = readFileSync(new URL('../src/lib/ai/config.ts', import.meta.url), 'utf8')

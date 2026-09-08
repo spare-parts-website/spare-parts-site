@@ -684,12 +684,15 @@ export async function searchInternet(query: string): Promise<AIToolCard> {
     }
 
     if (!ranked.length) return { type: 'insight', title: 'لم أجد نتائج ويب مناسبة', description: 'جرّب ذكر موديل السيارة أو سنة الصنع أو رقم القطعة أو البلد.' }
+    const pricedResults = ranked.map((result) => ({ result, price: extractPrice(result) })).filter((item): item is { result: SearchResult; price: string } => Boolean(item.price))
+    const egyptPrices = pricedResults.flatMap(({ price }) => { const match = price.match(/([\d,.]+)\s*ج\.م/i); if (!match) return []; const value = Number(match[1].replace(/,/g, '')); return Number.isFinite(value) && value > 0 ? [value] : [] })
+    const priceInsight = wantsEgypt && egyptPrices.length >= 2 ? (() => { const sorted = [...egyptPrices].sort((a, b) => a - b); const median = sorted[Math.floor(sorted.length / 2)]; const low = Math.round(median * 0.9); const high = Math.round(median * 1.1); return `السعر التقريبي المقترح ${low.toLocaleString('ar-EG')}–${high.toLocaleString('ar-EG')} ج.م، بوسيط ${median.toLocaleString('ar-EG')} ج.م من ${sorted.length} نتيجة مصرية تحمل سعراً. هذا تقدير سوقي وليس سعراً مضموناً؛ راجع التوافق والحالة والضمان والشحن.` })() : undefined
     return {
       type: 'results',
       title: `${searchedGlobally && wantsEgypt ? 'لم أجد سعراً مصرياً موثوقاً؛ وسّعت البحث عالمياً' : searchedGlobally ? 'أسعار ونتائج عالمية' : 'أسعار متاحة في مصر'} عن «${subject}»`,
-      description: searchedGlobally
+      description: `${priceInsight ? `${priceInsight} ` : ''}${searchedGlobally
         ? 'نتائج من متاجر ومصادر عالمية. حوّل العملة وأضف الشحن والجمارك، وتحقق من رقم القطعة والتوافق.'
-        : 'نتائج مصرية تتضمن إشارة سعر فعلية. راجع المتجر والتوافق قبل الشراء.',
+        : 'نتائج مصرية تتضمن إشارة سعر فعلية. راجع المتجر والتوافق قبل الشراء.'}`,
       items: ranked.map((result, index) => {
         const price = extractPrice(result)
         const condition = extractCondition(result)

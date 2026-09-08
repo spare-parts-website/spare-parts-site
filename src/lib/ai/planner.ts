@@ -12,6 +12,7 @@ const COMPARE = /(?:قارن|مقارنة|مقارنه|compare)/i
 const MARKETPLACE = /(?:دور|ابحث|فتش|عايز|أريد|اريد|هات|للبيع|بيع|موجود|متاح|اعرض|عرض|شراء|اشتري|عداد|محرك|موتور|فرامل|تيل|فلتر|كشاف|طلمبة|جنط|جنوط|engine|engin|motor|moter|brake|part|parts?|offer|listing|sale|for sale|find|search|wheel|whell|rim)/i
 const CHECKOUT = /(?:جهز(?:لي)?\s*(?:ال)?طلب|اطلب\s*(?:ال)?قطع|إتمام\s*(?:ال)?طلب|checkout|place\s+(?:the\s+)?order|buy\s+(?:the\s+)?items?)/i
 const SELLER_PRICE = /(?:اقترح|نصيحة|مناسب).*(?:سعر)|(?:سعر).*(?:اقترح|نصيحة|مناسب)|price advice|suggest.*price/i
+const WEB_PRICE_RESEARCH = /(?:سعر السوق|سعر عادل|تقييم السعر|اقترح.*سعر|سعر.*اقترح|نصيحة.*سعر|suggest.*price|recommend.*price|fair price|market price|price advice|price estimate)/i
 const ANALYTICS = /(?:تحليل|أداء|إحصائ|مبيعات|إيراد|ايراد|قيمة الطلبات|متوسط(?:\s+ال)?تقييم|مخزون(?:ها|ه|ي)?\s+(?:قليل|منخفض)|نفد|خلص|ناقص|ملخص|analytics|performance|statistics|insights|low stock|out of stock|revenue|average rating)/i
 const RECORDS = /(?:طلب|طلبات|رسال|رسائ|كوبون|تقييم|قطعة|قطع|مخزون|order|message|coupon|offer|review|listing|stock)|(?:^|\s)(?:عرض|عروض)(?=\s|$)/i
 const ADMIN_RECORDS = /(?:مستخدم|متجر|بلاغ|توثيق|نزاع|طلب|قطعة|user|store|report|verification|dispute|order|part)/i
@@ -40,7 +41,8 @@ export function planAIRequest(message: string, role: AIRole, context?: AIConvers
   const roleRecordRequest = (role === 'SHOP_OWNER' && RECORDS.test(text)) || (role === 'ADMIN' && ADMIN_RECORDS.test(text)) || (role !== 'GUEST' && /(?:حسابي|طلباتي|مفضل|السلة|account|my orders|wishlist|cart)/i.test(text))
   const explicitWebSearch = /(?:الإنترنت|الانترنت|الويب|على الويب|web|internet|online|worldwide|global|external|خارج غيار ماركت)/i.test(text)
   const marketplaceRequest = MARKETPLACE.test(text) || isMarketplaceTerm(text) || isMarketplaceAvailabilityRequest(text) || /(?:قطعة|قطع|متجر|عرض|للبيع|المخزون|غيار ماركت|part|parts|store|offer|listing)/i.test(text)
-  const liveSearch = (explicitWebSearch || (CURRENT.test(text) && !marketplaceRequest)) && !actionRequest && !roleRecordRequest && !contextualEntityRequest && !CHECKOUT.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|رسال|عميل|(?:في|داخل) المتجر|my store|my account|my orders|inventory|platform|message|customer|in (?:my|the) store)/i.test(text)
+  const webPriceResearch = WEB_PRICE_RESEARCH.test(text) || (CURRENT.test(text) && /(?:سعر|price|cost|how much)/i.test(text))
+  const liveSearch = (explicitWebSearch || webPriceResearch || (CURRENT.test(text) && !marketplaceRequest)) && !actionRequest && (!roleRecordRequest || webPriceResearch) && !contextualEntityRequest && !CHECKOUT.test(text) && !/(?:متجري|حسابي|طلباتي|المخزون|المنصة|غيار ماركت|رسال|عميل|(?:في|داخل) المتجر|my store|my account|my orders|inventory|platform|message|customer|in (?:my|the) store)/i.test(text)
   const asksForAnalysis = /(?:حل[ّ]?ل|تحليل|أداء|إحصائ|analytics|analy[sz]e|performance|statistics|insights)/i.test(text)
     || /(?:كم|كام|عدد|إجمالي|اجمالي|how many|total number)/i.test(text)
   const sellerMessageWorkflow = role === 'SHOP_OWNER' && /(?:رسال|message)/i.test(text) && /(?:رد|reply|answer)/i.test(text)
@@ -203,7 +205,7 @@ export function cleanWebSearchQuery(message: string) {
   const cleaned = message
     .replace(/(?:search|look up|browse)\s+(?:the\s+)?internet[\s\S]*$/gi, ' ')
     .replace(/(?:ابحث|دور)\s+(?:في|على)\s+(?:الإنترنت|الانترنت|الويب)[\s\S]*$/gi, ' ')
-    .replace(/(?:من فضلك|لو سمحت|ممكن|عايز أعرف|ابحث لي|دور لي|can you|please|tell me)/gi, ' ')
+    .replace(/(?:من فضلك|لو سمحت|ممكن|عايز أعرف|ابحث لي|دور لي|اقترح|نصيحة|سعر عادل|سعر السوق|can you|please|tell me|suggest|recommend|fair|market)/gi, ' ')
     .replace(/what is (?:the )?(?:current |latest )?(?:price|cost)(?: in (?:egypt|the egyptian market))? (?:for|of) (?:a|an|the)?/gi, ' ')
     .replace(/how much (?:is|does) (?:a|an|the)?/gi, ' ')
     .replace(/(?:ما هو|ايه|إيه) (?:ال)?سعر (?:الحالي )?(?:في مصر )?(?:لـ|ل)?/gi, ' ')
