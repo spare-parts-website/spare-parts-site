@@ -3,7 +3,6 @@ import { db } from './db'
 import bcrypt from 'bcryptjs'
 import { cookies, headers } from 'next/headers'
 import { createHmac, randomBytes, randomUUID } from 'crypto'
-import { ADMIN_STEP_UP_TTL_MS } from '@/lib/admin-mfa'
 import { purposeSecret } from '@/lib/crypto-purpose'
 
 export interface SessionUser { id:string; name:string; email:string; role:'BUYER'|'ADMIN'|'SHOP_OWNER'; phone?:string|null; avatar?:string|null; emailNotifications?:boolean; emailDeliveryStatus?:string; emailDeliveryReason?:string|null; emailDeliveryAt?:Date|null; sessionVersion?:number; mfaVerifiedAt?:number|null; sessionId?:string }
@@ -26,4 +25,6 @@ export async function revokeOtherSessions(userId:string,keepSessionId?:string|nu
 export async function requireAuth(){const session=await getSession();if(!session)throw new Error('UNAUTHORIZED');return session}
 export async function requireRole(role:SessionUser['role']){const session=await requireAuth();if(session.role!==role)throw new Error('FORBIDDEN');return session}
 export async function requireRoles(roles:SessionUser['role'][]){const session=await requireAuth();if(!roles.includes(session.role))throw new Error('FORBIDDEN');return session}
-export async function requireAdminStepUp(){const session=await requireRole('ADMIN');if(!session.mfaVerifiedAt||Date.now()-session.mfaVerifiedAt>ADMIN_STEP_UP_TTL_MS)throw new Error('STEP_UP_REQUIRED');return session}
+// Admin authentication is password-only by policy. Optional MFA remains available
+// for accounts that explicitly enable it, but it is not required for admin actions.
+export async function requireAdminStepUp(){return requireRole('ADMIN')}

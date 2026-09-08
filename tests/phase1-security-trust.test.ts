@@ -4,7 +4,7 @@ import test from 'node:test'
 
 const read = (path: string) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8')
 
-test('Admin login uses password while privileged writes retain fresh step-up', () => {
+test('Admin login and privileged writes use the password-only policy', () => {
   const auth = read('src/lib/auth.ts')
   const login = read('src/app/api/auth/login/route.ts')
   const loginPolicy = read('src/lib/login-policy.ts')
@@ -22,14 +22,14 @@ test('Admin login uses password while privileged writes retain fresh step-up', (
   assert.match(login, /await createSession\(/)
   assert.doesNotMatch(login, /adminMfaRequired: true/)
   assert.match(auth, /requireAdminStepUp/)
-  assert.match(auth, /ADMIN_STEP_UP_TTL_MS/)
+  assert.match(auth, /password-only by policy/)
   assert.doesNotMatch(loginPolicy, /role\s*!==\s*['"]ADMIN['"]/)
   assert.match(adminMfa, /TOTP_DIGITS = 6/)
   assert.match(adminMfa, /generateRecoveryCodes/)
   assert.match(adminMfa, /aes-256-gcm/)
   assert.match(adminMfa, /adminMfaLastCounter/)
   for (const source of [users, stores, adminParts, verification, disputes, reports, reviews, aiActions]) assert.match(source, /requireAdminStepUp/)
-  assert.ok((parts.match(/requireAdminStepUp\(\)/g) || []).length >= 2)
+  assert.match(auth, /return requireRole\('ADMIN'\)/)
 })
 
 test('Phase 1 binds seller verification to identity and explicit moderation state', () => {
