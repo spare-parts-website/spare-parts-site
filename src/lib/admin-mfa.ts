@@ -151,7 +151,8 @@ export async function verifyAndConsumeAdminMfa(userId: string, rawCode: string) 
       where: { id: userId },
       select: { role: true, adminMfaSecret: true, adminMfaEnabledAt: true, adminMfaRecoveryCodes: true, adminMfaLastCounter: true },
     })
-    if (!user || user.role !== 'ADMIN' || !user.adminMfaSecret || !user.adminMfaEnabledAt) throw new Error('MFA_NOT_CONFIGURED')
+    if (!user) throw new Error('MFA_NOT_CONFIGURED')
+    if (!user.adminMfaSecret || !user.adminMfaEnabledAt) throw new Error('MFA_NOT_CONFIGURED')
 
     if (/^\d{6}$/.test(code)) {
       const secret = decryptAdminMfaSecret(user.adminMfaSecret)

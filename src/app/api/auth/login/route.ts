@@ -34,6 +34,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ adminMfaSetupRequired: true, setupChallengeId: setupChallenge.id, expiresIn: 600 })
     }
 
+    if (user.adminMfaEnabledAt && user.adminMfaSecret) {
+      const challenge = await createAdminLoginChallenge(user.id)
+      return NextResponse.json({ mfaRequired: true, challengeId: challenge.id, expiresIn: Math.floor(ADMIN_MFA_CHALLENGE_TTL_MS / 1000) })
+    }
+
     const purpose = user.emailVerifiedAt ? 'login' : 'register'
     const challenge = await issueLoginVerification(user, purpose)
     return NextResponse.json({ verificationRequired: true, challengeId: challenge.challengeId, emailHint: emailHint(user.email), expiresIn: 600 })
