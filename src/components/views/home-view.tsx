@@ -30,10 +30,11 @@ export function HomeView({ isSeller = false }: { isSeller?: boolean }) {
           </Form>
           <div className="mt-7 flex flex-wrap gap-5 border-t pt-5 text-xs text-muted-foreground"><span className="flex items-center gap-2"><Banknote className="size-4 text-primary" /> الدفع عند الاستلام</span><span className="flex items-center gap-2"><BadgeCheck className="size-4 text-primary" /> توثيق هوية المتجر عند اعتماده</span></div>
         </div>
-        <div className="relative min-h-60 overflow-hidden bg-[#111c23] lg:min-h-full">
-          <Image src="/ghyar-market-hero.webp" alt="سيارة وقطع غيار في مركز خدمة" fill priority sizes="(min-width: 1024px) 45vw, 100vw" className="object-cover object-left" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-          <div className="absolute inset-x-6 bottom-6 rounded-2xl border border-white/20 bg-black/25 p-5 text-white backdrop-blur-sm"><p className="text-xs text-white/75">اختيارك يبدأ بالمعلومة</p><p className="mt-2 text-xl font-bold">قارن التفاصيل. اسأل المتجر. اطلب بثقة.</p><Link href="/parts" prefetch={false} className="mt-4 inline-flex items-center gap-2 text-sm underline underline-offset-4">استكشف قطع الغيار <ArrowLeft className="size-4" /></Link></div>
+        <div className="relative min-h-80 overflow-hidden bg-slate-100 dark:bg-[#111c23] lg:min-h-full">
+          <Image src="/ghyar-market-hero-light.webp" alt="سيارة وقطع غيار في مركز خدمة" fill priority sizes="(min-width: 1024px) 45vw, 100vw" className="object-cover object-left dark:hidden" />
+          <Image src="/ghyar-market-hero-dark.webp" alt="" fill priority sizes="(min-width: 1024px) 45vw, 100vw" className="hidden object-cover object-left dark:block" />
+          <div className="absolute inset-0 bg-gradient-to-t from-white/80 via-white/5 to-transparent dark:from-black/80 dark:via-black/10" />
+          <div className="absolute inset-x-5 bottom-5 rounded-2xl border border-slate-900/10 bg-white/[0.78] p-5 text-slate-950 shadow-xl shadow-slate-950/10 backdrop-blur-md dark:border-white/20 dark:bg-black/30 dark:text-white dark:shadow-black/20 sm:inset-x-6 sm:bottom-6"><p className="text-xs text-slate-600 dark:text-white/75">اختيارك يبدأ بالمعلومة</p><p className="mt-2 text-xl font-bold">قارن التفاصيل. اسأل المتجر. اطلب بثقة.</p><Link href="/parts" prefetch={false} className="mt-4 inline-flex items-center gap-2 text-sm font-semibold underline underline-offset-4">استكشف قطع الغيار <ArrowLeft className="size-4" /></Link></div>
         </div>
       </div>
       <div className="mt-8 flex items-end justify-between gap-4"><div><p className="page-kicker">ابدأ من هنا</p><h2 className="mt-1 text-xl font-extrabold">قطعة لكل احتياج</h2></div><Link href="/parts" prefetch={false} className="text-sm font-bold text-primary">كل القطع ←</Link></div>

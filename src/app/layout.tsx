@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     siteName: "غيار ماركت",
     title: "غيار ماركت | قطع غيار السيارات من متاجر متخصصة",
     description: "القطعة الصح لسيارتك من متجر تعرف تفاصيله وعلامة توثيقه وتقييماته عند توفرها.",
-    images: [{ url: "/ghyar-market-hero.webp", width: 1672, height: 941, alt: "غيار ماركت" }],
+    images: [{ url: "/ghyar-market-hero-light.webp", width: 1672, height: 941, alt: "غيار ماركت" }],
   },
   twitter: { card: "summary_large_image" },
 };

@@ -270,17 +270,18 @@ test('keeps the service worker privacy-safe and removes the obsolete socket path
   assert.equal(existsSync(legacyService), false)
 })
 
-test('uses optimized public hero and preset avatar assets', () => {
+test('uses theme-aware public hero variants and preset avatar assets', () => {
   const home = readFileSync(new URL('../src/components/views/home-view.tsx', import.meta.url), 'utf8')
   const avatars = readFileSync(new URL('../src/lib/profile-avatars.ts', import.meta.url), 'utf8')
   const config = readFileSync(new URL('../next.config.ts', import.meta.url), 'utf8')
-  assert.match(home, /ghyar-market-hero\.webp/)
+  assert.match(home, /ghyar-market-hero-light\.webp/)
+  assert.match(home, /ghyar-market-hero-dark\.webp/)
   assert.doesNotMatch(home, /ghyar-market-hero\.png/)
   assert.match(config, /source:\s*'\/ghyar-market-hero\.png'\s*,\s*destination:\s*'\/ghyar-market-hero\.webp'/)
   assert.match(config, /source:\s*'\/favicon\.ico'\s*,\s*destination:\s*'\/ghyar-market-logo\.svg'/)
   assert.match(avatars, /profile-avatars\/turbocharger\.webp/)
   assert.match(avatars, /profile-avatars\/(?:electric-car|classic-car|fuel-gauge-car)\.webp/)
-  for (const asset of ['ghyar-market-hero.webp', 'profile-avatars/turbocharger.webp', 'profile-avatars/electric-car.webp', 'profile-avatars/classic-car.webp', 'profile-avatars/fuel-gauge-car.webp']) {
+  for (const asset of ['ghyar-market-hero-light.webp', 'ghyar-market-hero-dark.webp', 'profile-avatars/turbocharger.webp', 'profile-avatars/electric-car.webp', 'profile-avatars/classic-car.webp', 'profile-avatars/fuel-gauge-car.webp']) {
     assert.equal(existsSync(new URL(`../public/${asset}`, import.meta.url)), true, asset)
   }
   assert.equal(existsSync(new URL('../public/ghyar-market-logo.png', import.meta.url)), true, 'approved logo compatibility alias')
