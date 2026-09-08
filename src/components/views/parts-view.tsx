@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
+import Link from 'next/link'
+import { MAX_COMPARISON_ITEMS, toggleComparison } from '@/lib/comparison'
 import { useSearchParams } from 'next/navigation'
 import { useAppNavigation } from '@/lib/use-navigation'
 import { Card, CardContent } from '@/components/ui/card'
@@ -30,6 +32,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
   const [brands, setBrands] = useState<string[]>(initialData?.brands || [])
   const [loading, setLoading] = useState(!initialData)
   const [failed, setFailed] = useState(false)
+  const [comparison, setComparison] = useState<string[]>([])
   const [retryKey, setRetryKey] = useState(0)
   const initialSearch = routeParams.get('search') || initialQuery.search || ''
   const [search, setSearch] = useState(initialSearch)
@@ -46,18 +49,22 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
   const routeKey = routeParams.toString()
   useEffect(() => {
     const nextParams = new URLSearchParams(routeKey)
-    const nextSearch = nextParams.get('search') || initialQuery.search || ''
+    const nextSearch = nextParams.get('search') || ''
     setSearch(nextSearch)
     setAppliedSearch(nextSearch)
-    setCategory(nextParams.get('category') || initialQuery.category || '')
-    setBrand(nextParams.get('brand') || initialQuery.brand || '')
-    setCondition(nextParams.get('condition') || initialQuery.condition || '')
-    setSort(nextParams.get('sort') || initialQuery.sort || 'newest')
-    setPage(Math.max(1, Number(nextParams.get('page')) || initialQuery.page || 1))
+    setCategory(nextParams.get('category') || '')
+    setBrand(nextParams.get('brand') || '')
+    setCondition(nextParams.get('condition') || '')
+    setSort(nextParams.get('sort') || 'newest')
+    setPage(Math.max(1, Number(nextParams.get('page')) || 1))
   }, [routeKey, initialQuery.brand, initialQuery.category, initialQuery.condition, initialQuery.page, initialQuery.search, initialQuery.sort])
 
   const buildUrl = useMemo(() => {
     const params = new URLSearchParams()
+    for (const key of ['storeId', 'carModel', 'minPrice', 'maxPrice', 'inStock']) {
+      const value = routeParams.get(key)
+      if (value) params.set(key, value)
+    }
     if (appliedSearch) params.set('search', appliedSearch)
     if (category) params.set('category', category)
     if (brand) params.set('brand', brand)
@@ -65,26 +72,26 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
     params.set('sort', sort)
     params.set('page', String(page))
     return params.toString()
-  }, [appliedSearch, category, brand, condition, sort, page])
-  // A statically rendered catalog starts with the unfiltered first page. If a
-  // query/filter is present in the URL, fetch that public result after the
-  // client hydrates instead of treating the default payload as a match.
-  const lastLoadedUrl = useRef(initialData && !routeParams.toString() ? buildUrl : '')
+  }, [appliedSearch, category, brand, condition, sort, page, routeParams])
+  // The server renders the current URL query; hydration must not refetch it.
+  const lastLoadedUrl = useRef(initialData ? buildUrl : '')
   const lastRetryKey = useRef(0)
 
   useEffect(() => {
     if (lastLoadedUrl.current === buildUrl && lastRetryKey.current === retryKey) return
     lastLoadedUrl.current = buildUrl
     lastRetryKey.current = retryKey
+    const controller = new AbortController()
     setLoading(true)
     setFailed(false)
     window.history.replaceState(window.history.state, '', `/parts?${buildUrl}`)
-    fetch(`/api/parts?${buildUrl}`)
+    fetch(`/api/parts?${buildUrl}`, { signal: controller.signal })
       .then((r) => {
         if (!r.ok) throw new Error('parts-api-failed')
         return r.json()
       })
       .then((data: PublicPartsList) => {
+        if (controller.signal.aborted) return
         setParts(data.parts || [])
         setCategories(data.categories || [])
         setBrands(data.brands || [])
@@ -92,8 +99,13 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
         setTotal(data.pagination?.total || 0)
         setTotalPages(data.pagination?.totalPages || 1)
       })
-      .catch(() => setFailed(true))
-      .finally(() => setLoading(false))
+      .catch(() => { if (!controller.signal.aborted) setFailed(true) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => {
+      controller.abort()
+      // Strict Mode replays effects; an aborted fetch is never a loaded result.
+      if (lastLoadedUrl.current === buildUrl) lastLoadedUrl.current = ''
+    }
   }, [buildUrl, retryKey])
 
   const hasFilters = category || brand || condition || appliedSearch
@@ -124,7 +136,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
           <Input
             aria-label="البحث في قطع الغيار"
             value={search}
-            onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+            onChange={(e) => setSearch(e.target.value)}
             placeholder="ابحث عن قطعة، ماركة، أو وصف..."
             className="pr-9"
           />
@@ -207,6 +219,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
       </div>
 
       {/* Grid */}
+      {comparison.length > 0 && <div className="sticky top-20 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/30 bg-card p-4 shadow-lg" role="region" aria-label="القطع المختارة للمقارنة"><p className="text-sm font-bold" role="status">{comparison.length} من {MAX_COMPARISON_ITEMS} قطع للمقارنة</p><div className="flex gap-2"><Button variant="ghost" onClick={() => setComparison([])}>مسح الاختيار</Button><Button asChild><Link href={'/compare?ids=' + encodeURIComponent(comparison.join(','))} prefetch={false}>عرض المقارنة</Link></Button></div></div>}
       {loading ? (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 justify-items-center">
           {Array.from({ length: 8 }).map((_, i) => (
@@ -304,6 +317,7 @@ export function PartsView({ initialData = null, initialQuery = {} }: { initialDa
                 <Button variant="link" size="sm" className="h-auto self-start p-0" onClick={() => navigate({ name: 'part', partId: part.id })}>
                   عرض التفاصيل
                 </Button>
+                <Button variant={comparison.includes(part.id) ? 'secondary' : 'outline'} size="sm" className="mt-3 w-full" aria-pressed={comparison.includes(part.id)} disabled={!comparison.includes(part.id) && comparison.length >= MAX_COMPARISON_ITEMS} onClick={() => setComparison(current => toggleComparison(current, part.id))}>{comparison.includes(part.id) ? 'إزالة من المقارنة' : 'أضف للمقارنة'}</Button>
                 </div>
               </CardContent>
             </Card>

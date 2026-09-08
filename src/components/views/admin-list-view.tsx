@@ -47,7 +47,8 @@ export function AdminListView({ tab }: { tab: Tab }) {
   const title = useMemo(() => ({ users: 'إدارة المستخدمين', stores: 'إدارة المتاجر', parts: 'إدارة قطع الغيار', orders: 'إدارة الطلبات', reports: 'بلاغات المستخدمين' })[tab], [tab])
 
   const load = async (append = false) => {
-    append ? setLoadingMore(true) : setLoading(true)
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     try {
       const response = await fetch(endpointFor(tab, append ? nextCursor : null, appliedSearch), { cache: 'no-store' })
       const data = await response.json()

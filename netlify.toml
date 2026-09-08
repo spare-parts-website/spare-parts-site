@@ -1,0 +1,56 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+[build.environment]
+  NODE_VERSION = "24"
+
+[functions]
+  directory = "netlify/functions"
+
+# Secrets are set in Netlify, never in this file.
+# Netlify automatically installs its current Next.js adapter.
+
+# Next.js public-file rewrites are not supported by the Netlify adapter.
+# Exact host-level aliases preserve existing image URLs without a SPA fallback.
+[[redirects]]
+  from = "/favicon.ico"
+  to = "/ghyar-market-logo.svg"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/ghyar-market-logo.png"
+  to = "/ghyar-market-logo.svg"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/ghyar-market-hero.png"
+  to = "/ghyar-market-hero.webp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/profile-avatars/classic-car.png"
+  to = "/profile-avatars/classic-car.webp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/profile-avatars/electric-car.png"
+  to = "/profile-avatars/electric-car.webp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/profile-avatars/fuel-gauge-car.png"
+  to = "/profile-avatars/fuel-gauge-car.webp"
+  status = 200
+  force = true
+
+[[redirects]]
+  from = "/profile-avatars/turbocharger.png"
+  to = "/profile-avatars/turbocharger.webp"
+  status = 200
+  force = true

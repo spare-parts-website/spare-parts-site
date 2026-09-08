@@ -51,9 +51,4 @@ export function StatusBadge({ status }: { status: string }) {
   )
 }
 
-export function formatPrice(price: number): string {
-  return new Intl.NumberFormat('ar-EG', {
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2,
-  }).format(price) + ' ج.م'
-}
+export { formatPrice } from '@/lib/format-price'

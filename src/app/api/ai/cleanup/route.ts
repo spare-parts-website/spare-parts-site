@@ -22,7 +22,9 @@ export async function GET(request: Request) {
     processObjectLifecycle(),
   ])
   const emailHistory = await cleanupEmailQueueHistory()
-  const providerHealth = await runSyntheticProviderHealth()
+  const providerHealth = process.env.AI_SYNTHETIC_HEALTH_ENABLED === '1'
+    ? await runSyntheticProviderHealth()
+    : { ok: true, results: [] }
   if (providerHealth.results.length > 0 && !providerHealth.ok) {
     await notifyOperationalAlert('ai.providers.unavailable', { providers: providerHealth.results.length, failed: providerHealth.results.filter((item) => !item.ok).length })
   }

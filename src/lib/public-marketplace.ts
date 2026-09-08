@@ -2,10 +2,15 @@ import 'server-only'
 
 import type { Prisma } from '@prisma/client'
 import { unstable_cache } from 'next/cache'
+import { cache } from 'react'
 import { db } from '@/lib/db'
 import { detectMarketplaceBrandHint, findTypoTolerantPartIds, findTypoTolerantStoreIds } from '@/lib/marketplace-search'
 
 type PublicViewer = { id: string; role: string } | null
+
+// Request-only memoization. Never share viewer-specific data across sessions.
+export const getAnonymousPublicPart = cache((id: string) => getPublicPart(id, null))
+export const getAnonymousPublicStore = cache((id: string) => getPublicStore(id, null))
 
 export type PublicPartListItem = {
   id: string; name: string; description: string | null; price: number; stock: number; category: string | null; brand: string | null; condition: string | null; image: string | null; carModels: string | null; partNumber: string | null; oemNumber: string | null; universal: boolean; fitmentNotes: string | null

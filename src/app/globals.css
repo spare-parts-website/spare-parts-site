@@ -120,8 +120,6 @@
     @apply bg-background text-foreground;
     font-family: var(--font-cairo), system-ui, sans-serif;
     min-width: 320px;
-    background-image: radial-gradient(circle at 0% 0%, color-mix(in oklab, var(--primary) 5%, transparent), transparent 30rem), radial-gradient(circle at 100% 12%, color-mix(in oklab, var(--accent) 7%, transparent), transparent 28rem);
-    background-attachment: fixed;
     text-rendering: optimizeLegibility;
   }
 
@@ -210,7 +208,7 @@
   }
 
   .section-space {
-    padding-block: clamp(3.5rem, 7vw, 6.5rem);
+    padding-block: clamp(2rem, 4vw, 3.5rem);
   }
 
   .eyebrow {
@@ -303,6 +301,15 @@
 }
 
 /* Custom scrollbar */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
 .scrollbar-thin::-webkit-scrollbar {
   width: 6px;
   height: 6px;

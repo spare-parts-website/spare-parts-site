@@ -40,6 +40,8 @@ import {
 import { NotificationsBell } from '@/components/notifications-bell'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { SearchBar } from '@/components/search-bar'
+import { revokeCurrentSession } from '@/lib/logout'
+import { useToast } from '@/hooks/use-toast'
 
 const ROLE_LABELS: Record<string, string> = {
   BUYER: 'مشتري',
@@ -56,6 +58,8 @@ export function Header() {
   const setCartOpen = useAppStore((state) => state.setCartOpen)
   const [mobileOpen, setMobileOpen] = useState(false)
   const [searchOpen, setSearchOpen] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
     setSearchOpen(false)
@@ -249,10 +253,19 @@ export function Header() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
                   className="text-destructive focus:text-destructive"
+                  disabled={loggingOut}
                   onClick={async () => {
-                    await fetch('/api/auth/logout', { method: 'POST' })
-                    setUser(null)
-                    router.push('/')
+                    setLoggingOut(true)
+                    try {
+                      await revokeCurrentSession()
+                      setUser(null)
+                      router.push('/')
+                      router.refresh()
+                    } catch {
+                      toast({ title: 'لم يتم تسجيل الخروج', description: 'تعذر الاتصال بالخادم. حاول مرة أخرى.', variant: 'destructive' })
+                    } finally {
+                      setLoggingOut(false)
+                    }
                   }}
                 >
                   <LogOut className="size-4 ml-2" />

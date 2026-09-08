@@ -55,8 +55,8 @@ export default function RootLayout({
         <Script src="/theme-init.js" strategy="beforeInteractive" />
         <AppShell>{children}</AppShell>
         <Toaster />
-        <Analytics />
-        <SpeedInsights />
+        {process.env.VERCEL === '1' && <Analytics />}
+        {process.env.VERCEL === '1' && <SpeedInsights />}
       </body>
     </html>
   );

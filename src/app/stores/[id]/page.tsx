@@ -3,8 +3,7 @@ import { notFound } from 'next/navigation'
 import { headers } from 'next/headers'
 import { Breadcrumbs } from '@/components/breadcrumbs'
 import { StoreView } from '@/components/views/store-view'
-import { db } from '@/lib/db'
-import { getPublicStore } from '@/lib/public-marketplace'
+import { getAnonymousPublicStore } from '@/lib/public-marketplace'
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -16,7 +15,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { id } = await params
   const canonical = `https://ghyarmarket-eg.com/stores/${encodeURIComponent(id)}`
   try {
-    const store = await db.store.findUnique({ where: { id }, select: { name: true, description: true, image: true } })
+    const { store } = await getAnonymousPublicStore(id)
     if (store) return { title: store.name, description: store.description || `تصفح قطع الغيار المتاحة لدى ${store.name}.`, openGraph: store.image ? { images: [store.image] } : undefined, alternates: { canonical } }
   } catch {
     // Keep metadata available if the database is temporarily unavailable.
@@ -27,7 +26,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 export default async function StorePage({ params }: Params) {
   const nonce = (await headers()).get('x-nonce') || undefined
   const { id } = await params
-  const { store, canReview } = await getPublicStore(id, null)
+  const { store, canReview } = await getAnonymousPublicStore(id)
   if (!store) notFound()
   const breadcrumbItems = [{ label: 'الرئيسية', href: '/' }, { label: 'المتاجر', href: '/stores' }, { label: store.name }]
   const structuredData = { '@context': 'https://schema.org', '@type': 'AutoPartsStore', name: store.name, description: store.description || undefined, image: store.image || undefined, address: store.address || undefined, telephone: store.phone || undefined, url: `https://ghyarmarket-eg.com/stores/${id}` }

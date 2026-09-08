@@ -49,7 +49,8 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
 
   const loadTickets = async (append = false) => {
     if (!user) return
-    append ? setLoadingMore(true) : setLoading(true)
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     try {
       const params = new URLSearchParams({ limit: '25' })
       if (append && nextCursor) params.set('cursor', nextCursor)

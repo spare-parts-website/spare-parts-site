@@ -15,27 +15,17 @@ export function ThemeToggle() {
 
   useEffect(() => {
     const root = document.documentElement
-    const media = window.matchMedia('(prefers-color-scheme: dark)')
     const sync = () => setIsDark(root.classList.contains('dark'))
-    const onSystemChange = () => {
-      const stored = window.localStorage.getItem('theme')
-      if (stored === 'dark' || stored === 'light') return
-      applyTheme(media.matches)
-      sync()
-    }
     const onStorage = (event: StorageEvent) => {
-      if (event.key !== 'theme') return
-      const stored = window.localStorage.getItem('theme')
-      const dark = stored === 'dark' || (stored !== 'light' && media.matches)
+      if (event.key !== 'theme' && event.key !== null) return
+      const dark = event.newValue === 'dark'
       applyTheme(dark)
       sync()
     }
 
     sync()
-    media.addEventListener('change', onSystemChange)
     window.addEventListener('storage', onStorage)
     return () => {
-      media.removeEventListener('change', onSystemChange)
       window.removeEventListener('storage', onStorage)
     }
   }, [])
@@ -43,7 +33,7 @@ export function ThemeToggle() {
   const toggle = () => {
     const dark = !document.documentElement.classList.contains('dark')
     applyTheme(dark)
-    window.localStorage.setItem('theme', dark ? 'dark' : 'light')
+    try { window.localStorage.setItem('theme', dark ? 'dark' : 'light') } catch { /* Theme still works without persistent storage. */ }
     setIsDark(dark)
   }
 

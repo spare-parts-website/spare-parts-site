@@ -12,6 +12,7 @@ node_modules
 /coverage
 /playwright-report/
 /test-results/
+/.tmp/
 
 # next.js
 /.next/
@@ -40,6 +41,7 @@ yarn-error.log*
 
 # vercel
 .vercel
+/.netlify/
 
 # typescript
 *.tsbuildinfo

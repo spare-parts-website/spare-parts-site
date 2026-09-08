@@ -26,7 +26,8 @@ export function OrdersView() {
   const [submittingId, setSubmittingId] = useState<string | null>(null)
 
   const load = async (append = false) => {
-    append ? setLoadingMore(true) : setLoading(true)
+    if (append) setLoadingMore(true)
+    else setLoading(true)
     try {
       const params = new URLSearchParams({ scope: 'buyer', limit: '25' })
       if (append && page.nextCursor) params.set('cursor', page.nextCursor)
