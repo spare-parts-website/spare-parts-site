@@ -221,6 +221,12 @@ export function Header() {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
+                  <Link href="/account/security" prefetch={false}>
+                  <ShieldCheck className="size-4 ml-2" />
+                  أمان الحساب وMFA
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
                   <Link href="/support" prefetch={false}>
                   <LifeBuoy className="size-4 ml-2" />
                   الدعم والمساعدة

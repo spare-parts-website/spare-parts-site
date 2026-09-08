@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { MessageSquare, Search, Send, ShieldCheck } from 'lucide-react'
 import { useAppStore } from '@/lib/store'
+import Link from 'next/link'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -125,7 +126,7 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
     finally { setSaving(false) }
   }
 
-  if (!user) return <div className="content-container py-16"><Card><CardContent className="py-12 text-center"><h1 className="text-2xl font-bold">الدعم والمساعدة</h1><p className="mt-2 text-muted-foreground">سجّل الدخول لإنشاء تذكرة ومتابعة الردود.</p></CardContent></Card></div>
+  if (!user) return <div className="content-container space-y-6 py-10"><div className="page-heading mb-0"><div><p className="page-kicker">خدمة العملاء</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الدعم والمساعدة</h1><p className="mt-1 text-muted-foreground">نساعدك في الطلبات والحسابات وقطع الغيار.</p></div></div><div className="grid gap-5 md:grid-cols-3"><Card><CardHeader><CardTitle className="text-base">مساعدة سريعة</CardTitle></CardHeader><CardContent className="text-sm leading-7 text-muted-foreground">تصفح قطع الغيار والمتاجر، أو سجّل الدخول لمتابعة طلباتك وفتح تذكرة مرتبطة بحسابك.</CardContent></Card><Card><CardHeader><CardTitle className="text-base">تواصل معنا</CardTitle></CardHeader><CardContent className="text-sm leading-7 text-muted-foreground">إذا واجهت مشكلة في التصفح أو التسجيل، سجّل الدخول أو أنشئ حساباً حتى نتمكن من متابعة طلبك بأمان.</CardContent></Card><Card><CardHeader><CardTitle className="text-base">تذاكر الدعم</CardTitle></CardHeader><CardContent className="space-y-3 text-sm leading-7 text-muted-foreground"><p>التذاكر والردود الخاصة تظهر بعد تسجيل الدخول فقط.</p><div className="flex flex-wrap gap-2"><Button asChild><Link href="/login">تسجيل الدخول</Link></Button><Button asChild variant="outline"><Link href="/register">إنشاء حساب</Link></Button></div></CardContent></Card></div></div>
 
   return <div className={`content-container space-y-6 py-10 ${embedded ? 'pt-2' : ''}`}>
     {!embedded && <div className="page-heading mb-0"><div><p className="page-kicker">خدمة العملاء</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الدعم والمساعدة</h1><p className="mt-1 text-muted-foreground">قائمة مختصرة ورسائل تُحمّل فقط عند فتح التذكرة.</p></div></div>}
