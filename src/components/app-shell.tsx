@@ -120,7 +120,7 @@ function rolesForPath(pathname: string): AuthUser['role'][] | null {
   if (pathname === '/admin' || pathname.startsWith('/admin/')) return ['ADMIN']
   if (pathname === '/checkout' || pathname === '/account/orders') return ['BUYER', 'SHOP_OWNER']
   if (pathname === '/account/wishlist') return ['BUYER', 'SHOP_OWNER', 'ADMIN']
-  if (pathname === '/account/profile' || pathname === '/account/messages' || pathname === '/support' || pathname.startsWith('/messages/')) return []
+  if (pathname === '/account/profile' || pathname === '/account/messages' || pathname.startsWith('/messages/')) return []
   return null
 }
 

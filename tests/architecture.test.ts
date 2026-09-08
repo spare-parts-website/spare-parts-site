@@ -134,6 +134,7 @@ test('keeps the shared shell persistent and navigation URL-driven', () => {
   assert.match(admin, /router\.push\(`\/admin\/\$\{(?:v|value)\}`\)/)
   assert.doesNotMatch(admin, /window\.history\.pushState/)
   assert.match(shell, /if \(pathname === '\/account\/wishlist'\) return \['BUYER', 'SHOP_OWNER', 'ADMIN'\]/)
+  assert.doesNotMatch(shell, /pathname === '\/support'/)
   assert.match(wishlistApi, /requireRoles\(\['BUYER', 'SHOP_OWNER', 'ADMIN'\]\)/)
   assert.match(favoriteButton, /user\?\.role === 'ADMIN'/)
   assert.match(wishlist, /\['BUYER', 'SHOP_OWNER', 'ADMIN'\]/)
