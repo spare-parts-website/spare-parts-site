@@ -21,7 +21,7 @@ Arabic RTL; premium light design with optional dark theme. Free infrastructure; 
 | RLS | 48 INFO no-policy notices | Verify grants; preserve intentional deny-all |
 | Resend | Domain/webhook verified; retry worker shares daily cleanup | Independent authenticated email endpoint and disabled-by-default Netlify retries implemented; live lifecycle verification pending |
 | Payments/shipping | COD baseline | Sandbox adapters pending; live activation disabled |
-| Hosting | Vercel preview READY | Netlify access/compatibility/quota/cutover pending |
+| Hosting | Vercel preview READY | Netlify proof site created; cloud build/link and runtime matrix pending |
 | GitHub | Connector Unknown tool | Authenticated REST recovered: baseline CI cancelled, CodeQL failed, main protection 403 entitlement limit; no pass claimed |
 | Browser gate | Five public/login routes | Authenticated/mobile coverage pending |
 | Operations | No fresh restore or capacity measurement | Pending isolated restore and budget |
@@ -35,7 +35,9 @@ URLs and private repository visibility. No DNS cutover before hosting proof.
 
 ## External prerequisites
 Netlify plugin provides deployment skills; no callable Netlify connector was exposed.
-CLI account/site verification is pending. Merchant/courier approval,
+CLI authentication and a dedicated proof site are verified, but the local
+Windows adapter path is blocked during edge middleware packaging. Cloud build
+linking or a Linux build runner is required. Merchant/courier approval,
 settlement terms and GitHub CodeQL entitlement remain external prerequisites.
 
 ## Current implementation evidence
@@ -54,9 +56,10 @@ settlement terms and GitHub CodeQL entitlement remain external prerequisites.
   and honest logout failure handling are implemented, not yet browser-release verified.
 - Theme defaults to light, retains explicit dark selection, and works without storage.
 - No production deployment, DNS cutover, provider activation or live schema mutation
-  was performed in this implementation pass.
+  was performed in this implementation pass. A dedicated Netlify proof site was
+  created, but local Windows packaging failed at the adapter edge-middleware step.
 - Hosting procedure and proof matrix: [Netlify proof](netlify-hosting-proof.md).
-- Netlify CLI package downloads experienced connection resets and individual
-  downloads exceeding ten minutes. Account status was not obtained. Browser
-  dashboard inspection also returned stale-page capture errors, not usable
-  authentication evidence. The intended Netlify team/site remains unspecified.
+- Netlify CLI authentication is verified for the `spare parts` team and the
+  proof site is `ghyar-market-remake-preview`. The dashboard still needs a
+  browser GitHub sign-in before continuous deployment can be linked; no
+  credentials or tokens are stored in the repository.

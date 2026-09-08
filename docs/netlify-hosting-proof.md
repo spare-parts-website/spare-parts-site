@@ -20,6 +20,14 @@ The configuration follows Netlify's Next.js and scheduled-function guidance.
    Record Git SHA, adapter version, deploy ID, URL and build log evidence.
    A successful plain Next.js build is not Netlify runtime verification.
 
+Current proof site: `ghyar-market-remake-preview` in the `fakepixelpro` team
+(`ec67e406-0fb6-4f03-b3d0-d3fb28001ef1`). The CLI is authenticated and the
+site is linked locally. On Windows, the Netlify Next.js adapter can package the
+server functions only after a local symlink-copy shim, but its edge middleware
+bundler still fails while resolving a relative Next middleware runtime through a
+Windows drive-letter path. Use a Linux/Netlify cloud build for the actual proof;
+do not treat the local Windows failure as an application build failure.
+
 ## Required proof matrix
 
 | Check | Evidence required |
