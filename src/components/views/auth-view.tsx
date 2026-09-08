@@ -48,6 +48,12 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
       const data = await response.json()
       if (!response.ok) { toast({ title: 'خطأ', description: data.error || 'حدث خطأ', variant: 'destructive' }); return }
       if (data.adminMfaRequired) { setAdminMfa({ challengeId: data.challengeId }); setMfaCode(''); return }
+      if (data.adminMfaSetupRequired) {
+        const setupResponse = await fetch('/api/auth/admin-mfa/setup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ setupChallengeId: data.setupChallengeId }) })
+        const setup = await setupResponse.json()
+        if (!setupResponse.ok) throw new Error(setup.error || 'تعذر بدء إعداد المصادقة')
+        setEnrollment(setup); setMfaCode(''); return
+      }
       if (data.verificationRequired) {
         setVerification({ challengeId: data.challengeId, emailHint: data.emailHint || form.email, adminBootstrap: Boolean(data.adminBootstrap) }); setVerificationCode('')
         toast({ title: 'تحقق من بريدك', description: 'أرسلنا رمز تحقق من 6 أرقام.' }); return
