@@ -40,6 +40,8 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
   const [category, setCategory] = useState('GENERAL')
   const [orderId, setOrderId] = useState('')
   const [message, setMessage] = useState('')
+  const [guestName, setGuestName] = useState('')
+  const [guestEmail, setGuestEmail] = useState('')
   const [reply, setReply] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [categoryFilter, setCategoryFilter] = useState('')
@@ -104,6 +106,19 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
     finally { setSaving(false) }
   }
 
+  const createGuestRequest = async () => {
+    if (saving || guestName.trim().length < 2 || !guestEmail.includes('@') || subject.trim().length < 3 || message.trim().length < 2) return
+    setSaving(true)
+    try {
+      const response = await fetch('/api/support/tickets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ guestName, guestEmail, subject, category, message }) })
+      const data = await response.json()
+      if (!response.ok) throw new Error(data.error || 'تعذر إرسال طلب الدعم')
+      setGuestName(''); setGuestEmail(''); setSubject(''); setCategory('ACCOUNT'); setMessage('')
+      toast({ title: 'تم إرسال طلبك', description: 'سيرد فريق الدعم على بريدك الإلكتروني قريباً.' })
+    } catch (error) { toast({ title: 'تعذر إرسال طلب الدعم', description: error instanceof Error ? error.message : 'حاول مرة أخرى', variant: 'destructive' }) }
+    finally { setSaving(false) }
+  }
+
   const sendReply = async () => {
     if (!detail || saving || reply.trim().length < 2) return
     setSaving(true)
@@ -126,7 +141,7 @@ export function SupportView({ embedded = false }: { embedded?: boolean }) {
     finally { setSaving(false) }
   }
 
-  if (!user) return <div className="content-container space-y-6 py-10"><div className="page-heading mb-0"><div><p className="page-kicker">خدمة العملاء</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الدعم والمساعدة</h1><p className="mt-1 text-muted-foreground">نساعدك في الطلبات والحسابات وقطع الغيار.</p></div></div><div className="grid gap-5 md:grid-cols-3"><Card><CardHeader><CardTitle className="text-base">مساعدة سريعة</CardTitle></CardHeader><CardContent className="text-sm leading-7 text-muted-foreground">تصفح قطع الغيار والمتاجر، أو سجّل الدخول لمتابعة طلباتك وفتح تذكرة مرتبطة بحسابك.</CardContent></Card><Card><CardHeader><CardTitle className="text-base">تواصل معنا</CardTitle></CardHeader><CardContent className="text-sm leading-7 text-muted-foreground">إذا واجهت مشكلة في التصفح أو التسجيل، سجّل الدخول أو أنشئ حساباً حتى نتمكن من متابعة طلبك بأمان.</CardContent></Card><Card><CardHeader><CardTitle className="text-base">تذاكر الدعم</CardTitle></CardHeader><CardContent className="space-y-3 text-sm leading-7 text-muted-foreground"><p>التذاكر والردود الخاصة تظهر بعد تسجيل الدخول فقط.</p><div className="flex flex-wrap gap-2"><Button asChild><Link href="/login">تسجيل الدخول</Link></Button><Button asChild variant="outline"><Link href="/register">إنشاء حساب</Link></Button></div></CardContent></Card></div></div>
+  if (!user) return <div className="content-container space-y-6 py-10"><div className="page-heading mb-0"><div><p className="page-kicker">خدمة العملاء</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الدعم والمساعدة</h1><p className="mt-1 text-muted-foreground">هل تواجه مشكلة في تسجيل الدخول أو إنشاء الحساب؟ أرسل لنا رسالة بدون حساب وسنرد على بريدك.</p></div></div><div className="grid gap-5 lg:grid-cols-[minmax(0,1.15fr)_minmax(16rem,0.85fr)]"><Card><CardHeader><CardTitle>أرسل طلب مساعدة</CardTitle></CardHeader><CardContent className="space-y-3"><div className="grid gap-3 sm:grid-cols-2"><Input value={guestName} onChange={(event) => setGuestName(event.target.value)} placeholder="الاسم" maxLength={100} /><Input type="email" dir="ltr" value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} placeholder="البريد الإلكتروني للرد" maxLength={254} /></div><Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="ما المشكلة؟ مثال: لا أستطيع تسجيل الدخول" maxLength={160} /><select aria-label="نوع المساعدة" className="h-10 w-full rounded-md border bg-background px-3" value={category} onChange={(event) => setCategory(event.target.value)}><option value="ACCOUNT">الحساب وتسجيل الدخول</option><option value="TECHNICAL">مشكلة تقنية</option><option value="GENERAL">استفسار عام</option><option value="OTHER">أخرى</option></select><Textarea value={message} onChange={(event) => setMessage(event.target.value)} placeholder="اشرح المشكلة بالتفصيل" rows={5} maxLength={5000} /><Button disabled={saving || guestName.trim().length < 2 || !guestEmail.includes('@') || subject.trim().length < 3 || message.trim().length < 2} onClick={() => void createGuestRequest()}>{saving ? 'جاري الإرسال...' : 'إرسال طلب المساعدة'}</Button><p className="text-xs leading-6 text-muted-foreground">لا نعرض تاريخ التذاكر للزوار. سيصل رد فريق الدعم إلى البريد الذي أدخلته.</p></CardContent></Card><Card><CardHeader><CardTitle className="text-base">هل لديك حساب؟</CardTitle></CardHeader><CardContent className="space-y-3 text-sm leading-7 text-muted-foreground"><p>سجّل الدخول لمتابعة الطلبات والتذاكر والردود من داخل حسابك.</p><div className="flex flex-wrap gap-2"><Button asChild><Link href="/login">تسجيل الدخول</Link></Button><Button asChild variant="outline"><Link href="/register">إنشاء حساب</Link></Button></div></CardContent></Card></div></div>
 
   return <div className={`content-container space-y-6 py-10 ${embedded ? 'pt-2' : ''}`}>
     {!embedded && <div className="page-heading mb-0"><div><p className="page-kicker">خدمة العملاء</p><h1 className="mt-1 text-3xl font-extrabold md:text-4xl">الدعم والمساعدة</h1><p className="mt-1 text-muted-foreground">قائمة مختصرة ورسائل تُحمّل فقط عند فتح التذكرة.</p></div></div>}

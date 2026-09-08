@@ -48,7 +48,8 @@ test('support ticket creation has one durable admin notification delivery path',
 
   assert.match(route, /createNotification/)
   assert.match(route, /dedupeKey:\s*`support-ticket\/\$\{result\.ticket\.id\}\/\$\{admin\.id\}`/)
-  assert.doesNotMatch(route, /sendSupportTicketEmail/)
+  assert.match(route, /sendSupportTicketEmail/)
+  assert.match(route, /guestEmail/)
   assert.match(notifications, /shouldSendNonessentialEmail\(recipient\.emailDeliveryStatus\)/)
   assert.match(notifications, /queueEmailOutbox/)
   assert.doesNotMatch(notifications, /resend\.emails\.send/)

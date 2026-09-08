@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { randomUUID } from 'node:crypto'
 import type { Prisma } from '@prisma/client'
 import { db } from '@/lib/db'
 import { getSession } from '@/lib/auth'
@@ -6,6 +7,9 @@ import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { rateLimit } from '@/lib/rate-limit'
 import { decodeCursor, parseLimit } from '@/lib/pagination'
+import { requestAddress } from '@/lib/rate-limit'
+import { sendSupportTicketEmail } from '@/lib/support-email'
+import { isValidEmailAddress } from '@/lib/email-sender'
 
 const CATEGORIES = new Set(['GENERAL','ORDER','ACCOUNT','SELLER','PAYMENT','REPORT','RETURN_REFUND','TECHNICAL','OTHER'])
 const STATUSES = new Set(['OPEN','IN_PROGRESS','WAITING_FOR_CUSTOMER','WAITING_FOR_SUPPORT','RESOLVED','CLOSED'])
@@ -15,7 +19,8 @@ function cursorFor(ticket: { id: string; updatedAt: Date }) { return Buffer.from
 
 export async function GET(req: NextRequest) {
   try {
-    const session = await getSession(); if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401, headers: PRIVATE_HEADERS })
+    const session = await getSession()
+    if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401, headers: PRIVATE_HEADERS })
     const { searchParams } = new URL(req.url); const id = searchParams.get('id')?.trim()
     if (id) {
       const ticket = await db.supportTicket.findFirst({ where: { id, ...(session.role === 'ADMIN' ? {} : { userId: session.id }) }, select: { id: true, category: true, subject: true, status: true, orderId: true, createdAt: true, updatedAt: true, ...(session.role === 'ADMIN' ? { user: { select: { id: true, name: true, email: true } } } : {}) } })
@@ -36,9 +41,26 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const session = await getSession(); if (!session) return NextResponse.json({ error: 'غير مصرح' }, { status: 401, headers: PRIVATE_HEADERS })
+    const session = await getSession()
+    const body = await req.json().catch(() => ({}))
+    if (!session) {
+      const guestName = clean(body.guestName, 100)
+      const guestEmail = clean(body.guestEmail, 254).toLowerCase()
+      const subject = clean(body.subject, 160)
+      const message = clean(body.message, 5000)
+      const category = clean(body.category, 30).toUpperCase() || 'ACCOUNT'
+      const allowedGuestCategories = new Set(['GENERAL', 'ACCOUNT', 'TECHNICAL', 'OTHER'])
+      const addressLimit = await rateLimit(`support:guest:${requestAddress(req)}`, 3, 15 * 60 * 1000)
+      const emailLimit = guestEmail ? await rateLimit(`support:guest:email:${guestEmail}`, 3, 60 * 60 * 1000) : null
+      if (!addressLimit.allowed || emailLimit && !emailLimit.allowed) return NextResponse.json({ error: 'تم استلام طلبات كثيرة. حاول لاحقاً.' }, { status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(Math.max(addressLimit.retryAfter, emailLimit?.retryAfter || 0)) } })
+      if (guestName.length < 2 || !isValidEmailAddress(guestEmail) || subject.length < 3 || message.length < 2 || !allowedGuestCategories.has(category)) return NextResponse.json({ error: 'الاسم والبريد والعنوان والرسالة مطلوبة' }, { status: 400, headers: PRIVATE_HEADERS })
+      const requestId = `guest-${randomUUID()}`
+      const delivery = await sendSupportTicketEmail({ ticketId: requestId, category, subject, message, userName: guestName, userEmail: guestEmail })
+      if (!delivery.sent) return NextResponse.json({ error: 'لا يمكن إرسال طلب الدعم الآن. حاول لاحقاً.' }, { status: 503, headers: PRIVATE_HEADERS })
+      return NextResponse.json({ submitted: true, requestId }, { status: 201, headers: PRIVATE_HEADERS })
+    }
     const userLimit = await rateLimit(`support:create:user:${session.id}`, session.role === 'ADMIN' ? 40 : 5, 60 * 60 * 1000); if (!userLimit.allowed) return NextResponse.json({ error: 'تم إنشاء عدد كبير من تذاكر الدعم. حاول لاحقاً.' }, { status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(userLimit.retryAfter) } })
-    const body = await req.json(); const subject = clean(body.subject, 160); const message = clean(body.message, 5000); const category = clean(body.category, 30).toUpperCase() || 'GENERAL'; const orderId = clean(body.orderId, 100) || null
+    const subject = clean(body.subject, 160); const message = clean(body.message, 5000); const category = clean(body.category, 30).toUpperCase() || 'GENERAL'; const orderId = clean(body.orderId, 100) || null
     if (subject.length < 3 || message.length < 2 || !CATEGORIES.has(category)) return NextResponse.json({ error: 'العنوان والرسالة والتصنيف مطلوبة' }, { status: 400, headers: PRIVATE_HEADERS })
     if (orderId && session.role !== 'ADMIN') {
       const orderLimit = await rateLimit(`support:create:order:${session.id}:${orderId}`, 2, 6 * 60 * 60 * 1000); if (!orderLimit.allowed) return NextResponse.json({ error: 'لديك بالفعل طلبات دعم حديثة مرتبطة بهذا الطلب.' }, { status: 429, headers: { ...PRIVATE_HEADERS, 'Retry-After': String(orderLimit.retryAfter) } })
