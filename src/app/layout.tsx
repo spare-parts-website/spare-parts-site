@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from 'next/headers';
 import Script from 'next/script';
 import { Cairo } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
@@ -40,11 +41,12 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image" },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get('x-nonce') || undefined
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body
@@ -52,7 +54,7 @@ export default function RootLayout({
       >
         {/* Same-origin external bootstrap avoids next-themes' inline script while
             beforeInteractive applies the saved theme before app hydration. */}
-        <Script src="/theme-init.js" strategy="beforeInteractive" />
+        <Script src="/theme-init.js" strategy="beforeInteractive" nonce={nonce} />
         <AppShell>{children}</AppShell>
         <Toaster />
         {process.env.VERCEL === '1' && <Analytics />}
