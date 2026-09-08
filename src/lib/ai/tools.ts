@@ -714,6 +714,7 @@ function searchSubject(query: string) {
     .replace(/\b(?:price|egypt|egp)\b/gi, ' ')
     .replace(/(?:سعر|مصر|مصري)/g, ' ')
     .replace(/(?:^|\s)(?:في|من|عن|على|لـ?|لي)(?=\s|$)/gi, ' ')
+    .replace(/(?:^|\s)(?:in|for|a|an|the|on|at)(?=\s|$)/gi, ' ')
     .replace(/\s+/g, ' ')
     .trim()
   const synonyms: Array<[RegExp, string]> = [
@@ -726,7 +727,13 @@ function searchSubject(query: string) {
 }
 
 function globalSearchQueries(subject: string) {
+  const simplified = subject
+    .replace(/(?:^|\s)(?:in|for|a|an|the|on|at)(?=\s|$)/gi, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
   return [...new Set([
+    `${simplified} price`,
+    `${simplified} Egypt EGP`,
     `"${subject}" price`,
     `${subject} buy OEM aftermarket price`,
     `${subject} price ebay amazon autodoc`,
@@ -746,7 +753,7 @@ function rankSearchResults(query: string, results: SearchResult[]) {
   const automotive = /(?:bmw|toyota|hyundai|kia|nissan|مرسيدس|بي ام|تويوتا|هيونداي|كيا|نيسان|سيارة|موتور|محرك|belt|brake|engine|car|part)/i.test(query)
   const blocked = automotive ? /(?:microsoft|windows|onedrive|office|support\.apple|stackoverflow|dictionary|wikipedia|cambridge|definition|banking|cryptocurrency)/i : /$a/
   const priceSignal = /(?:\$|€|£|USD|EUR|GBP|EGP|ج\.?م|price|buy|shop|sale|amazon|ebay|aliexpress|autodoc|rockauto|carparts|partsgeek)/i
-  return results
+  const scored = results
     .filter((result) => !blocked.test(`${result.title} ${result.url}`))
     .map((result) => {
       const searchable = `${result.title} ${result.snippet} ${result.url}`.toLocaleLowerCase()
@@ -754,8 +761,11 @@ function rankSearchResults(query: string, results: SearchResult[]) {
       const exactScore = result.title.toLocaleLowerCase().includes(query.replace(/\b(?:price|egypt|egp)\b/gi, '').trim().toLocaleLowerCase()) ? 6 : 0
       return { result, score: tokenScore + exactScore + (priceSignal.test(searchable) ? 4 : 0) }
     })
-    .filter(({ score }) => score >= Math.max(4, Math.min(tokens.length, 3) * 2))
     .sort((a, b) => b.score - a.score)
+  const strictMinimum = Math.max(4, Math.min(tokens.length, 3) * 2)
+  const relevant = scored.filter(({ result }) => isLikelyProductResult(result))
+  const selected = relevant.filter(({ score }) => score >= strictMinimum)
+  return (selected.length ? selected : relevant.filter(({ score }) => score >= 4))
     .map(({ result }) => result)
     .filter((result, index, all) => all.findIndex((candidate) => new URL(candidate.url).hostname === new URL(result.url).hostname) === index)
     .slice(0, 8)
