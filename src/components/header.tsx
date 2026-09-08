@@ -136,7 +136,7 @@ export function Header() {
           </span>
         </Link>
 
-        <div className="hidden min-w-0 max-w-sm flex-1 md:flex">
+        <div className={user?.role === 'SHOP_OWNER' ? 'hidden min-w-0 max-w-sm flex-1' : 'hidden min-w-0 max-w-sm flex-1 md:flex'}>
           <SearchBar />
         </div>
 
