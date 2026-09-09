@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useSearchParams } from 'next/navigation'
 import { useAppNavigation } from '@/lib/use-navigation'
@@ -19,9 +19,8 @@ type Store = PublicStoreListItem
 export function StoresView({ initialData = null, initialSearch = '', initialPage = 1 }: { initialData?: PublicStoresList | null; initialSearch?: string; initialPage?: number }) {
   const navigate = useAppNavigation()
   const routeParams = useSearchParams()
-  const routeSearch = routeParams.get('search') || initialSearch
-  const routePage = Math.max(1, Number(routeParams.get('page')) || initialPage)
-  const hasRouteParams = Boolean(routeParams.toString())
+  const routeSearch = routeParams.get('search') || ''
+  const routePage = Math.max(1, Number(routeParams.get('page')) || 1)
   const [stores, setStores] = useState<Store[]>(initialData?.stores || [])
   const [loading, setLoading] = useState(!initialData)
   const [failed, setFailed] = useState(false)
@@ -30,60 +29,44 @@ export function StoresView({ initialData = null, initialSearch = '', initialPage
   const [totalPages, setTotalPages] = useState(initialData?.pagination.totalPages || 1)
   const [total, setTotal] = useState(initialData?.pagination.total || 0)
 
+  const [retryKey, setRetryKey] = useState(0)
+  const lastLoaded = useRef(initialData && routeSearch === initialSearch && routePage === initialPage ? routeSearch + '/' + routePage : '')
+  const lastRetry = useRef(0)
   const load = (q: string, requestedPage = 1) => {
-    setLoading(true)
-    setFailed(false)
     const params = new URLSearchParams()
-    if (q) params.set('search', q)
+    if (q.trim()) params.set('search', q.trim())
     params.set('page', String(requestedPage))
-    window.history.replaceState(window.history.state, '', `/stores?${params.toString()}`)
-    fetch(`/api/stores?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error('stores-api-failed')
-        return r.json()
-      })
-      .then((data: PublicStoresList) => {
-        setStores(data.stores || [])
-        setPage(data.pagination?.page || requestedPage)
-        setTotalPages(data.pagination?.totalPages || 1)
-        setTotal(data.pagination?.total || 0)
-      })
-      .catch(() => setFailed(true))
-      .finally(() => setLoading(false))
+    window.history.replaceState(window.history.state, '', '/stores?' + params.toString())
+    setRetryKey(current => current + 1)
   }
 
   useEffect(() => {
-    // The static list payload is unfiltered. Query-string searches and pages
-    // must fetch their own public API response after hydration.
-    if (initialData && !hasRouteParams) return
-    let cancelled = false
-    const params = new URLSearchParams()
+    const key = routeSearch + '/' + routePage
+    if (lastLoaded.current === key && lastRetry.current === retryKey) return
+    lastLoaded.current = key
+    lastRetry.current = retryKey
+    const controller = new AbortController()
+    setSearch(routeSearch)
+    setLoading(true)
+    setFailed(false)
+    const params = new URLSearchParams({ page: String(routePage) })
     if (routeSearch) params.set('search', routeSearch)
-    params.set('page', String(routePage))
-    fetch(`/api/stores?${params.toString()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error('stores-api-failed')
-        return r.json()
+    fetch('/api/stores?' + params.toString(), { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error('stores-api-failed')
+        return response.json() as Promise<PublicStoresList>
       })
-      .then((data: PublicStoresList) => {
-        if (!cancelled) {
-          setStores(data.stores || [])
-          setPage(data.pagination?.page || routePage)
-          setTotalPages(data.pagination?.totalPages || 1)
-          setTotal(data.pagination?.total || 0)
-          setLoading(false)
-        }
+      .then(data => {
+        if (controller.signal.aborted) return
+        setStores(data.stores || [])
+        setPage(data.pagination.page)
+        setTotalPages(data.pagination.totalPages)
+        setTotal(data.pagination.total)
       })
-      .catch(() => {
-        if (!cancelled) {
-          setFailed(true)
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [initialData, initialPage, initialSearch, routePage, routeSearch, hasRouteParams])
+      .catch(() => { if (!controller.signal.aborted) setFailed(true) })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false) })
+    return () => { controller.abort(); if (lastLoaded.current === key) lastLoaded.current = '' }
+  }, [routePage, routeSearch, retryKey])
 
   return (
     <div className="content-container space-y-7 py-10">

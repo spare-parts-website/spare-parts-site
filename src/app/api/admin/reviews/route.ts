@@ -1,31 +1,42 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { requireRole } from '@/lib/auth'
+import { decodeCursor, encodeCursor, keysetBefore, parseLimit } from '@/lib/pagination'
 
-// Get all reviews (including blocked) for admin moderation
-export async function GET() {
+const PRIVATE_HEADERS = { 'Cache-Control': 'private, no-store, max-age=0' }
+
+export async function GET(req: NextRequest) {
   try {
     await requireRole('ADMIN')
-    const productReviews = await db.productReview.findMany({
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        part: { select: { id: true, name: true, store: { select: { name: true } } } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-    const storeReviews = await db.storeReview.findMany({
-      include: {
-        user: { select: { id: true, name: true, email: true } },
-        store: { select: { id: true, name: true } },
-      },
-      orderBy: { createdAt: 'desc' },
-    })
-    return NextResponse.json({ productReviews, storeReviews })
-  } catch (e: any) {
-    if (e.message === 'UNAUTHORIZED' || e.message === 'FORBIDDEN') {
-      return NextResponse.json({ error: 'غير مصرح' }, { status: 403 })
+    const url = new URL(req.url)
+    const type = url.searchParams.get('type') === 'store' ? 'store' : 'product'
+    const limit = parseLimit(url.searchParams.get('limit'), 25, 50)
+    const cursor = decodeCursor(url.searchParams.get('cursor'))
+    const before = keysetBefore(cursor)
+
+    if (type === 'store') {
+      const rows = await db.storeReview.findMany({
+        where: before || undefined,
+        select: { id: true, rating: true, comment: true, blocked: true, createdAt: true, user: { select: { id: true, name: true } }, store: { select: { id: true, name: true } } },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        take: limit + 1,
+      })
+      const reviews = rows.slice(0, limit)
+      return NextResponse.json({ type, reviews, nextCursor: rows.length > limit && reviews.length ? encodeCursor(reviews[reviews.length - 1]) : null }, { headers: PRIVATE_HEADERS })
     }
-    console.error(e)
-    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
+
+    const rows = await db.productReview.findMany({
+      where: before || undefined,
+      select: { id: true, rating: true, comment: true, blocked: true, createdAt: true, user: { select: { id: true, name: true } }, part: { select: { id: true, name: true, store: { select: { name: true } } } } },
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      take: limit + 1,
+    })
+    const reviews = rows.slice(0, limit)
+    return NextResponse.json({ type, reviews, nextCursor: rows.length > limit && reviews.length ? encodeCursor(reviews[reviews.length - 1]) : null }, { headers: PRIVATE_HEADERS })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : ''
+    if (message === 'UNAUTHORIZED' || message === 'FORBIDDEN') return NextResponse.json({ error: 'غير مصرح' }, { status: 403, headers: PRIVATE_HEADERS })
+    console.error(error)
+    return NextResponse.json({ error: 'حدث خطأ' }, { status: 500, headers: PRIVATE_HEADERS })
   }
 }

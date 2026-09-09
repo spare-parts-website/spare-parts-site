@@ -30,34 +30,14 @@ export function aiProviderTargets(options?: { hasImage?: boolean; privateContext
   const targets: AIProviderTarget[] = []
   const hasImage = Boolean(options?.hasImage)
   const privateContext = Boolean(options?.privateContext)
-
-  // The paid OpenRouter primary remains an explicit opt-in through
-  // OPENROUTER_PRIMARY_MODEL. Do not send images to an arbitrary configured
-  // model because the environment variable does not prove multimodal support.
   if (!hasImage && process.env.OPENROUTER_API_KEY && aiPaidPrimaryModel()) targets.push('openrouter-primary')
-
-  // Keep the existing direct Gemini route for text and vision. It is the only
-  // model path currently proven in production for signed-in image requests.
   if (process.env.GEMINI_API_KEY) targets.push('google')
-
-  // Private account/order context must not silently spill into free endpoints
-  // whose ZDR/no-training guarantees are unknown or unavailable on this Vercel
-  // plan. The explicit paid OpenRouter primary enforces ZDR; direct Gemini keeps
-  // the deployment's existing privacy posture. Fail closed after those paths.
   if (privateContext) return targets
-
-  // Public/guest traffic can use the genuinely free Vercel route. agent.ts pins
-  // this target to GMICloud so Gateway cannot silently select a paid provider.
   targets.push('gateway-minimax-free')
-
   if (process.env.OPENROUTER_API_KEY) {
-    // Keep only two explicit :free OpenRouter backups. A 429/unavailable error
-    // falls through to the next target in route.ts; no opaque openrouter/free
-    // auto-router or cross-model pool remains.
     if (!hasImage) targets.push('openrouter-glm-free')
     targets.push('openrouter-gemma-free')
   }
-
   return targets
 }
 
@@ -72,7 +52,9 @@ export async function acquireAIConcurrency(key: string, role: AIRole) {
   const expiresAt = new Date(now.getTime() + 65_000)
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${key}))`
-    await tx.aIRequestLease.deleteMany({ where: { OR: [{ expiresAt: { lte: now } }, { key, role: { not: role } }] } })
+    // Only clean leases for this identity. Global TTL cleanup belongs to the
+    // daily maintenance cron and must not be amplified by every AI request.
+    await tx.aIRequestLease.deleteMany({ where: { key, OR: [{ expiresAt: { lte: now } }, { role: { not: role } }] } })
     const count = await tx.aIRequestLease.count({ where: { key, role, expiresAt: { gt: now } } })
     if (count >= CONCURRENCY[role]) return null
     await tx.aIRequestLease.create({ data: { key, token, role, expiresAt } })
@@ -96,18 +78,13 @@ export function aiRequestFingerprint(input: { identity: string; clientRequestId?
   return createHash('sha256').update(payload).digest('hex')
 }
 
-/**
- * Suppress rapid retries with the existing server-only lease table.  The key
- * prefix intentionally differs from the concurrency key so the two leases
- * never evict one another.  Rows are allowed to expire instead of being
- * released immediately, which closes the post-completion duplicate window.
- */
 export async function acquireAIDedupLease(key: string) {
   const now = new Date()
   const expiresAt = new Date(now.getTime() + AI_DEDUPE_TTL_MS)
   return db.$transaction(async (tx) => {
     await tx.$executeRaw`select pg_advisory_xact_lock(hashtext(${key}))`
-    await tx.aIRequestLease.deleteMany({ where: { expiresAt: { lte: now } } })
+    // Keep request cleanup key-scoped; cron owns the global expiration scan.
+    await tx.aIRequestLease.deleteMany({ where: { key, expiresAt: { lte: now } } })
     const existing = await tx.aIRequestLease.findFirst({ where: { key, role: 'DEDUPE', expiresAt: { gt: now } }, select: { id: true } })
     if (existing) return { duplicate: true as const }
     await tx.aIRequestLease.create({ data: { key, token: randomUUID(), role: 'DEDUPE', expiresAt } })

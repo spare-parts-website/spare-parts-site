@@ -62,3 +62,14 @@ export function censorChatContent(value: string) {
   })
   return { text, censored }
 }
+
+/**
+ * Shared mutation validator. Routes that need a hard moderation boundary use
+ * this instead of each inventing a different abusive-language check.
+ */
+export function moderateUserText(value: string) {
+  const result = censorChatContent(value)
+  return result.censored
+    ? { allowed: false as const, message: 'الرسالة تحتوي على ألفاظ غير مسموح بها.' }
+    : { allowed: true as const, message: '' }
+}

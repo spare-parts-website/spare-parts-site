@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from 'next/headers';
 import Script from 'next/script';
 import { Cairo } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
@@ -35,16 +36,17 @@ export const metadata: Metadata = {
     siteName: "غيار ماركت",
     title: "غيار ماركت | قطع غيار السيارات من متاجر متخصصة",
     description: "القطعة الصح لسيارتك من متجر تعرف تفاصيله وعلامة توثيقه وتقييماته عند توفرها.",
-    images: [{ url: "/ghyar-market-hero.webp", width: 1672, height: 941, alt: "غيار ماركت" }],
+    images: [{ url: "/ghyar-market-hero-light.webp", width: 1672, height: 941, alt: "غيار ماركت" }],
   },
   twitter: { card: "summary_large_image" },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const nonce = (await headers()).get('x-nonce') || undefined
   return (
     <html lang="ar" dir="rtl" suppressHydrationWarning>
       <body
@@ -52,11 +54,11 @@ export default function RootLayout({
       >
         {/* Same-origin external bootstrap avoids next-themes' inline script while
             beforeInteractive applies the saved theme before app hydration. */}
-        <Script src="/theme-init.js" strategy="beforeInteractive" />
+        <Script src="/theme-init.js" strategy="beforeInteractive" nonce={nonce} />
         <AppShell>{children}</AppShell>
         <Toaster />
-        <Analytics />
-        <SpeedInsights />
+        {process.env.VERCEL === '1' && <Analytics />}
+        {process.env.VERCEL === '1' && <SpeedInsights />}
       </body>
     </html>
   );

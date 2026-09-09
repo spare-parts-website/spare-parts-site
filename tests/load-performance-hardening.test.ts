@@ -21,9 +21,9 @@ test('public catalog caches shared facets and default lists', () => {
   const marketplace = read('src/lib/public-marketplace.ts')
 
   assert.match(marketplace, /loadPublicPartFacets = unstable_cache/)
-  assert.match(marketplace, /public-part-facets-v1/)
-  assert.match(marketplace, /public-parts-default-v1/)
-  assert.match(marketplace, /public-stores-default-v1/)
+  assert.match(marketplace, /public-part-facets-v3/)
+  assert.match(marketplace, /public-parts-default-v3/)
+  assert.match(marketplace, /public-stores-default-v3/)
   assert.match(marketplace, /revalidate: 300/)
 })
 

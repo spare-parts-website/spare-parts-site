@@ -1,7 +1,7 @@
 (() => {
   try {
     const stored = window.localStorage.getItem('theme')
-    const dark = stored === 'dark' || (stored !== 'light' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+    const dark = stored === 'dark'
     const root = document.documentElement
     root.classList.toggle('dark', dark)
     root.style.colorScheme = dark ? 'dark' : 'light'

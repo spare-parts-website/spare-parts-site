@@ -3,7 +3,7 @@ import { db } from '@/lib/db'
 import { audit } from '@/lib/audit'
 import { createNotification } from '@/lib/notifications'
 import { resolveOrderTransition, type OrderAction } from '@/lib/order-state'
-import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
+import { parseVehicleCompatibility } from '@/lib/vehicle-compatibility'
 import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '@/lib/marketplace-taxonomy'
 import { normalizeEgyptianMobile } from '@/lib/egyptian-phone'
 import { censorChatContent } from '@/lib/content-moderation'
@@ -180,8 +180,8 @@ async function proposalPreview(user: SessionUser, input: AIProposalInput) {
     const order = await db.order.findUnique({ where: { id: input.targetId }, select: { status: true, paymentStatus: true } })
     if (order) { currentState = `حالة الطلب ${order.status} • الدفع ${order.paymentStatus}`; proposedState = `تطبيق: ${humanDecision(input.status)}`; consequences = 'قد يغيّر حالة الطلب ويعيد المخزون أو يحدّث الدفع وفق قواعد الطلب المعتمدة.' }
   } else if (input.action === 'admin_part_block' && input.targetId) {
-    const part = await db.part.findUnique({ where: { id: input.targetId }, select: { name: true, blocked: true } })
-    if (part) { currentState = `${part.name}: ${part.blocked ? 'محظورة' : 'نشطة'}`; proposedState = input.status === 'BLOCKED' ? 'حظر العرض من السوق العام' : 'إلغاء حظر العرض'; consequences = 'يؤثر على الظهور العام فقط ولا يحذف بيانات العرض.' }
+    const part = await db.part.findUnique({ where: { id: input.targetId }, select: { name: true, moderationStatus: true } })
+    if (part) { currentState = `${part.name}: ${part.moderationStatus}`; proposedState = input.status === 'BLOCKED' ? 'حظر العرض من السوق العام' : 'إلغاء حظر العرض'; consequences = 'يؤثر على الظهور العام فقط ولا يحذف بيانات العرض.' }
   } else if (input.action === 'admin_store_verify' && input.targetId) {
     const store = await db.store.findUnique({ where: { id: input.targetId }, select: { name: true, verified: true } })
     if (store) { currentState = `${store.name}: ${store.verified ? 'معتمد' : 'غير معتمد'}`; proposedState = input.status === 'VERIFIED' ? 'اعتماد المتجر' : 'إلغاء الاعتماد'; consequences = 'سيظهر تغيير الاعتماد للمستخدمين وقد يؤثر على شارة الثقة.' }
@@ -319,7 +319,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
     case 'cart_add':
     case 'cart_update':
     case 'cart_remove': {
-      const part = await db.part.findFirst({ where: { id: input.targetId, blocked: false }, select: { name: true, stock: true } })
+      const part = await db.part.findFirst({ where: { id: input.targetId, moderationStatus: 'ACTIVE' }, select: { name: true, stock: true } })
       const quantity = Math.floor(input.quantity || 1)
       if (!part || (input.action !== 'cart_remove' && (quantity < 1 || quantity > part.stock))) throw new Error('INVALID_ACTION_INPUT')
       return input.action === 'cart_add' ? `إضافة ${quantity} × ${part.name} إلى السلة` : input.action === 'cart_update' ? `تعديل كمية ${part.name} في السلة إلى ${quantity}` : `إزالة ${part.name} من السلة`
@@ -384,7 +384,7 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
         if (!order) throw new Error('ACTION_FORBIDDEN')
         return `إرسال رسالة إلى متجر الطلب بخصوص ${order.part.name}`
       }
-      const part = await db.part.findFirst({ where: { id: input.targetId, blocked: false }, include: { store: { select: { ownerId: true, name: true } } } })
+      const part = await db.part.findFirst({ where: { id: input.targetId, moderationStatus: 'ACTIVE' }, include: { store: { select: { ownerId: true, name: true } } } })
       if (!part || part.store.ownerId === user.id) throw new Error('ACTION_FORBIDDEN')
       return `إرسال رسالة إلى ${part.store.name} بخصوص ${part.name}`
     }
@@ -534,9 +534,9 @@ async function validateAndDescribe(user: SessionUser, input: AIProposalInput) {
       return `تعديل ${count} عروض في ${store.name}${input.pricePercent !== undefined ? ` بنسبة سعر ${input.pricePercent}%` : ''}${input.stockDelta !== undefined ? ` بمقدار مخزون ${input.stockDelta}` : ''}`
     }
     case 'admin_part_block': {
-      const part = await db.part.findUnique({ where: { id: input.targetId }, select: { name: true, blocked: true } })
+      const part = await db.part.findUnique({ where: { id: input.targetId }, select: { name: true, moderationStatus: true } })
       if (!part || !['BLOCKED', 'ACTIVE'].includes(input.status || '')) throw new Error('INVALID_ACTION_INPUT')
-      if (part.blocked === (input.status === 'BLOCKED')) throw new Error('ACTION_STALE')
+      if (part.moderationStatus === input.status) throw new Error('ACTION_STALE')
       return `${input.status === 'BLOCKED' ? 'حظر' : 'إلغاء حظر'} القطعة ${part.name}`
     }
     case 'admin_user_role': {
@@ -612,14 +612,14 @@ export async function decideActionProposal(input: { proposalId: string; user: Se
 async function executeAction(user: SessionUser, input: AIProposalInput): Promise<{ clientAction?: AIClientAction }> {
   switch (input.action) {
     case 'cart_add': {
-      const part = await db.part.findFirst({ where: { id: input.targetId, blocked: false, stock: { gt: 0 } }, include: { store: { select: { id: true, name: true } } } })
+      const part = await db.part.findFirst({ where: { id: input.targetId, moderationStatus: 'ACTIVE', stock: { gt: 0 } }, include: { store: { select: { id: true, name: true } } } })
       if (!part) throw new Error('INVALID_ACTION_INPUT')
       return { clientAction: { type: 'cart_add', cartItem: { partId: part.id, name: part.name, price: part.price, image: part.image, storeId: part.store.id, storeName: part.store.name, quantity: Math.floor(input.quantity || 1), stock: part.stock } } }
     }
     case 'cart_update': {
       const quantity = Math.floor(input.quantity ?? 0)
       if (!input.targetId || !Number.isInteger(input.quantity) || quantity < 1) throw new Error('INVALID_ACTION_INPUT')
-      const part = await db.part.findFirst({ where: { id: input.targetId, blocked: false }, select: { stock: true } })
+      const part = await db.part.findFirst({ where: { id: input.targetId, moderationStatus: 'ACTIVE' }, select: { stock: true } })
       if (!part || quantity > part.stock) throw new Error('INVALID_ACTION_INPUT')
       return { clientAction: { type: 'cart_update', cartPartId: input.targetId, cartQuantity: quantity } }
     }
@@ -648,7 +648,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       await db.$transaction(async (tx) => {
         if (gallery) await tx.partImage.deleteMany({ where: { partId: current.id } })
         if (compatibilityProvided) await tx.vehicleCompatibility.deleteMany({ where: { partId: current.id } })
-        await tx.part.update({ where: { id: current.id }, data: { ...(input.name !== undefined ? { name: input.name } : {}), ...(nextPrice !== undefined ? { price: nextPrice } : {}), ...(nextStock !== undefined ? { stock: nextStock } : {}), ...(input.description !== undefined ? { description: input.description || null } : {}), ...(input.category !== undefined ? { category: normalizeMarketplaceCategory(input.category) || null } : {}), ...(input.brand !== undefined ? { brand: normalizeMarketplaceBrand(input.brand) || null } : {}), ...(input.condition !== undefined ? { condition: normalizeMarketplaceCondition(input.condition) } : {}), ...(input.partNumber !== undefined ? { partNumber: input.partNumber || null } : {}), ...(input.oemNumber !== undefined ? { oemNumber: input.oemNumber || null } : {}), ...(input.searchAliases !== undefined ? { searchAliases: input.searchAliases || null } : {}), ...(input.universal !== undefined ? { universal: input.universal } : {}), ...(input.fitmentNotes !== undefined ? { fitmentNotes: input.fitmentNotes || null } : {}), ...(gallery ? { image: gallery[0] || null, images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined } : {}), ...(compatibilityProvided ? { carModels: input.universal ? null : serializeLegacyCompatibility(input.carModels), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } : {}) } })
+        await tx.part.update({ where: { id: current.id }, data: { ...(input.name !== undefined ? { name: input.name } : {}), ...(nextPrice !== undefined ? { price: nextPrice } : {}), ...(nextStock !== undefined ? { stock: nextStock } : {}), ...(input.description !== undefined ? { description: input.description || null } : {}), ...(input.category !== undefined ? { category: normalizeMarketplaceCategory(input.category) || null } : {}), ...(input.brand !== undefined ? { brand: normalizeMarketplaceBrand(input.brand) || null } : {}), ...(input.condition !== undefined ? { condition: normalizeMarketplaceCondition(input.condition) } : {}), ...(input.partNumber !== undefined ? { partNumber: input.partNumber || null } : {}), ...(input.oemNumber !== undefined ? { oemNumber: input.oemNumber || null } : {}), ...(input.searchAliases !== undefined ? { searchAliases: input.searchAliases || null } : {}), ...(input.universal !== undefined ? { universal: input.universal } : {}), ...(input.fitmentNotes !== undefined ? { fitmentNotes: input.fitmentNotes || null } : {}), ...(gallery ? { image: gallery[0] || null, images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined } : {}), ...(compatibilityProvided ? { compatibilities: compatibilities.length ? { create: compatibilities } : undefined } : {}) } })
       })
       await audit({ actorId: user.id, action: 'SELLER_PART_UPDATED', targetType: 'part', targetId: current.id })
       return {}
@@ -658,7 +658,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       if (!store) throw new Error('ACTION_FORBIDDEN')
       const compatibilities = parseVehicleCompatibility(input.carModels)
       const gallery = input.images || (input.image ? [input.image] : [])
-      const created = await db.part.create({ data: { storeId: store.id, name: input.name!, description: input.description || null, price: input.price!, stock: Math.floor(input.stock!), category: normalizeMarketplaceCategory(input.category) || null, brand: normalizeMarketplaceBrand(input.brand) || null, condition: normalizeMarketplaceCondition(input.condition), partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, universal: Boolean(input.universal), fitmentNotes: input.fitmentNotes || null, image: gallery[0] || null, carModels: input.universal ? null : serializeLegacyCompatibility(input.carModels), images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined, compatibilities: input.universal ? undefined : compatibilities.length ? { create: compatibilities } : undefined } })
+      const created = await db.part.create({ data: { storeId: store.id, name: input.name!, description: input.description || null, price: input.price!, stock: Math.floor(input.stock!), category: normalizeMarketplaceCategory(input.category) || null, brand: normalizeMarketplaceBrand(input.brand) || null, condition: normalizeMarketplaceCondition(input.condition), partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, universal: Boolean(input.universal), fitmentNotes: input.fitmentNotes || null, image: gallery[0] || null, images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined, compatibilities: input.universal ? undefined : compatibilities.length ? { create: compatibilities } : undefined } })
       await audit({ actorId: user.id, action: 'SELLER_PART_CREATED', targetType: 'part', targetId: created.id })
       return {}
     }
@@ -687,7 +687,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
         await createNotification({ userId: order.store.ownerId, title: 'رسالة جديدة', message: `${user.name}: ${message}`.slice(0, 160), type: 'CHAT', link: 'inbox', dedupeKey: `chat-order/${created.id}/${order.store.ownerId}` }).catch(() => undefined)
         return {}
       }
-      const part = await db.part.findFirst({ where: { id: input.targetId, blocked: false }, select: { id: true, store: { select: { ownerId: true } } } })
+      const part = await db.part.findFirst({ where: { id: input.targetId, moderationStatus: 'ACTIVE' }, select: { id: true, store: { select: { ownerId: true } } } })
       if (!part || part.store.ownerId === user.id) throw new Error('ACTION_FORBIDDEN')
       const created = await db.productMessage.create({ data: { partId: part.id, senderId: user.id, receiverId: part.store.ownerId, message } })
       await createNotification({ userId: part.store.ownerId, title: 'رسالة عن قطعة غيار', message: `${user.name}: ${message}`.slice(0, 160), type: 'CHAT', link: 'inbox', dedupeKey: `chat-part/${created.id}/${part.store.ownerId}` }).catch(() => undefined)
@@ -818,7 +818,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       const compatibilities = parseVehicleCompatibility(input.carModels)
       const gallery = input.images || (input.image ? [input.image] : [])
       if (!validGallery(gallery)) throw new Error('INVALID_ACTION_INPUT')
-      const created = await db.part.create({ data: { storeId: store.id, name: input.name, description: input.description || null, price: input.price, stock: Math.floor(input.stock), category: normalizeMarketplaceCategory(input.category) || null, brand: normalizeMarketplaceBrand(input.brand) || null, condition: normalizeMarketplaceCondition(input.condition), partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, universal: Boolean(input.universal), fitmentNotes: input.fitmentNotes || null, image: gallery[0] || null, images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined, carModels: input.universal ? null : serializeLegacyCompatibility(input.carModels), compatibilities: input.universal ? undefined : compatibilities.length ? { create: compatibilities } : undefined } })
+      const created = await db.part.create({ data: { storeId: store.id, name: input.name, description: input.description || null, price: input.price, stock: Math.floor(input.stock), category: normalizeMarketplaceCategory(input.category) || null, brand: normalizeMarketplaceBrand(input.brand) || null, condition: normalizeMarketplaceCondition(input.condition), partNumber: input.partNumber || null, oemNumber: input.oemNumber || null, searchAliases: input.searchAliases || null, universal: Boolean(input.universal), fitmentNotes: input.fitmentNotes || null, image: gallery[0] || null, images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined, compatibilities: input.universal ? undefined : compatibilities.length ? { create: compatibilities } : undefined } })
       await audit({ actorId: user.id, action: 'ADMIN_PART_CREATED', targetType: 'part', targetId: created.id, metadata: { storeId: store.id, sellerId: store.ownerId, onBehalfOf: true } })
       return {}
     }
@@ -832,7 +832,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       const updated = await db.$transaction(async (tx) => {
         if (compatibilityProvided) await tx.vehicleCompatibility.deleteMany({ where: { partId: input.targetId } })
         if (gallery) await tx.partImage.deleteMany({ where: { partId: input.targetId } })
-        return tx.part.update({ where: { id: input.targetId }, data: { ...(input.name !== undefined ? { name: input.name } : {}), ...(input.description !== undefined ? { description: input.description || null } : {}), ...(input.price !== undefined ? { price: input.price } : {}), ...(input.stock !== undefined ? { stock: Math.floor(input.stock) } : {}), ...(input.category !== undefined ? { category: normalizeMarketplaceCategory(input.category) || null } : {}), ...(input.brand !== undefined ? { brand: normalizeMarketplaceBrand(input.brand) || null } : {}), ...(input.condition !== undefined ? { condition: normalizeMarketplaceCondition(input.condition) } : {}), ...(input.partNumber !== undefined ? { partNumber: input.partNumber || null } : {}), ...(input.oemNumber !== undefined ? { oemNumber: input.oemNumber || null } : {}), ...(input.searchAliases !== undefined ? { searchAliases: input.searchAliases || null } : {}), ...(input.universal !== undefined ? { universal: input.universal } : {}), ...(input.fitmentNotes !== undefined ? { fitmentNotes: input.fitmentNotes || null } : {}), ...(gallery ? { image: gallery[0] || null, images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined } : {}), ...(compatibilityProvided ? { carModels: input.universal ? null : serializeLegacyCompatibility(input.carModels), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } : {}) } })
+        return tx.part.update({ where: { id: input.targetId }, data: { ...(input.name !== undefined ? { name: input.name } : {}), ...(input.description !== undefined ? { description: input.description || null } : {}), ...(input.price !== undefined ? { price: input.price } : {}), ...(input.stock !== undefined ? { stock: Math.floor(input.stock) } : {}), ...(input.category !== undefined ? { category: normalizeMarketplaceCategory(input.category) || null } : {}), ...(input.brand !== undefined ? { brand: normalizeMarketplaceBrand(input.brand) || null } : {}), ...(input.condition !== undefined ? { condition: normalizeMarketplaceCondition(input.condition) } : {}), ...(input.partNumber !== undefined ? { partNumber: input.partNumber || null } : {}), ...(input.oemNumber !== undefined ? { oemNumber: input.oemNumber || null } : {}), ...(input.searchAliases !== undefined ? { searchAliases: input.searchAliases || null } : {}), ...(input.universal !== undefined ? { universal: input.universal } : {}), ...(input.fitmentNotes !== undefined ? { fitmentNotes: input.fitmentNotes || null } : {}), ...(gallery ? { image: gallery[0] || null, images: gallery.length > 1 ? { create: gallery.slice(1).map((url, index) => ({ url, position: index + 1 })) } : undefined } : {}), ...(compatibilityProvided ? { compatibilities: compatibilities.length ? { create: compatibilities } : undefined } : {}) } })
       })
       await audit({ actorId: user.id, action: 'ADMIN_PART_UPDATED', targetType: 'part', targetId: updated.id, metadata: { storeId: current.storeId, sellerId: current.store.ownerId, onBehalfOf: true } })
       return {}
@@ -903,7 +903,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       const compatibilities = replace && !input.universal ? parseVehicleCompatibility(input.carModels) : []
       await db.$transaction(async (tx) => {
         if (replace) await tx.vehicleCompatibility.deleteMany({ where: { partId: part.id } })
-        await tx.part.update({ where: { id: part.id }, data: { ...(replace ? { universal: Boolean(input.universal), carModels: input.universal ? null : serializeLegacyCompatibility(input.carModels), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } : {}), ...(input.fitmentNotes !== undefined ? { fitmentNotes: input.fitmentNotes || null } : {}) } })
+        await tx.part.update({ where: { id: part.id }, data: { ...(replace ? { universal: Boolean(input.universal), compatibilities: compatibilities.length ? { create: compatibilities } : undefined } : {}), ...(input.fitmentNotes !== undefined ? { fitmentNotes: input.fitmentNotes || null } : {}) } })
       })
       await audit({ actorId: user.id, action: 'SELLER_FITMENT_UPDATED', targetType: 'part', targetId: part.id })
       return {}
@@ -937,7 +937,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       return {}
     case 'admin_part_block': {
       const targetState = input.status === 'BLOCKED'
-      const updated = await db.part.updateMany({ where: { id: input.targetId!, blocked: !targetState }, data: { blocked: targetState } })
+      const updated = await db.part.updateMany({ where: { id: input.targetId!, moderationStatus: targetState ? { not: 'BLOCKED' } : 'BLOCKED' }, data: { moderationStatus: targetState ? 'BLOCKED' : 'ACTIVE', blocked: targetState } })
       if (updated.count !== 1) throw new Error('ACTION_STALE')
       return {}
     }
@@ -966,7 +966,7 @@ async function executeAction(user: SessionUser, input: AIProposalInput): Promise
       await db.$transaction(async (tx) => {
         const claimed = await tx.report.updateMany({ where: { id: report.id, status: 'OPEN' }, data: { status: input.status!, reviewedById: user.id } })
         if (claimed.count !== 1) throw new Error('ACTION_STALE')
-        if (input.status === 'BLOCKED' && report.targetType === 'part') await tx.part.updateMany({ where: { id: report.targetId }, data: { blocked: true } })
+        if (input.status === 'BLOCKED' && report.targetType === 'part') await tx.part.updateMany({ where: { id: report.targetId }, data: { moderationStatus: 'BLOCKED', blocked: true, moderationReason: report.reason, moderatedAt: new Date(), moderatedById: user.id } })
       })
       return {}
     }
