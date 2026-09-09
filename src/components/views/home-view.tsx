@@ -23,7 +23,7 @@ export function HomeView({ isSeller = false }: { isSeller?: boolean }) {
           <Form action="/parts" className="mt-7 space-y-3" role="search" aria-label="البحث في السوق">
             <label htmlFor="market-search" className="block text-sm font-bold">ما القطعة التي تبحث عنها؟</label>
             <div className="flex flex-col gap-2 rounded-2xl border bg-background p-2 sm:flex-row">
-              <div className="relative min-w-0 flex-1"><Search aria-hidden="true" className="absolute start-3 top-4 size-5 text-muted-foreground" /><input id="market-search" name="search" type="search" maxLength={160} placeholder="اسم القطعة، رقم OEM، أو موديل السيارة" className="h-12 w-full rounded-xl bg-transparent pe-3 ps-10 outline-none focus-visible:ring-2 focus-visible:ring-ring" /></div>
+              <div className="relative min-w-0 flex-1"><Search aria-hidden="true" className="absolute start-3 top-4 size-5 text-muted-foreground" /><input id="market-search" name="search" type="search" maxLength={160} placeholder="مثال: تيل فرامل تويوتا كورولا 2015" className="h-12 w-full rounded-xl bg-transparent pe-3 ps-10 outline-none focus-visible:ring-2 focus-visible:ring-ring" /></div>
               <Button type="submit" className="h-12 rounded-xl px-6">ابحث عن قطعتك <ArrowLeft aria-hidden="true" className="size-4" /></Button>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground"><span>جرّب البحث:</span>{['تيل فرامل', 'BMW', 'تويوتا'].map(term => <Link key={term} href={'/parts?search=' + encodeURIComponent(term)} prefetch={false} className="rounded-full border px-3 py-1.5 transition-colors hover:border-primary hover:text-primary">{term}</Link>)}</div>
