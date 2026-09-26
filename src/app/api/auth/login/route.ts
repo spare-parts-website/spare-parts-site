@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { createSession, verifyPassword } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
-import { issueLoginVerification } from '@/lib/login-verification'
-import { requiresLoginCode } from '@/lib/login-policy'
 
 export async function POST(req: NextRequest) {
   try {
@@ -34,40 +32,32 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'بيانات الدخول غير صحيحة' }, { status: 400 })
     }
 
-    if (!requiresLoginCode(user.role)) {
-      await db.loginVerification.deleteMany({ where: { userId: user.id } })
-      await createSession({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: 'ADMIN',
-        phone: user.phone,
-        avatar: user.avatar,
-        emailNotifications: user.emailNotifications,
-        emailDeliveryStatus: user.emailDeliveryStatus,
-        sessionVersion: user.sessionVersion,
-      })
-      return NextResponse.json({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        phone: user.phone,
-        avatar: user.avatar,
-        emailNotifications: user.emailNotifications,
-        emailDeliveryStatus: user.emailDeliveryStatus,
-      })
-    }
+    // Clean any existing login verifications for this user
+    await db.loginVerification.deleteMany({ where: { userId: user.id } })
 
-    try {
-      const verification = await issueLoginVerification(user)
-      return NextResponse.json({ verificationRequired: true, ...verification })
-    } catch (error) {
-      if (error instanceof Error && error.message === 'EMAIL_UNDELIVERABLE') {
-        return NextResponse.json({ error: 'هذا البريد لا يستقبل رسائل التحقق حالياً. حدّث البريد من خلال الإدارة ثم حاول مرة أخرى.' }, { status: 409 })
-      }
-      throw error
-    }
+    // Create session immediately for all roles (OTP removed from login flow)
+    await createSession({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role as 'BUYER' | 'ADMIN' | 'SHOP_OWNER',
+      phone: user.phone,
+      avatar: user.avatar,
+      emailNotifications: user.emailNotifications,
+      emailDeliveryStatus: user.emailDeliveryStatus,
+      sessionVersion: user.sessionVersion,
+    })
+
+    return NextResponse.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      avatar: user.avatar,
+      emailNotifications: user.emailNotifications,
+      emailDeliveryStatus: user.emailDeliveryStatus,
+    })
   } catch (e) {
     console.error(e)
     return NextResponse.json({ error: 'تعذر تسجيل الدخول. حاول مرة أخرى لاحقاً.' }, { status: 500 })

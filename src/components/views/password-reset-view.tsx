@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
-import { CheckCircle2, KeyRound, Mail, ShieldCheck } from 'lucide-react'
+import { CheckCircle2, Eye, EyeOff, KeyRound, Mail, ShieldCheck } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +12,8 @@ export function PasswordResetView({ mode, token = '' }: { mode: 'request' | 'res
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirmation, setConfirmation] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmation, setShowConfirmation] = useState(false)
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
@@ -75,8 +77,56 @@ export function PasswordResetView({ mode, token = '' }: { mode: 'request' | 'res
                 </div>
               ) : (
                 <>
-                  <div className="space-y-2"><Label htmlFor="new-password">كلمة المرور الجديدة</Label><Input id="new-password" type="password" dir="ltr" autoComplete="new-password" minLength={8} maxLength={128} value={password} onChange={(event) => setPassword(event.target.value)} required /></div>
-                  <div className="space-y-2"><Label htmlFor="confirm-password">تأكيد كلمة المرور</Label><Input id="confirm-password" type="password" dir="ltr" autoComplete="new-password" minLength={8} maxLength={128} value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /></div>
+                  <div className="space-y-2">
+                    <Label htmlFor="new-password">كلمة المرور الجديدة</Label>
+                    <div className="relative">
+                      <Input
+                        id="new-password"
+                        type={showPassword ? "text" : "password"}
+                        dir="ltr"
+                        autoComplete="new-password"
+                        minLength={8}
+                        maxLength={128}
+                        value={password}
+                        onChange={(event) => setPassword(event.target.value)}
+                        required
+                        className="pr-9 pl-11"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground hover:text-primary"
+                        aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                      >
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="confirm-password">تأكيد كلمة المرور</Label>
+                    <div className="relative">
+                      <Input
+                        id="confirm-password"
+                        type={showConfirmation ? "text" : "password"}
+                        dir="ltr"
+                        autoComplete="new-password"
+                        minLength={8}
+                        maxLength={128}
+                        value={confirmation}
+                        onChange={(event) => setConfirmation(event.target.value)}
+                        required
+                        className="pr-9 pl-11"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmation(!showConfirmation)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground hover:text-primary"
+                        aria-label={showConfirmation ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                      >
+                        {showConfirmation ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
+                    </div>
+                  </div>
                 </>
               )}
               {error && <p className="rounded-xl bg-destructive/10 p-3 text-sm text-destructive" role="alert">{error}</p>}

@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardHeader, CardDescription } from '@/components/ui/card'
 import { InputOTP, InputOTPGroup, InputOTPSlot } from '@/components/ui/input-otp'
-import { Mail, Lock, User, Phone, Store, ShieldCheck } from 'lucide-react'
+import { Mail, Lock, User, Phone, Store, ShieldCheck, Eye, EyeOff } from 'lucide-react'
 import { REGEXP_ONLY_DIGITS } from 'input-otp'
 import { useToast } from '@/hooks/use-toast'
 import { ProfileAvatarPicker } from '@/components/profile-avatar-picker'
@@ -23,6 +23,7 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
   const [loading, setLoading] = useState(false)
   const [verification, setVerification] = useState<{ challengeId: string; emailHint: string } | null>(null)
   const [verificationCode, setVerificationCode] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [form, setForm] = useState({
     name: '',
     email: '',
@@ -290,18 +291,26 @@ export function AuthView({ mode }: { mode: 'login' | 'register' }) {
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-3"><Label htmlFor="password">كلمة المرور</Label>{mode === 'login' && <Link href="/forgot-password" className="text-xs font-bold text-primary hover:underline">نسيت كلمة المرور؟</Link>}</div>
                 <div className="relative">
-                  <Lock className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
                       <Input
                         id="password"
-                        type="password"
+                        type={showPassword ? "text" : "password"}
                     value={form.password}
                     onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    className="pr-9"
+                    className="pr-9 pl-11"
                         placeholder="••••••••"
                         required
                         minLength={8}
                         dir="ltr"
                       />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground hover:text-primary"
+                        aria-label={showPassword ? "إخفاء كلمة المرور" : "إظهار كلمة المرور"}
+                      >
+                        {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+                      </button>
                 </div>
               </div>
 

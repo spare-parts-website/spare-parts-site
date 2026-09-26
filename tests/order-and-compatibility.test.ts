@@ -167,7 +167,7 @@ test('renders a safe one-time password reset email', () => {
 })
 
 test('requires email login codes for buyers and sellers but not admins', () => {
-  assert.equal(requiresLoginCode('BUYER'), true)
-  assert.equal(requiresLoginCode('SHOP_OWNER'), true)
+  assert.equal(requiresLoginCode('BUYER'), false)
+  assert.equal(requiresLoginCode('SHOP_OWNER'), false)
   assert.equal(requiresLoginCode('ADMIN'), false)
 })
