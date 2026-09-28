@@ -39,13 +39,21 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
+
+      - name: Report runtime and locked dependencies
+        run: |
+          git rev-parse HEAD
+          node -v
+          npm -v
+          npm ls @swc/helpers --package-lock-only
+          npm ls next --package-lock-only
 
       - name: Install dependencies
         run: npm ci
