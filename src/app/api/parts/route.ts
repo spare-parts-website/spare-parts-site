@@ -8,12 +8,7 @@ import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/v
 import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '@/lib/marketplace-taxonomy'
 import { audit } from '@/lib/audit'
 import { getPublicPart, getPublicPartsList } from '@/lib/public-marketplace'
-
-const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
-
-function validGallery(value: unknown) {
-  return Array.isArray(value) && value.length <= 4 && new Set(value).size === value.length && value.every((url) => typeof url === 'string' && UPLOAD_URL.test(url))
-}
+import { PUBLIC_UPLOAD_URL_PATTERN as UPLOAD_URL, validGallery } from '@/lib/image-policy'
 
 export async function GET(req: NextRequest) {
   try {
@@ -159,7 +154,7 @@ export async function PUT(req: NextRequest) {
     if (name !== undefined && (typeof name !== 'string' || name.trim().length < 2 || name.trim().length > 160)) return NextResponse.json({ error: 'اسم القطعة غير صالح' }, { status: 400 })
     if (numericPrice !== undefined && (!Number.isFinite(numericPrice) || numericPrice <= 0 || numericPrice > 100000000)) return NextResponse.json({ error: 'يجب أن يكون سعر المنتج أكبر من صفر.' }, { status: 400 })
     if (numericStock !== undefined && (!Number.isInteger(numericStock) || numericStock < 0 || numericStock > 1000000)) return NextResponse.json({ error: 'المخزون غير صالح' }, { status: 400 })
-    if (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
+    if (condition !== undefined && (typeof condition !== 'string' || condition.trim().length < 1 || condition.trim().length > 120)) return NextResponse.json({ error: 'حالة المنتج مطلوبة وبحد أقصى 120 حرفاً' }, { status: 400 })
     if (images !== undefined && !validGallery(images)) return NextResponse.json({ error: 'يمكن إضافة حتى 4 صور صالحة للقطعة.' }, { status: 400 })
     if (image !== undefined && image !== null && (typeof image !== 'string' || !UPLOAD_URL.test(image))) return NextResponse.json({ error: 'رابط الصورة الرئيسية غير صالح' }, { status: 400 })
     if (universal !== undefined && typeof universal !== 'boolean') return NextResponse.json({ error: 'نوع التوافق غير صالح' }, { status: 400 })
@@ -192,7 +187,7 @@ export async function PUT(req: NextRequest) {
           partNumber: partNumber !== undefined ? String(partNumber).trim().slice(0, 100) || null : undefined,
           oemNumber: oemNumber !== undefined ? String(oemNumber).trim().slice(0, 100) || null : undefined,
           searchAliases: searchAliases !== undefined ? String(searchAliases).trim().slice(0, 500) || null : undefined,
-          condition: normalizeMarketplaceCondition(condition),
+          condition: condition !== undefined ? (normalizeMarketplaceCondition(condition) || undefined) : undefined,
           universal: typeof universal === 'boolean' ? universal : undefined,
           fitmentNotes: fitmentNotes !== undefined ? fitmentNotes.trim().slice(0, 1000) || null : undefined,
           image: gallery ? gallery[0] || null : image !== undefined ? image || null : undefined,

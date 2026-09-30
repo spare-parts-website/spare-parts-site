@@ -5,12 +5,13 @@ import { BLOCKED_STORE_NAMES } from '@/lib/store-moderation'
 
 // GET /api/search?q=query - returns matching parts, stores, and car models
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url)
-  const q = (searchParams.get('q') || '').trim().slice(0, 100)
+  try {
+    const { searchParams } = new URL(req.url)
+    const q = (searchParams.get('q') || '').trim().slice(0, 100)
 
-  if (!q || q.length < 1) {
-    return NextResponse.json({ parts: [], stores: [], carModels: [] })
-  }
+    if (!q || q.length < 1) {
+      return NextResponse.json({ parts: [], stores: [], carModels: [] })
+    }
 
   const [fuzzyPartIds, fuzzyStoreIds] = await Promise.all([
     findTypoTolerantPartIds(q, 30),
@@ -113,4 +114,8 @@ export async function GET(req: NextRequest) {
     { parts, stores, carModels: Array.from(carModelsSet).slice(0, 8) },
     { headers: { 'Cache-Control': 'public, max-age=10, s-maxage=30, stale-while-revalidate=60' } },
   )
+  } catch (error) {
+    console.error('Search request failed', error)
+    return NextResponse.json({ error: 'تعذر تنفيذ البحث' }, { status: 500 })
+  }
 }

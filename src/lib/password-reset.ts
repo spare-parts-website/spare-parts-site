@@ -6,15 +6,13 @@ import { applicationOrigin } from '@/lib/application-url'
 import { getTransactionalSender } from '@/lib/email-sender'
 import { isPermanentRecipientStatus, normalizeRecipientEmail } from '@/lib/email-deliverability'
 import { recordEmailDeliveryAttempt } from '@/lib/email-delivery'
+import { getAuthSecret } from '@/lib/security'
 
 export const PASSWORD_RESET_TTL_MS = 30 * 60 * 1000
 export const PASSWORD_RESET_MAX_ATTEMPTS = 5
 
 function resetSecret() {
-  const secret = process.env.AUTH_SECRET
-  if (secret) return secret
-  if (process.env.NODE_ENV === 'production') throw new Error('AUTH_SECRET is required in production')
-  return 'local-development-only-change-me'
+  return getAuthSecret()
 }
 
 function hashToken(id: string, token: string) {

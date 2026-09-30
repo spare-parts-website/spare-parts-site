@@ -4,12 +4,7 @@ import { requireRole } from '@/lib/auth'
 import { audit } from '@/lib/audit'
 import { normalizeMarketplaceBrand, normalizeMarketplaceCategory, normalizeMarketplaceCondition } from '@/lib/marketplace-taxonomy'
 import { parseVehicleCompatibility, serializeLegacyCompatibility } from '@/lib/vehicle-compatibility'
-
-const UPLOAD_URL = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
-
-function validGallery(value: unknown) {
-  return Array.isArray(value) && value.length <= 4 && new Set(value).size === value.length && value.every((url) => typeof url === 'string' && UPLOAD_URL.test(url))
-}
+import { PUBLIC_UPLOAD_URL_PATTERN as UPLOAD_URL, validGallery } from '@/lib/image-policy'
 
 // Block / unblock parts
 export async function PUT(req: NextRequest) {

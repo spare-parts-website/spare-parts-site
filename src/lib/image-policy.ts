@@ -17,3 +17,13 @@ export const IMAGE_PURPOSES: Record<ImagePurpose, { width: number; height: numbe
 export function isImagePurpose(value: unknown): value is ImagePurpose {
   return typeof value === 'string' && value in IMAGE_PURPOSES
 }
+
+export const PUBLIC_UPLOAD_URL_PATTERN = /^https:\/\/[^/]+\.supabase\.co\/storage\/v1\/object\/public\/uploads\/[A-Za-z0-9._-]+$/
+
+export function isValidPublicUploadUrl(value: unknown): value is string {
+  return typeof value === 'string' && PUBLIC_UPLOAD_URL_PATTERN.test(value)
+}
+
+export function validGallery(value: unknown): value is string[] {
+  return Array.isArray(value) && value.length <= 4 && new Set(value).size === value.length && value.every((url) => isValidPublicUploadUrl(url))
+}

@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs'
 import { cookies } from 'next/headers'
 import { createHmac, timingSafeEqual } from 'crypto'
 
+import { getAuthSecret } from './security'
+
 export interface SessionUser {
   id: string
   name: string
@@ -21,12 +23,7 @@ const SESSION_COOKIE = 'spare_parts_session'
 const TOKEN_VERSION = 'v2:'
 
 function getSessionSecret() {
-  const secret = process.env.AUTH_SECRET
-  if (secret) return secret
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('AUTH_SECRET is required in production')
-  }
-  return 'local-development-only-change-me'
+  return getAuthSecret()
 }
 
 function sign(value: string) {

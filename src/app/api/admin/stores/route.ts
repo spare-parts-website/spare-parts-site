@@ -16,12 +16,19 @@ export async function GET() {
       orderBy: { createdAt: 'desc' },
     })
 
-    const storesWithRating = await Promise.all(stores.map(async (store) => {
-      const reviews = await db.storeReview.findMany({ where: { storeId: store.id }, select: { rating: true } })
-      const avgRating = reviews.length
-        ? reviews.reduce((sum, review) => sum + review.rating, 0) / reviews.length
-        : 0
-      return { ...store, avgRating }
+    const storeIds = stores.map((store) => store.id)
+    const reviewAggregates = storeIds.length
+      ? await db.storeReview.groupBy({
+          by: ['storeId'],
+          where: { storeId: { in: storeIds } },
+          _avg: { rating: true },
+        })
+      : []
+    const ratingByStore = new Map(reviewAggregates.map((item) => [item.storeId, item._avg.rating ?? 0]))
+
+    const storesWithRating = stores.map((store) => ({
+      ...store,
+      avgRating: ratingByStore.get(store.id) ?? 0,
     }))
 
     return NextResponse.json({ stores: storesWithRating })

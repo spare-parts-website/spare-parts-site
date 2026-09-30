@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { getSession, requireAuth } from '@/lib/auth'
+import { getSession, requireAuth, requireRole } from '@/lib/auth'
 import { rateLimit, requestAddress } from '@/lib/rate-limit'
 import { createNotification } from '@/lib/notifications'
 
@@ -153,11 +153,4 @@ export async function DELETE(req: NextRequest) {
     console.error(e)
     return NextResponse.json({ error: 'حدث خطأ' }, { status: 500 })
   }
-}
-
-async function requireRole(role: string) {
-  const session = await getSession()
-  if (!session) throw new Error('UNAUTHORIZED')
-  if (session.role !== role) throw new Error('FORBIDDEN')
-  return session
 }

@@ -162,8 +162,24 @@ export async function GET(req: NextRequest) {
 </body>
 </html>`
 
+    const invoiceCsp = [
+      "default-src 'none'",
+      "style-src 'unsafe-inline'",
+      "font-src 'self' data:",
+      "script-src 'unsafe-inline'",
+      "frame-ancestors 'none'",
+      "base-uri 'none'",
+      "form-action 'none'",
+    ].join('; ')
+
     return new Response(html, {
-      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Security-Policy': invoiceCsp,
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'Cache-Control': 'private, no-store, max-age=0',
+      },
     })
   } catch (e: any) {
     if (e.message === 'UNAUTHORIZED') return new Response('Unauthorized', { status: 401 })
